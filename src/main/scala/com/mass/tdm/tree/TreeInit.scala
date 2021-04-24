@@ -6,7 +6,7 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.reflect.ClassTag
 
-import com.mass.sparkdl.Context
+import com.mass.tdm.utils.Context
 import org.apache.spark.sql.functions.udf
 
 // https://github.com/databricks/scala-style-guide/blob/master/README-ZH.md
