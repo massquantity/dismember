@@ -16,23 +16,15 @@ import com.mass.tdm.protobuf.tree.{IdCodePair, IdCodePart, TreeMeta}
 class DistTree extends Serializable {
   import DistTree.{TreeNode, loadData, loadItems}
 
-  val kvData = mutable.HashMap.empty[String, Array[Byte]]
-  val idCodeMap = mutable.HashMap.empty[Long, Long]
-  val allCodes = mutable.HashSet.empty[Long]
-  var initialized: Boolean = false
-  var maxLevel: Int = 0
-  var maxCode: Long = -1
-  var nonLeafOffset: Long = -1
+  private[tdm] var kvData: mutable.HashMap[String, Array[Byte]] = _
+  private var idCodeMap: mutable.HashMap[Int, Int] = _
+  private var allCodes: mutable.BitSet = _   // mutable.HashSet
+  private[tdm] var initialized: Boolean = false
+  private[tdm] var maxLevel: Int = 0
+  private[tdm] var maxCode: Int = -1
+  private var nonLeafOffset: Int = -1
 
-  def multiGet(keys: Array[String]): Array[Array[Byte]] = {
-    keys.map(kvData(_))
-  }
-
-  def multiPut(keys: ArrayBuffer[String], values: ArrayBuffer[Array[Byte]]): Unit = {
-    keys.zip(values) foreach {
-      case (k: String, v: Array[Byte]) => kvData(k) = v
-    }
-  }
+  def getMaxLevel: Int = maxLevel
 
   def init(path: String): Unit = {
     loadData(path, this)
@@ -40,7 +32,7 @@ class DistTree extends Serializable {
   }
 
   @inline
-  def isFiltered(code: Long): Boolean = {
+  def isFiltered(code: Int): Boolean = {
     if (code < 0) return true
     var maxIdx = 0
     var i = 0
@@ -59,9 +51,9 @@ class DistTree extends Serializable {
     true
   }
 
-  def idToCode(itemIds: Array[Long]): Array[Long] = {
+  def idToCode(itemIds: Array[Int]): Array[Int] = {
     require(initialized, "tree hasn't been initialized...")
-    val res = Array.fill[Long](itemIds.length)(-1)
+    val res = Array.fill[Int](itemIds.length)(-1)
     var i = 0
     while (i < itemIds.length) {
       val id = itemIds(i)
@@ -78,11 +70,11 @@ class DistTree extends Serializable {
     res
   }
 
-  def ancestorCodes(code: Long): Array[Long] = {
+  def ancestorCodes(code: Int): Array[Int] = {
     if (code == 0 || isFiltered(code))
-      return Array.emptyLongArray
+      return Array.emptyIntArray
 
-    val res = new ArrayBuffer[Long]()
+    val res = new ArrayBuffer[Int]()
     var _code = code
     while (_code != 0) {
       res += _code
@@ -91,7 +83,7 @@ class DistTree extends Serializable {
     res.toArray
   }
 
-  def getAncestorNodes(itemCodes: Array[Long]): Array[Array[TreeNode]] = {
+  def getAncestorNodes(itemCodes: Array[Int]): Array[Array[TreeNode]] = {
     require(initialized, "tree hasn't been initialized...")
     val res = new Array[Array[TreeNode]](itemCodes.length)
     itemCodes.zipWithIndex.foreach { case (code, i) =>
@@ -104,7 +96,7 @@ class DistTree extends Serializable {
 
 object DistTree {
 
-  case class TreeNode(code: Long, node: Array[Byte])
+  case class TreeNode(code: Int, node: Array[Byte])
 
   def apply(pbFilePath: String): DistTree = {
     val tree = new DistTree
@@ -112,28 +104,38 @@ object DistTree {
     tree
   }
 
-  def loadItems(tree: DistTree): Unit = {
-    val meta: TreeMeta = TreeMeta.parseFrom(tree.kvData("tree_meta"))
-    tree.maxLevel = meta.maxLevel
-    var maxLeafId: Long = -1
+  private def loadItems(tree: DistTree): Unit = {
+    val _kvData = tree.kvData
+    val _idCodeMap = mutable.HashMap.empty[Int, Int]
+    val _allCodes = mutable.BitSet.empty
+    var _maxCode: Int = -1
+    var maxLeafId: Int = -1
+    val meta: TreeMeta = TreeMeta.parseFrom(_kvData("tree_meta"))
+
     meta.idCodePart.foreach { p =>
       val partId = p.toString(encoding)
-      val part = IdCodePart.parseFrom(tree.kvData(partId))
+      val part = IdCodePart.parseFrom(_kvData(partId))
       part.idCodeList.foreach { i =>
-        tree.idCodeMap(i.id) = i.code
-        tree.allCodes += i.code
+        _idCodeMap(i.id) = i.code
+        _allCodes += i.code
         maxLeafId = math.max(maxLeafId, i.id)
-        tree.maxCode = math.max(tree.maxCode, i.code)
+        _maxCode = math.max(_maxCode, i.code)
       }
     }
+
     tree.nonLeafOffset = maxLeafId + 1
     tree.initialized = true
-    println(s"Load successfully, leaf node count: ${tree.idCodeMap.size}, " +
-      s"nonLeafOffset: ${tree.nonLeafOffset}")
+    tree.idCodeMap = _idCodeMap
+    tree.allCodes = _allCodes
+    tree.maxCode = _maxCode
+    tree.maxLevel = meta.maxLevel
+ //   println(s"Load successfully, leaf node count: ${tree.idCodeMap.size}, " +
+ //     s"nonLeafOffset: ${tree.nonLeafOffset}")
   }
 
-  def loadData(path: String, tree: DistTree): Unit = {
+  private def loadData(path: String, tree: DistTree): Unit = {
     val kBatchSize = 500
+    val kvData = mutable.HashMap.empty[String, Array[Byte]]
     val keys = new ArrayBuffer[String]()
     val values = new ArrayBuffer[Array[Byte]]()
     Using(new DataInputStream(new BufferedInputStream(new FileInputStream(path)))) { input =>
@@ -146,7 +148,7 @@ object DistTree {
         keys += item.key.toString(encoding)
         values += item.value.toByteArray
         if (keys.length >= kBatchSize) {
-          tree.multiPut(keys, values)
+          multiPut(kvData, keys, values)
           keys.clear()
           values.clear()
         }
@@ -162,8 +164,9 @@ object DistTree {
     }.get
 
     if (keys.nonEmpty) {
-      tree.multiPut(keys, values)
+      multiPut(kvData, keys, values)
     }
+    tree.kvData = kvData
 
    /*
    val channel = FileChannel.open(Paths.get(path))
@@ -185,5 +188,15 @@ object DistTree {
      }
    }
    */
+  }
+
+  private def multiPut(
+      map: mutable.HashMap[String, Array[Byte]],
+      keys: ArrayBuffer[String],
+      values: ArrayBuffer[Array[Byte]]): Unit = {
+
+    keys.zip(values) foreach {
+      case (k: String, v: Array[Byte]) => map(k) = v
+    }
   }
 }

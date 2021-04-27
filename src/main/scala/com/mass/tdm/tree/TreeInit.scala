@@ -4,13 +4,11 @@ import java.io._
 
 import scala.collection.mutable
 import scala.io.Source
-import scala.reflect.ClassTag
 
 import com.mass.tdm.utils.Context
 import org.apache.spark.sql.functions.udf
 
 // https://github.com/databricks/scala-style-guide/blob/master/README-ZH.md
-// use view
 class TreeInit(seqLen: Int = 10, minSeqLen: Int = 5) extends Context {
   import TreeInit.{InitSample, Item}
 
@@ -32,8 +30,8 @@ class TreeInit(seqLen: Int = 10, minSeqLen: Int = 5) extends Context {
   def readFile(filename: String): InitSample = {
     var categoryDict = Map.empty[String, Int]
     var labelDict = Map.empty[String, Float]
-    val users = new mutable.ArrayBuffer[Long]
-    val items = new mutable.ArrayBuffer[Long]
+    val users = new mutable.ArrayBuffer[Int]
+    val items = new mutable.ArrayBuffer[Int]
     val categories = new mutable.ArrayBuffer[Int]
     val labels = new mutable.ArrayBuffer[Float]
     val timestamp = new mutable.ArrayBuffer[Long]
@@ -44,8 +42,8 @@ class TreeInit(seqLen: Int = 10, minSeqLen: Int = 5) extends Context {
       arr = line.stripMargin.split(",")
       if arr.length == 5 && arr(0) != "user"
     } {
-      users += arr(0).toLong
-      items += arr(1).toLong
+      users += arr(0).toInt
+      items += arr(1).toInt
       timestamp += arr(3).toLong
       if (!labelDict.contains(arr(2))) {
         val size = labelDict.size.toFloat
@@ -68,11 +66,11 @@ class TreeInit(seqLen: Int = 10, minSeqLen: Int = 5) extends Context {
       timestamp.toArray)
   }
 
-  private def userInteracted(trainSample: InitSample): Map[Long, Array[Long]] = {
-    val interactions = mutable.Map.empty[Long, List[(Long, Long)]]
+  private def userInteracted(trainSample: InitSample): Map[Int, Array[Int]] = {
+    val interactions = mutable.Map.empty[Int, List[(Int, Long)]]
     // (user, item, time).zipped
     trainSample.user.zip(trainSample.item).zip(trainSample.timestamp) foreach {
-      case ((u: Long, i: Long), t: Long) =>
+      case ((u: Int, i: Int), t: Long) =>
         interactions(u) = (i, t) :: interactions.getOrElse(u, Nil)
       case _ =>
         throw new IllegalArgumentException
@@ -85,16 +83,16 @@ class TreeInit(seqLen: Int = 10, minSeqLen: Int = 5) extends Context {
   }
 
   private def writeFile(
-      userInteraction: Map[Long, Array[Long]],
+      userInteraction: Map[Int, Array[Int]],
       outputFile: String,
-      statFile: String): Map[Long, Int] = {
+      statFile: String): Map[Int, Int] = {
 
-    val stat = mutable.Map.empty[Long, Int]
+    val stat = mutable.Map.empty[Int, Int]
     val writer = new PrintWriter(new File(outputFile))
     try {
       userInteraction.foreach {
         case (user, items) if items.length >= minSeqLen =>
-            val arr = Array.fill[Long](seqLen - minSeqLen)(0L) ++ items
+            val arr = Array.fill[Int](seqLen - minSeqLen)(0) ++ items
             var ui = 0
             arr.sliding(seqLen) foreach { seq =>
               writer.write(s"${user}_$ui")
@@ -148,15 +146,15 @@ class TreeInit(seqLen: Int = 10, minSeqLen: Int = 5) extends Context {
 
   private[tdm] def initializeTree(
       trainSample: InitSample,
-      stat: Map[Long, Int],
+      stat: Map[Int, Int],
       leafIdFile: String,
       treePbFile: String): Unit = {
 
     // val item_id_set11 = trainSample("User").distinct.toSet[Int]
-    val itemSet = new mutable.HashSet[Long]()
+    val itemSet = new mutable.HashSet[Int]()
     var items = mutable.ArrayBuffer.empty[Item]
     trainSample.item zip trainSample.category foreach {
-      case (item_id: Long, cat_id: Int) =>
+      case (item_id: Int, cat_id: Int) =>
         if (!itemSet.contains(item_id)) {
           itemSet += item_id
           items += Item(item_id, cat_id)
@@ -250,12 +248,12 @@ class TreeInit(seqLen: Int = 10, minSeqLen: Int = 5) extends Context {
 object TreeInit {
 
   case class InitSample(
-    user: Array[Long],
-    item: Array[Long],
+    user: Array[Int],
+    item: Array[Int],
     category: Array[Int],
     label: Array[Float],
     timestamp: Array[Long])
 
-  case class Item(item_id: Long, cat_id: Int, var code: Long = 0)
+  case class Item(item_id: Int, cat_id: Int, var code: Int = 0)
 
 }

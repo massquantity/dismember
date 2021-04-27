@@ -16,11 +16,11 @@ class TreeBuilder(outputPbFile: String, embedFile: Option[String] = None) {
   import TreeBuilder._
 
   def build(
-      treeIds: Array[Long],
-      treeCodes: Array[Long],
+      treeIds: Array[Int],
+      treeCodes: Array[Int],
       treeData: Option[Array[Array[Float]]] = None,
       idOffset: Option[Int] = None,
-      stat: Option[Map[Long, Int]] = None): Unit = {
+      stat: Option[Map[Int, Int]] = None): Unit = {
 
     val offset = idOffset match {
       // case Some(_) => math.max(0, treeIds.max) + 1
@@ -29,8 +29,8 @@ class TreeBuilder(outputPbFile: String, embedFile: Option[String] = None) {
       case None => math.max(0, treeIds.max) + 1
     }
     val index = treeCodes.argSort(inplace = false)  // usage of implicit class
-    val ids: Array[Long] = index.map(treeIds(_))
-    val codes: Array[Long] = index.map(treeCodes(_))
+    val ids: Array[Int] = index.map(treeIds(_))
+    val codes: Array[Int] = index.map(treeCodes(_))
     val embeds: Option[Array[Array[Float]]] = treeData match {
       case Some(d) => Some(index.map(d(_)))
       case None => None
@@ -39,9 +39,9 @@ class TreeBuilder(outputPbFile: String, embedFile: Option[String] = None) {
     flattenLeaves(codes)
     writeEmbed(ids, codes, embeds)
 
-    val pstat: Map[Long, Float] = stat match {
+    val pstat: Map[Int, Float] = stat match {
       case Some(treeStat) =>
-        var tmp = Map.empty[Long, Float]
+        var tmp = Map.empty[Int, Float]
         ids.zip(codes).foreach { case (id, code) =>
           val ancestors = getAncestors(code)
           ancestors foreach { anc =>
@@ -58,7 +58,7 @@ class TreeBuilder(outputPbFile: String, embedFile: Option[String] = None) {
     Using(new BufferedOutputStream(new FileOutputStream(outputPbFile))) { writer =>
       val parts = new mutable.ArrayBuffer[IdCodePart]()
       val tmpItems = new mutable.ArrayBuffer[IdCodePair]()
-      var savedItems = new mutable.HashSet[Long]()
+      val savedItems = new mutable.HashSet[Int]()
       var maxLevel = 0
 
       ids.indices.foreach { i =>
@@ -119,7 +119,7 @@ class TreeBuilder(outputPbFile: String, embedFile: Option[String] = None) {
     }
   }
 
-  def writeEmbed(ids: Array[Long], codes: Array[Long], data: Option[Array[Array[Float]]]): Unit = {
+  def writeEmbed(ids: Array[Int], codes: Array[Int], data: Option[Array[Array[Float]]]): Unit = {
     if (embedFile.isDefined) {
       Using(new BufferedWriter(new FileWriter(embedFile.get))) { writer =>
         ids.indices.foreach { i =>
@@ -168,14 +168,14 @@ object TreeBuilder {
   }
 
   def writeKV(message: KVItem, writer: OutputStream): Unit = {
-    // writer.writeInt(message.serializedSize)  DataOutputstream
+    // writer.writeInt(message.serializedSize),  DataOutputstream
     val bf: ByteBuffer = allocateByteInt(message.serializedSize)
     writer.write(bf.array())
     message.writeTo(writer)
   }
 
-  def getAncestors(code: Long): Vector[Long] = {
-    val ancs = new mutable.ListBuffer[Long]()
+  def getAncestors(code: Int): Vector[Int] = {
+    val ancs = new mutable.ListBuffer[Int]()
     var num = code
     while (num > 0) {
       num = (num - 1) / 2
@@ -184,7 +184,7 @@ object TreeBuilder {
     ancs.toVector
   }
 
-  def makePrefixCode(code: Long): String = {
+  def makePrefixCode(code: Int): String = {
     val prefix = new StringBuilder
     var num = code
     while (num > 0) {
@@ -196,7 +196,7 @@ object TreeBuilder {
   }
 
   // make all leaf nodes in same level
-  def flattenLeaves(codes: Array[Long]): Unit = {
+  def flattenLeaves(codes: Array[Int]): Unit = {
     var minCode = 0
     var maxCode = codes.last
     while (maxCode > 0) {

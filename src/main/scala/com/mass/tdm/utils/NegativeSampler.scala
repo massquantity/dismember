@@ -22,21 +22,32 @@ class NegativeSampler(
   import DistTree._
   require(tree.initialized, "tree hasn't been initialized...")
 
-  var levelProbDistributions: Array[EnumeratedIntegerDistribution] = _
-  var validCodes: Array[Array[Int]] = _
-  var validProbs: Array[Array[Double]] = _
-  val totalLevel: Int = tree.maxLevel
+  private var levelProbDistributions: Array[EnumeratedIntegerDistribution] = _
+  // private var validCodes: Array[Array[Int]] = _
+  // private var validProbs: Array[Array[Double]] = _
+  private val totalLevel: Int = tree.maxLevel
+  private var isParallel: Boolean = false
+
+  // def init(): Unit = {
+  //  if (withProb) {
+  //    validCodes = new Array(totalLevel)
+  //    validProbs = new Array(totalLevel)
+  //    (0 until totalLevel) foreach { level =>
+  //      val (codes, probs) = levelProbs(level)
+  //      validCodes(level) = codes
+  //      validProbs(level) = probs
+  //    }
+  //  }
+  // }
 
   def init(): Unit = {
-    if (withProb) {
-      validCodes = new Array(totalLevel)
-      validProbs = new Array(totalLevel)
-      (0 until totalLevel) foreach { level =>
-        val (codes, probs) = levelProbs(level)
-        validCodes(level) = codes
-        validProbs(level) = probs
-      }
+    levelProbDistributions = new Array[EnumeratedIntegerDistribution](totalLevel)
+    for (level <- 0 until totalLevel) {
+      val generator = new MersenneTwister(System.nanoTime())
+      val (codes, probs) = levelProbs(level)
+      levelProbDistributions(level) = new EnumeratedIntegerDistribution(generator, codes, probs)
     }
+    isParallel = false
   }
 
   def initParallel(): Unit = {
@@ -50,9 +61,10 @@ class NegativeSampler(
         }
       }
     }
+    isParallel = true
   }
 
-  def levelProbs(level: Int): (Array[Int], Array[Double]) = {
+  private def levelProbs(level: Int): (Array[Int], Array[Double]) = {
     val codes = new ArrayBuffer[Int]()
     val probs = new ArrayBuffer[Double]()
     var index = 0
@@ -77,22 +89,23 @@ class NegativeSampler(
    * @return Tuple2(sampled ids, sampled labels)
    */
   def sample(
-      itemIds: Array[Long],
-      threadId: Int): (Array[Long], Array[Float]) = {
+      itemIds: Array[Int],
+      threadId: Int): (Array[Int], Array[Float]) = {
 
     val nItems = itemIds.length
     // positive(one per layer) + negative nums
     val layerSum = negNumPerLayer.length + negNumPerLayer.sum
-    val outputIds = new Array[Long](layerSum * nItems)
+    val outputIds = new Array[Int](layerSum * nItems)
     val labels = new Array[Float](layerSum * nItems)
     val itemCodes = tree.idToCode(itemIds)
     val ancestors: Array[Array[TreeNode]] = tree.getAncestorNodes(itemCodes)
-    val hasSampled = mutable.HashSet.empty[Long]
+    val hasSampled = mutable.HashSet.empty[Int]
+    val tid = if (isParallel) threadId else 0
 
     if (withProb) {
       for (level <- 0 until totalLevel) {
         val seed = NegativeSampler.generateSeed()
-        levelProbDistributions(threadId * totalLevel + level).reseedRandomGenerator(seed)
+        levelProbDistributions(tid * totalLevel + level).reseedRandomGenerator(seed)
       }
     }
 
@@ -118,7 +131,7 @@ class NegativeSampler(
         //  val weightedDist = new EnumeratedIntegerDistribution(generator,
         //    validCodes(level), validProbs(level))
 
-          val weightedDist = levelProbDistributions(threadId * totalLevel + level)
+          val weightedDist = levelProbDistributions(tid * totalLevel + level)
           var t = 0
           val layerTolerance = negNum + tolerance
           // println(s"level $level tolerance: " + layerTolerance)
@@ -133,13 +146,13 @@ class NegativeSampler(
           if (t >= layerTolerance) {
             println(s"level $level exceed tolerance, possible cause is " +
               s"popular items with high sampling probabilities")
-            val levelStart = (math.pow(2, level) - 1).toLong
+            val levelStart = (math.pow(2, level) - 1).toInt
             val levelEnd = levelStart * 2 + 1
             val numRemain = negNum - hasSampled.size
             var k = 0
             while (k < numRemain) {
               // try using maxCode EnumeratedIntegerDistribution
-              val s = ThreadLocalRandom.current.nextLong(levelStart, levelEnd)
+              val s = ThreadLocalRandom.current.nextInt(levelStart, levelEnd)
               if (!tree.isFiltered(s)) {
                 hasSampled += s
                 k += 1
@@ -147,10 +160,10 @@ class NegativeSampler(
             }
           }
         } else {
-          val levelStart = (math.pow(2, level) - 1).toLong
+          val levelStart = (math.pow(2, level) - 1).toInt
           val levelEnd = levelStart * 2 + 1
           while (hasSampled.size < negNum) {
-            val s = ThreadLocalRandom.current.nextLong(levelStart, levelEnd)
+            val s = ThreadLocalRandom.current.nextInt(levelStart, levelEnd)
             if (!hasSampled.contains(s) && s != positiveId && !tree.isFiltered(s)) {
               hasSampled += s
             }
