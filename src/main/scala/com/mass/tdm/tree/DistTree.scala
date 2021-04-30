@@ -29,6 +29,7 @@ class DistTree extends Serializable {
   def init(path: String): Unit = {
     loadData(path, this)
     loadItems(this)
+    initialized = true
   }
 
   @inline
@@ -51,7 +52,7 @@ class DistTree extends Serializable {
     true
   }
 
-  def idToCode(itemIds: Array[Int]): Array[Int] = {
+  def idToCode(itemIds: Seq[Int]): Array[Int] = {
     require(initialized, "tree hasn't been initialized...")
     val res = Array.fill[Int](itemIds.length)(-1)
     var i = 0
@@ -70,25 +71,63 @@ class DistTree extends Serializable {
     res
   }
 
-  def ancestorCodes(code: Int): Array[Int] = {
-    if (code == 0 || isFiltered(code))
-      return Array.emptyIntArray
+  def idToCode(itemId: Int): Int = {
+    if (itemId == 0) {
+      0
+    } else if (itemId < nonLeafOffset && idCodeMap.contains(itemId)) {
+      idCodeMap(itemId)
+    } else {
+      val res = itemId - nonLeafOffset
+      if (res > maxCode) -1 else res
+    }
+  }
 
-    val res = new ArrayBuffer[Int]()
+  /*
+  def ancestorNodes(code: Int): Array[TreeNode] = {
+    if (code == 0 || isFiltered(code))
+      return Array.empty[TreeNode]
+
+    val res = new ArrayBuffer[TreeNode]()
     var _code = code
     while (_code != 0) {
-      res += _code
-      _code = (_code - 1) >>> 1
+      res += TreeNode(_code, kvData(_code.toString))
+      _code = (_code - 1) >> 1
     }
     res.toArray
   }
+   */
 
   def getAncestorNodes(itemCodes: Array[Int]): Array[Array[TreeNode]] = {
-    require(initialized, "tree hasn't been initialized...")
-    val res = new Array[Array[TreeNode]](itemCodes.length)
-    itemCodes.zipWithIndex.foreach { case (code, i) =>
-      val ancCodes = ancestorCodes(code)
-      res(i) = ancCodes.map(ac => TreeNode(ac, kvData(ac.toString)))
+  //  val res = new Array[Array[TreeNode]](itemCodes.length)
+  //  itemCodes.zipWithIndex.foreach { case (code, i) =>
+  //    val ancCodes = ancestorCodes(code)
+  //    res(i) = ancCodes.map(ac => TreeNode(ac, kvData(ac.toString)))
+  //  }
+
+    itemCodes.map(code => {
+      if (code == 0 || isFiltered(code)) {
+        Array.empty[TreeNode]
+      } else {
+        val res = new ArrayBuffer[TreeNode]()
+        var _code = code
+        while (_code != 0) {
+          res += TreeNode(_code, kvData(_code.toString))
+          _code = (_code - 1) >> 1
+        }
+        res.toArray
+      }
+    })
+  }
+
+  def getChildNodes(itemCode: Int): ArrayBuffer[TreeNode] = {
+    val res = ArrayBuffer.empty[TreeNode]
+    val childLeft = 2 * itemCode + 1
+    if (!isFiltered(childLeft)) {
+      res += TreeNode(childLeft, kvData(childLeft.toString))
+    }
+    val childRight = 2 * itemCode + 2
+    if (!isFiltered(childRight)) {
+      res += TreeNode(childRight, kvData(childRight.toString))
     }
     res
   }
@@ -124,7 +163,6 @@ object DistTree {
     }
 
     tree.nonLeafOffset = maxLeafId + 1
-    tree.initialized = true
     tree.idCodeMap = _idCodeMap
     tree.allCodes = _allCodes
     tree.maxCode = _maxCode

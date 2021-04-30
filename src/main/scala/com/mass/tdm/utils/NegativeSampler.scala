@@ -13,7 +13,7 @@ import org.apache.commons.math3.random.MersenneTwister
 
 class NegativeSampler(
     tree: DistTree,
-    negNumPerLayer: Array[Int],
+    layerNegCounts: String,
     withProb: Boolean = true,
     startSampleLayer: Int = -1,
     tolerance: Int = 20,
@@ -22,11 +22,14 @@ class NegativeSampler(
   import DistTree._
   require(tree.initialized, "tree hasn't been initialized...")
 
+  private var negNumPerLayer: Array[Int] = _
+  private var layerSum: Int = -1
   private var levelProbDistributions: Array[EnumeratedIntegerDistribution] = _
   // private var validCodes: Array[Array[Int]] = _
   // private var validProbs: Array[Array[Double]] = _
   private val totalLevel: Int = tree.maxLevel
   private var isParallel: Boolean = false
+  private[tdm] var initialized: Boolean = false
 
   // def init(): Unit = {
   //  if (withProb) {
@@ -47,7 +50,9 @@ class NegativeSampler(
       val (codes, probs) = levelProbs(level)
       levelProbDistributions(level) = new EnumeratedIntegerDistribution(generator, codes, probs)
     }
+    computeSampleUnit()
     isParallel = false
+    initialized = true
   }
 
   def initParallel(): Unit = {
@@ -61,7 +66,21 @@ class NegativeSampler(
         }
       }
     }
+    computeSampleUnit()
     isParallel = true
+    initialized = true
+  }
+
+  private def computeSampleUnit(): Unit = {
+    val _layerNegCounts = layerNegCounts.split(",")
+    require(_layerNegCounts.length >= tree.maxLevel, "Not enough negative sample layers")
+    require(_layerNegCounts.zipWithIndex.forall { case (num, i) =>
+      num.toInt < math.pow(2, i).toInt
+    }, "Num of negative samples must not exceed max numbers in current layer")
+
+    negNumPerLayer = _layerNegCounts.slice(0, tree.maxLevel).map(_.toDouble.toInt)
+    // positive(one per layer) + negative nums
+    layerSum = negNumPerLayer.length + negNumPerLayer.sum
   }
 
   private def levelProbs(level: Int): (Array[Int], Array[Double]) = {
@@ -93,8 +112,6 @@ class NegativeSampler(
       threadId: Int): (Array[Int], Array[Float]) = {
 
     val nItems = itemIds.length
-    // positive(one per layer) + negative nums
-    val layerSum = negNumPerLayer.length + negNumPerLayer.sum
     val outputIds = new Array[Int](layerSum * nItems)
     val labels = new Array[Float](layerSum * nItems)
     val itemCodes = tree.idToCode(itemIds)
