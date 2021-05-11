@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package com.mass.tdm.protobuf;
+
+message KVItem {
+  bytes key = 1;
+  bytes value = 2;
+};
