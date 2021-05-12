@@ -17,6 +17,13 @@
     </properties>
 
     <dependencies>
+
+        <dependency>
+            <groupId>com.github.scopt</groupId>
+            <artifactId>scopt_2.12</artifactId>
+            <version>3.5.0</version>
+        </dependency>
+
         <dependency>
             <groupId>com.mass</groupId>
             <artifactId>sparkdl</artifactId>
@@ -29,7 +36,5 @@
             <version>1.0-SNAPSHOT</version>
         </dependency>
     </dependencies>
-
-
 
 </project>
