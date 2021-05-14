@@ -34,10 +34,7 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
       require(evalFile.isDefined, "couldn't find eval file path...")
     }
 
-    val start = System.nanoTime()
     readFile(dataFile)
-    val end = System.nanoTime()
-    println(f"time: ${(end - start) / 1e9d}")
     if (splitForEval) {
       writeFile(trainFile, mode = "half_train")
       writeFile(evalFile.get, mode = "eval")

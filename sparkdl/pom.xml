@@ -6,7 +6,7 @@
     <parent>
         <artifactId>spark-retrieval</artifactId>
         <groupId>com.mass</groupId>
-        <version>1.0-SNAPSHOT</version>
+        <version>1.0</version>
     </parent>
 
     <artifactId>sparkdl</artifactId>
