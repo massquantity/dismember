@@ -3,8 +3,11 @@ package com.mass.tdm.operator
 import com.mass.tdm.dataset.{MiniBatch, TDMSample}
 import com.mass.tdm.tree.DistTree
 import com.mass.tdm.utils.NegativeSampler
+import org.apache.log4j.Logger
 
 object TDMOp {
+
+  val logger: Logger = Logger.getLogger(getClass)
 
   private var _pbFilePath: String = ""
   private var _layerNegCounts: String = ""
@@ -70,6 +73,8 @@ object TDMOp {
     init(pbFilePath, layerNegCounts, withProb, startSampleLayer, tolerance,
       numThreads, parallelSample)
     require(tree.initialized && sampler.initialized, "not properly initialized yet...")
+    logger.info(s"item num: ${tree.getIds.length}, tree level: ${tree.getMaxLevel}, " +
+      s"generated node number for one target: ${sampler.layerSum}")
   }
 
   def partialApply(pbFilePath: String)(
@@ -84,6 +89,8 @@ object TDMOp {
     init(pbFilePath, layerNegCounts, withProb, startSampleLayer, tolerance,
       numThreads, parallelSample)
     require(tree.initialized && sampler.initialized, "not properly initialized yet...")
+    logger.info(s"item num: ${tree.getIds.length}, tree level: ${tree.getMaxLevel}, " +
+      s"generated node number for one target: ${sampler.layerSum}")
   }
 
   def convert(

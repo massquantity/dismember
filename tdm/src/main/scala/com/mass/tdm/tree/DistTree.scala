@@ -9,6 +9,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Using
 
+import com.mass.sparkdl.utils.{FileReader => DistFileReader}
 import com.mass.tdm.encoding
 import com.mass.tdm.protobuf.store_kv.KVItem
 import com.mass.tdm.protobuf.tree.{IdCodePair, IdCodePart, TreeMeta}
@@ -26,7 +27,7 @@ class DistTree extends Serializable {
 
   def getMaxLevel: Int = maxLevel
 
-  def getIds: Array[Int] = idCodeMap.keys.toArray.sorted
+  def getIds: Array[Int] = idCodeMap.keys.toArray
 
   def getIdCodeMap: mutable.HashMap[Int, Int] = idCodeMap
 
@@ -123,15 +124,15 @@ class DistTree extends Serializable {
     })
   }
 
-  def getChildNodes(itemCode: Int): ArrayBuffer[TreeNode] = {
-    val res = ArrayBuffer.empty[TreeNode]
+  def getChildNodes(itemCode: Int): List[TreeNode] = {
+    var res = List.empty[TreeNode]
     val childLeft = 2 * itemCode + 1
     if (!isFiltered(childLeft)) {
-      res += TreeNode(childLeft, kvData(childLeft.toString))
+      res = TreeNode(childLeft, kvData(childLeft.toString)) :: res
     }
     val childRight = 2 * itemCode + 2
     if (!isFiltered(childRight)) {
-      res += TreeNode(childRight, kvData(childRight.toString))
+      res = TreeNode(childRight, kvData(childRight.toString)) :: res
     }
     res
   }
@@ -180,7 +181,9 @@ object DistTree {
     val kvData = mutable.HashMap.empty[String, Array[Byte]]
     val keys = new ArrayBuffer[String]()
     val values = new ArrayBuffer[Array[Byte]]()
-    Using(new DataInputStream(new BufferedInputStream(new FileInputStream(path)))) { input =>
+    val fileReader = DistFileReader(path)
+    val input = fileReader.open()
+    Using(new DataInputStream(new BufferedInputStream(input))) { input =>
       while (input.available() > 0) {
         val num = input.readInt()
         val buf = new Array[Byte](num)

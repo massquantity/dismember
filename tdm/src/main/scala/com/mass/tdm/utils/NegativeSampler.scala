@@ -23,7 +23,7 @@ class NegativeSampler(
   require(tree.initialized, "tree hasn't been initialized...")
 
   private var negNumPerLayer: Array[Int] = _
-  private var layerSum: Int = -1
+  private[tdm] var layerSum: Int = -1
   private var levelProbDistributions: Array[EnumeratedIntegerDistribution] = _
   // private var validCodes: Array[Array[Int]] = _
   // private var validProbs: Array[Array[Double]] = _

@@ -8,19 +8,22 @@ import scala.collection.mutable
 import scala.util.{Failure, Success, Using}
 
 import com.google.protobuf.ByteString
-import com.mass.tdm.{ArrayExtension, encoding}
+import com.mass.sparkdl.utils.{FileWriter => DistFileWriter}
+import com.mass.tdm.{encoding, ArrayExtension}
 import com.mass.tdm.protobuf.store_kv.KVItem
 import com.mass.tdm.protobuf.tree.{IdCodePair, IdCodePart, Node, TreeMeta}
+import org.apache.log4j.Logger
 
 class TreeBuilder(outputTreePath: String, embedPath: Option[String] = None) {
   import TreeBuilder._
+  val logger: Logger = Logger.getLogger(getClass)
 
   def build(
       treeIds: Array[Int],
       treeCodes: Array[Int],
       treeData: Option[Array[Array[Float]]] = None,
       idOffset: Option[Int] = None,
-      stat: Option[Map[Int, Int]] = None): Unit = {
+      stat: Option[mutable.Map[Int, Int]] = None): Unit = {
 
     val offset = idOffset match {
       // case Some(_) => math.max(0, treeIds.max) + 1
@@ -56,7 +59,9 @@ class TreeBuilder(outputTreePath: String, embedPath: Option[String] = None) {
         Map.empty
     }
 
-    Using(new BufferedOutputStream(new FileOutputStream(outputTreePath))) { writer =>
+    val fileWriter = DistFileWriter(outputTreePath)
+    val output: OutputStream = fileWriter.create(overwrite = true)
+    Using(new BufferedOutputStream(output)) { writer =>
       val parts = new mutable.ArrayBuffer[IdCodePart]()
       val tmpItems = new mutable.ArrayBuffer[IdCodePair]()
       val savedItems = new mutable.HashSet[Int]()
@@ -110,8 +115,13 @@ class TreeBuilder(outputTreePath: String, embedPath: Option[String] = None) {
       val meta = TreeMeta(maxLevel, partIds)
       val metaKV = KVItem(toByteString("tree_meta"), meta.toByteString)
       writeKV(metaKV, writer)
+      logger.info(s"item num: ${ids.length}, tree level: $maxLevel, " +
+        s"leaf code start: ${codes.min}, leaf code end: ${codes.max}")
+
     } match {
       case Success(_) =>
+        output.close()
+        fileWriter.close()
       case Failure(e: FileNotFoundException) =>
         println(s"""file "${embedPath.get}" not found""")
         throw e
@@ -122,15 +132,17 @@ class TreeBuilder(outputTreePath: String, embedPath: Option[String] = None) {
 
   def writeEmbed(ids: Array[Int], codes: Array[Int], data: Option[Array[Array[Float]]]): Unit = {
     if (embedPath.isDefined) {
-      Using(new BufferedWriter(new FileWriter(embedPath.get))) { writer =>
+      val fileWriter = DistFileWriter(outputTreePath)
+      val output: OutputStream = fileWriter.create(overwrite = true)
+      Using(new DataOutputStream(new BufferedOutputStream(output))) { writer =>
         ids.indices.foreach { i =>
-          writer.write(s"${ids(i)}, ${makePrefixCode(codes(i))}")
+          writer.writeBytes(s"${ids(i)}, ${makePrefixCode(codes(i))}")
           data match {
             case Some(embeds) =>
-              embeds(i).foreach(d => writer.write(s", $d"))
+              embeds(i).foreach(d => writer.writeBytes(s", $d"))
             case None =>
           }
-          writer.write("\n")
+          writer.writeBytes("\n")
         }
       } match {
         case Success(_) =>

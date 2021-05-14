@@ -61,7 +61,8 @@ trait Recommender {
         var i = 0
         while (i < nonLeafNodes.length && i < candidateNum) {
           val internalNode = nonLeafNodes(i)
-          childNodes ++= tree.getChildNodes(internalNode.code)
+          val children = tree.getChildNodes(internalNode.code)
+          children.foreach(c => childNodes += c)
           i += 1
         }
 
@@ -89,7 +90,7 @@ object Recommender {
 
   case class TreeNodePred(code: Int, rawNode: Array[Byte], pred: Float)
 
-  private def duplicateSequence(sequence: Seq[Int], candidate: ArrayBuffer[TreeNode]): Tensor[Int] = {
+  private def duplicateSequence(sequence: Array[Int], candidate: ArrayBuffer[TreeNode]): Tensor[Int] = {
     val seqLen = sequence.length
     val newLen = seqLen + 1
     val canLen = candidate.length

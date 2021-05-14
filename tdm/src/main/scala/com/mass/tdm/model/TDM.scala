@@ -3,24 +3,13 @@ package com.mass.tdm.model
 import scala.math.Ordering
 
 import com.mass.sparkdl.Module
-import com.mass.sparkdl.nn.{Add, BCECriterionWithLogits, FM, Graph, Linear, LookupTable, Reshape}
-import com.mass.sparkdl.optim.Adam
+import com.mass.sparkdl.nn.{Add, FM, Graph, Linear, LookupTable, Reshape}
 import com.mass.sparkdl.tensor.Tensor
-import com.mass.tdm.dataset.LocalDataSet
-import com.mass.tdm.optim.LocalOptimizer
 import com.mass.tdm.operator.TDMOp
-import com.mass.tdm.tree.DistTree
 import com.mass.tdm.utils.Serialization
 import com.mass.tdm.utils.Serialization.{saveEmbeddings, saveModel => sersaveModel}
 
-class TDM(
-  //  numIndex: Int,
-    featSeqLen: Int,
-    val embedSize: Int
-  //  lr: Double,
-  //  numIteration: Int,
-  //  progressInterval: Int = 1
-    ) extends Serializable with Recommender {
+class TDM(featSeqLen: Int, val embedSize: Int) extends Serializable with Recommender {
 
   private[this] var dlModel: Module[Float] = _
   // @transient private[this] var tdmTree: DistTree = TDMOp.tree
@@ -50,23 +39,6 @@ class TDM(
     dlModel = Graph[Float](embedding, add)
     this
   }
-
-  /*
-  def fit(dataset: LocalDataSet): this.type = {
-    val optimMethod = new LocalOptimizer(
-      model = dlModel,
-      dataset = dataset,
-      criterion = BCECriterionWithLogits(),
-      optimMethod = Adam(learningRate = lr),
-      numIteration = numIteration,
-      progressInterval = progressInterval,
-      topk = topk,
-      candidateNum = candidateNum
-    )
-    optimMethod.optimize()
-    this
-  }
-  */
 
   def predict(sequence: Array[Int], target: Int): Double = {
     val tensor = Tensor(TDMOp.tree.idToCode(sequence ++ Seq(target)),
