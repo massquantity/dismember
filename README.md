@@ -55,7 +55,8 @@ $ java -cp examples-1.0-jar-with-dependencies.jar \
     com.mass.retrieval.tdm.InitializeTree \
     --tdmConfFile Spark-Retrieval/configs/tdm_local.conf
     
-$ scala -cp examples-1.0-SNAPSHOT-jar-with-dependencies.jar \
+$ scala -optimize \
+		-cp examples-1.0-jar-with-dependencies.jar \
     com.mass.retrieval.tdm.InitializeTree \
     --tdmConfFile Spark-Retrieval/configs/tdm_local.conf
 ```
@@ -76,7 +77,8 @@ $ java -cp examples-1.0-jar-with-dependencies.jar \
     com.mass.retrieval.tdm.TrainLocal \
     --tdmConfFile Spark-Retrieval/configs/tdm_local.conf
     
-$ scala -cp examples-1.0-jar-with-dependencies.jar \
+$ scala -optimize \
+		-cp examples-1.0-jar-with-dependencies.jar \
     com.mass.retrieval.tdm.TrainLocal \
     --tdmConfFile Spark-Retrieval/configs/tdm_local.conf
 ```
@@ -97,7 +99,8 @@ $ java -cp examples-1.0-jar-with-dependencies.jar \
     com.mass.retrieval.tdm.ClusterTree \
     --tdmConfFile Spark-Retrieval/configs/tdm_local.conf
     
-$ scala -cp examples-1.0-jar-with-dependencies.jar \
+$ scala -optimize \
+		-cp examples-1.0-jar-with-dependencies.jar \
     com.mass.retrieval.tdm.ClusterTree \
     --tdmConfFile Spark-Retrieval/configs/tdm_local.conf
 ```
@@ -116,7 +119,7 @@ Finally the fourth step is retraining the deep model, and this is the same as th
 
 ## Configuration
 
-The descriptions of parameters in `conf` file are listed in Configuration doc.
+The descriptions of parameters in `conf` file are listed in [Configuration doc](https://github.com/massquantity/Spark-Retrieval/blob/main/doc/configuration.md).
 
 
 
