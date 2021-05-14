@@ -73,7 +73,7 @@ class ThreadPool(_poolSize: Int) {
     (1 to poolSize) map { _ => Future {
         MKL.setNumThreads(size)
         val tid = Thread.currentThread().getId
-        logger.info(s"Set mkl threads to $size on thread $tid")
+       // logger.info(s"Set mkl threads to $size on thread $tid")
       }(context)
     } foreach (Await.result(_, Duration.Inf))
     this

@@ -4,12 +4,13 @@ trait TDMSample extends Serializable {
 
   val sequence: Array[Int]
 
-  val target: Int = -1
+  val target: Int
 
-  val labels: Array[Int] = null
+  val labels: Array[Int]
 }
 
 case class TDMTrainSample(sequence: Array[Int], override val target: Int) extends TDMSample {
+  override val labels: Array[Int] = null
 
   override def toString: String = {
     s"seq: ${sequence.mkString("Array(", ", ", ")")} | " +
@@ -18,7 +19,7 @@ case class TDMTrainSample(sequence: Array[Int], override val target: Int) extend
 }
 
 case class TDMEvalSample(sequence: Array[Int], override val labels: Array[Int]) extends TDMSample {
-  // override val target: Int = labels.head
+  override val target: Int = labels.head
 
   override def toString: String = {
     s"seq: ${sequence.mkString("Array(", ", ", ")")} | " +
@@ -26,22 +27,3 @@ case class TDMEvalSample(sequence: Array[Int], override val labels: Array[Int]) 
       s"labels: ${if (labels == null) "null" else labels.mkString("Array(", ", ", ")")}"
   }
 }
-
-/*
-case class TDMSample[@specialized(Int, Long) T](sequence: Array[T], target: T) extends Serializable {
-  override def toString: String = {
-    s"seq: ${sequence.mkString(" ")} | " +
-    s"target: $target"
-  }
-}
-
-case class TDMEvalSample[@specialized(Int, Long) T](override val sequence: Array[T], labels: Array[T])
-    extends TDMSample(sequence, labels.head) {
-  override def toString: String = {
-    s"seq: ${sequence.mkString(" ")} | " +
-    s"target: $target | " +
-    s"labels: ${if (labels == null) "null" else labels.mkString("Array(", ", ", ")")}"
-  }
-}
-*/
-// case class TDMSample[T](sequence: Array[Int], feature: Array[T], target: Int, label: Float)

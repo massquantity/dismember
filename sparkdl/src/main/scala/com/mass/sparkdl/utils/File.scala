@@ -8,6 +8,7 @@ import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream, FileSystem, 
 import org.apache.hadoop.io.IOUtils
 
 object File {
+
   private[sparkdl] val hdfsPrefix: String = "hdfs:"
 
   def save(obj: Serializable, fileName: String, isOverwrite: Boolean): Unit = {
@@ -148,7 +149,7 @@ object File {
 
 }
 
-private[sparkdl] class FileReader(fileName: String) {
+class FileReader(fileName: String) {
   private var inputStream: InputStream = _
   private val conf = File.getConfiguration(fileName)
   private val path = new Path(fileName)
@@ -167,12 +168,12 @@ private[sparkdl] class FileReader(fileName: String) {
 }
 
 object FileReader {
-  private[sparkdl] def apply(fileName: String): FileReader = {
+  def apply(fileName: String): FileReader = {
     new FileReader(fileName)
   }
 }
 
-private[sparkdl] class FileWriter(fileName: String) {
+class FileWriter(fileName: String) {
   private var outputStream: OutputStream = _
   private val conf = File.getConfiguration(fileName)
   private val path = new Path(fileName)
@@ -193,7 +194,7 @@ private[sparkdl] class FileWriter(fileName: String) {
 }
 
 object FileWriter {
-  private[sparkdl] def apply(fileName: String): FileWriter = {
+  def apply(fileName: String): FileWriter = {
     new FileWriter(fileName)
   }
 }

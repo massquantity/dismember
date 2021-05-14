@@ -26,7 +26,7 @@ class EvalResult (
     f"{eval loss: ${loss / count}%.4f, " +
     f"precision: ${precision / count}%.6f, " +
     f"recall: ${recall / count}%.6f, " +
-    f"ndcg: ${ndcg / count}%.6f"
+    f"ndcg: ${ndcg / count}%.6f}"
   }
 
 }

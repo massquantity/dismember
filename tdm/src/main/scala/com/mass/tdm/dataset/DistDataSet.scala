@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import com.mass.sparkdl.dataset.DataUtil
 import com.mass.sparkdl.utils.Engine
 import com.mass.tdm.operator.TDMOp
+import org.apache.log4j.Logger
 import org.apache.spark.{SparkContext, SparkFiles}
 import org.apache.spark.rdd.RDD
 
@@ -24,6 +25,8 @@ class DistDataSet(
     miniBatch: Option[RDD[MiniBatch]] = None,
     delimiter: String = ",",
     concat: Boolean = true) {
+
+  val logger: Logger = Logger.getLogger(getClass)
 
   private val batchSizePerNode = DataUtil.getBatchSize(totalBatchSize, partitionNum)
   private val evalBatchSizePerNode = DataUtil.getBatchSize(totalEvalBatchSize, partitionNum)
@@ -60,8 +63,8 @@ class DistDataSet(
   def readRDD(sc: SparkContext, dataPath: String, pbFilePath: String,
       evalPath: Option[String] = None): Unit = {
 
-    require(Files.exists(Paths.get(dataPath)), s"$dataPath doesn't exist")
-    require(Files.exists(Paths.get(pbFilePath)), s"$pbFilePath doesn't exist")
+  //  require(Files.exists(Paths.get(dataPath)), s"$dataPath doesn't exist")
+  //  require(Files.exists(Paths.get(pbFilePath)), s"$pbFilePath doesn't exist")
 
     val _partitionNum = partitionNum.getOrElse(Engine.nodeNumber())
     val _delimiter = delimiter
@@ -88,7 +91,9 @@ class DistDataSet(
       val localParams = (layerNegCounts, withProb, startSampleLayer,
         tolerance, numThreadsPerNode, parallelSample, concat)
       // initialize tree on driver
-      TDMOp.initTree(pbFilePath)
+      val pbPath = SparkFiles.get(pbFilePath.split("/").last)
+      logger.info("pbFilePath: " + pbPath)
+      TDMOp.initTree(pbPath)
 
       miniBatchBuffer = dataBuffer.mapPartitions(dataIter => {
         val localData = dataIter.next()
@@ -110,7 +115,7 @@ class DistDataSet(
   }
 
   def readEvalRDD(sc: SparkContext, evalPath: String): Unit = {
-    require(Files.exists(Paths.get(evalPath)), s"$evalPath doesn't exist")
+  //  require(Files.exists(Paths.get(evalPath)), s"$evalPath doesn't exist")
     val _partitionNum = partitionNum.getOrElse(Engine.nodeNumber())
     val _delimiter = delimiter
     val _seqLen = seqLen

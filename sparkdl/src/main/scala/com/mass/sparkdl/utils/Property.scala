@@ -1,9 +1,8 @@
 package com.mass.sparkdl.utils
 
-import java.io.InputStream
 import java.nio.file.{Files, Paths}
 
-import scala.collection.mutable
+import scala.jdk.CollectionConverters.asScalaBufferConverter
 
 import com.mass.sparkdl.{getScalaVersion, getSparkVersion}
 import org.apache.log4j.Logger
@@ -16,23 +15,41 @@ object Property {
   def readConf(
       path: String,
       prefix: String,
-      truncate: Boolean = true): mutable.LinkedHashMap[String, String] = {
+      truncate: Boolean = true,
+      print: Boolean): Map[String, String] = {
 
-    val stream: InputStream = getClass.getResourceAsStream(path)
-    val lines = scala.io.Source.fromInputStream(stream)
+    val fileSource = path match {
+      case "fromResource" =>
+        logger.info("Using config file from resources...")
+        scala.io.Source.fromInputStream(getClass.getResourceAsStream("/tdm.conf"))
+      case _ =>
+        logger.info("Using user defined config file...")
+        require(fileExists(path), s"Config file $path doesn't exist")
+        scala.io.Source.fromFile(path)
+    }
+
+    val lines = fileSource
       .getLines
       .toSeq
       .filter(_.startsWith(prefix))
       .map(_.trim.split("\\s+"))
       .filter(_.length == 2)
-      //  require(line.length == 2, s"""missing value in "${line.mkString}"""")
       .map(line => {
         val key = if (truncate) line(0).substring(prefix.length + 1) else line(0)
         val value = line(1)
         (key, value)
       })
 
-    mutable.LinkedHashMap[String, String](lines: _*)
+  //  val lines = Files.readAllLines(Paths.get(_path)).asScala
+
+    if (print) {
+      println(s"${"=" * 36} $prefix configs ${"=" * 38}")
+      lines.foreach(i => println(s"${i._1} = ${i._2}"))
+      println()
+    }
+
+    // mutable.LinkedHashMap[String, String](lines: _*)
+    Map[String, String](lines: _*)
   }
 
   def createSparkConf(conf: Map[String, String], existingConf: Option[SparkConf] = None): SparkConf = {
@@ -45,8 +62,7 @@ object Property {
   }
 
   def configLocal(conf: Map[String, String]): Unit = {
-    logger.info(s"Scala version: $getScalaVersion. " +
-      "Detected localMode. Run workload without spark")
+    logger.info(s"Scala version: $getScalaVersion, Spark version: $getSparkVersion.")
     val nodeNum = 1
     val coreNum = getCoreNumber(conf("thread_number").toInt)
     logger.info(s"Total thread num: $coreNum")
@@ -54,8 +70,7 @@ object Property {
   }
 
   def configDist(conf: Map[String, String]): SparkContext = {
-    logger.info(s"Scala version: $getScalaVersion, Spark version: $getSparkVersion. " +
-      s"Using spark mode")
+    logger.info(s"Scala version: $getScalaVersion, Spark version: $getSparkVersion.")
     val sc = new SparkContext(createSparkConf(conf))
     val (nExecutor, executorCores) = sparkExecutorAndCore().get
     logger.info(s"Executor number: $nExecutor, executor cores number: $executorCores")
@@ -133,7 +148,7 @@ object Property {
       s"failed to read parameter: $key in conf file"))
   }
 
-  def exists(path: String): Boolean = {
+  def fileExists(path: String): Boolean = {
     Files.exists(Paths.get(path))
   }
 

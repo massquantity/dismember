@@ -7,7 +7,6 @@ import com.mass.sparkdl.Module
 import com.mass.sparkdl.optim.DistriOptimizer.Cache
 import com.mass.sparkdl.parameters.AllReduceParameter
 import com.mass.sparkdl.tensor.TensorNumeric
-import com.mass.sparkdl.utils.Engine
 
 abstract class AbstractOptimizer {
 

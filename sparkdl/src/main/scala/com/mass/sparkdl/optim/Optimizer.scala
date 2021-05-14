@@ -19,7 +19,7 @@ abstract class Optimizer[T: ClassTag, D](
 
   protected var dropPercentage: Double = 0.0
   protected var maxDropPercentage: Double = 0.0
-  protected var computeThresholdbatchSize: Int = 100
+  protected var computeThresholdBatchSize: Int = 100
   protected var warmupIterationNum: Int = 200
 
   def optimize(): Module[T]

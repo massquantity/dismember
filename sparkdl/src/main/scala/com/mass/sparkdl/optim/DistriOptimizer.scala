@@ -108,7 +108,7 @@ object DistriOptimizer extends AbstractOptimizer {
     var iteration = 0
     val dropPercentage = state.get[Double]("dropPercentage").get
     val warmupIterationNum = state.get[Int]("warmupIterationNum").get
-    val computeThresholdbatchSize = state.get[Int]("computeThresholdbatchSize").get
+    val computeThresholdbatchSize = state.get[Int]("computeThresholdBatchSize").get
     val maxDropPercentage = state.get[Double]("maxDropPercentage").get
     val driverSubModelNum = partitionNum * _subModelNumber
     var dropModelNumBatch = 0
@@ -312,7 +312,7 @@ object DistriOptimizer extends AbstractOptimizer {
     val modelBroadcast = ModelBroadcast[T]().broadcast(sc, convertedModel)
     val _subModelNumber = coresPerNode
 
-    val computeThresholdbatchSize = state.get[Int]("computeThresholdbatchSize").get
+    val computeThresholdbatchSize = state.get[Int]("computeThresholdBatchSize").get
     val nExecutor = Engine.nodeNumber()
     val executorCores = Engine.coreNumber()
 
@@ -437,7 +437,7 @@ class DistriOptimizer[T: ClassTag](
 
     state("dropPercentage") = dropPercentage
     state("warmupIterationNum") = warmupIterationNum
-    state("computeThresholdbatchSize") = computeThresholdbatchSize
+    state("computeThresholdBatchSize") = computeThresholdBatchSize
     state("maxDropPercentage") = maxDropPercentage
 
     val nodeNumber = Engine.nodeNumber()

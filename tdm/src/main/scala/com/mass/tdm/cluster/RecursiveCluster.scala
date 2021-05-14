@@ -27,7 +27,7 @@ class RecursiveCluster(
   private var ids: Array[Int] = _
   private var codes: Array[Int] = _
   private var embeddings: Array[Array[Double]] = _
-  private var stat: Option[Map[Int, Int]] = None
+  private var stat: Option[mutable.Map[Int, Int]] = None
   require(threshold >= 4, "threshold should be no less than 4")
 
   def getCodes: Array[Int] = codes
@@ -93,7 +93,7 @@ class RecursiveCluster(
           case Failure(e: Throwable) =>
             throw e
         }
-        stat = Some(Map.empty ++ _stat)
+        stat = Some(_stat)
       case None =>
     }
   }

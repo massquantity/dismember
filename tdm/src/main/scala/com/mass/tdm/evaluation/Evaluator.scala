@@ -4,7 +4,7 @@ import com.mass.sparkdl.{Criterion, Module}
 import com.mass.sparkdl.parameters.AllReduceParameter
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.utils.{Engine, Table}
-import com.mass.tdm.dataset.{DistDataSet, LocalDataSet, MiniBatch, TDMSample}
+import com.mass.tdm.dataset.{DistDataSet, LocalDataSet, TDMSample}
 import com.mass.tdm.evaluation.Metrics.computeMetrics
 import com.mass.tdm.model.Recommender
 import com.mass.tdm.operator.TDMOp

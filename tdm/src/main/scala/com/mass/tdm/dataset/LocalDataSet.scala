@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import scala.collection.mutable.ArrayBuffer
 
+import com.mass.sparkdl.utils.{FileReader => DistFileReader}
 import com.mass.sparkdl.dataset.DataUtil
 import com.mass.tdm.encoding
 import com.mass.tdm.operator.TDMOp
@@ -34,11 +35,13 @@ class LocalDataSet(
   private[tdm] var evaluateDuringTraining = evaluate
 
   def readFile(dataPath: String, pbFilePath: String, evalPath: Option[String] = None): Unit = {
-    require(Files.exists(Paths.get(dataPath)), s"$dataPath doesn't exist")
-    require(Files.exists(Paths.get(pbFilePath)), s"$pbFilePath doesn't exist")
+  //  require(Files.exists(Paths.get(dataPath)), s"$dataPath doesn't exist")
+  //  require(Files.exists(Paths.get(pbFilePath)), s"$pbFilePath doesn't exist")
 
     val buffer = new ArrayBuffer[TDMSample]()
-    val fileInput = scala.io.Source.fromFile(dataPath, encoding.name())
+    val fileReader = DistFileReader(dataPath)
+    val input = fileReader.open()
+    val fileInput = scala.io.Source.fromInputStream(input, encoding.name())
     for {
       line <- fileInput.getLines
       arr = line.trim.split(delimiter)
@@ -50,6 +53,9 @@ class LocalDataSet(
       buffer += sample
     }
 
+    fileInput.close()
+    input.close()
+    fileReader.close()
     dataBuffer = buffer.toArray
 
     if (null == miniBatchBuffer) {
@@ -67,19 +73,24 @@ class LocalDataSet(
   }
 
   def readEvalFile(evalPath: String): Unit = {
-    require(Files.exists(Paths.get(evalPath)), s"$evalPath doesn't exist")
+  //  require(Files.exists(Paths.get(evalPath)), s"$evalPath doesn't exist")
     val buffer = new ArrayBuffer[TDMEvalSample]()
-    val fileInput = scala.io.Source.fromFile(evalPath, encoding.name())
+    val fileReader = DistFileReader(evalPath)
+    val input = fileReader.open()
+    val fileInput = scala.io.Source.fromInputStream(input, encoding.name())
     for {
       line <- fileInput.getLines
       arr = line.trim.split(delimiter)
       seqItems = arr.slice(1, seqLen).map(_.toInt)
-      targets = arr.slice(seqLen, arr.length).map(_.toInt)
+      labels = arr.slice(seqLen, arr.length).map(_.toInt)
     } {
-      val sample = TDMEvalSample(seqItems, targets)
+      val sample = TDMEvalSample(seqItems, labels)
       buffer += sample
     }
 
+    fileInput.close()
+    input.close()
+    fileReader.close()
     evalDataBuffer = buffer.toArray
 
     if (null == evalMiniBatchBuffer ) {

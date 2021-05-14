@@ -9,8 +9,8 @@ import org.apache.commons.lang3.SerializationUtils
 trait OptimMethod[@specialized(Float, Double) T] extends Serializable {
 
   var state: Table = T(
-    "epoch" -> 1,
-    "trainIter" -> 1)
+    "epoch" -> 0,
+    "trainIter" -> 0)
 
   def optimize(feval: Tensor[T] => (T, Tensor[T]), parameter: Tensor[T]): (Tensor[T], Array[T])
 
