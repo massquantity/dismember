@@ -7,7 +7,7 @@ import com.mass.sparkdl.{Criterion, Module}
 import com.mass.sparkdl.optim.{OptimMethod, Trigger}
 import com.mass.sparkdl.parameters.AllReduceParameter
 import com.mass.sparkdl.tensor.Tensor
-import com.mass.sparkdl.utils.{CachedModels, Engine, ModelBroadcast, T, Table, Util}
+import com.mass.sparkdl.utils.{CachedModels, Engine, ModelBroadcast, T, Table}
 import com.mass.tdm.dataset.{DistDataSet, MiniBatch, TDMSample}
 import com.mass.tdm.evaluation.Evaluator
 import com.mass.tdm.optim.OptimUtil._

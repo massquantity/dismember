@@ -1,6 +1,6 @@
 package com.mass.tdm.operator
 
-import com.mass.tdm.dataset.{MiniBatch, TDMSample}
+import com.mass.tdm.dataset.TDMSample
 import com.mass.tdm.tree.DistTree
 import com.mass.tdm.utils.NegativeSampler
 import org.apache.log4j.Logger

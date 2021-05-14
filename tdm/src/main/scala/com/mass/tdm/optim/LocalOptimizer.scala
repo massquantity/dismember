@@ -4,10 +4,9 @@ import com.mass.sparkdl.{Criterion, Module}
 import com.mass.sparkdl.optim.{OptimMethod, Trigger}
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.utils.{Engine, T, Table, Util}
-import com.mass.tdm.dataset.{LocalDataSet, MiniBatch, TDMDataSet}
+import com.mass.tdm.dataset.{LocalDataSet, MiniBatch}
 import com.mass.tdm.evaluation.Evaluator
-import com.mass.tdm.model.TDM
-import org.apache.log4j.{Level, Logger}
+import org.apache.log4j.Logger
 
 class LocalOptimizer(
     model: Module[Float],

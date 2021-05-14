@@ -56,7 +56,7 @@ $ java -cp examples-1.0-jar-with-dependencies.jar \
     --tdmConfFile Spark-Retrieval/configs/tdm_local.conf
     
 $ scala -optimize \
-		-cp examples-1.0-jar-with-dependencies.jar \
+    -cp examples-1.0-jar-with-dependencies.jar \
     com.mass.retrieval.tdm.InitializeTree \
     --tdmConfFile Spark-Retrieval/configs/tdm_local.conf
 ```
@@ -78,7 +78,7 @@ $ java -cp examples-1.0-jar-with-dependencies.jar \
     --tdmConfFile Spark-Retrieval/configs/tdm_local.conf
     
 $ scala -optimize \
-		-cp examples-1.0-jar-with-dependencies.jar \
+    -cp examples-1.0-jar-with-dependencies.jar \
     com.mass.retrieval.tdm.TrainLocal \
     --tdmConfFile Spark-Retrieval/configs/tdm_local.conf
 ```
@@ -100,7 +100,7 @@ $ java -cp examples-1.0-jar-with-dependencies.jar \
     --tdmConfFile Spark-Retrieval/configs/tdm_local.conf
     
 $ scala -optimize \
-		-cp examples-1.0-jar-with-dependencies.jar \
+    -cp examples-1.0-jar-with-dependencies.jar \
     com.mass.retrieval.tdm.ClusterTree \
     --tdmConfFile Spark-Retrieval/configs/tdm_local.conf
 ```
