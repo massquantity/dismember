@@ -62,10 +62,8 @@ object DenseTensorBLAS {
       }
     }
 
-    val start = System.nanoTime()
     ev.gemm(transa, transb, m, n, k, alpha, a, aOffset, _lda, b, bOffset, _ldb,
       beta, c, cOffset, _ldc)
-    time += (System.nanoTime() - start)
   }
 
   /**
@@ -94,10 +92,8 @@ object DenseTensorBLAS {
       yOffset: Int,
       incy: Int)(implicit ev: TensorNumeric[T]): Unit = {
 
-    val start = System.nanoTime()
     ev.gemv(trans, m, n, alpha, a, aOffset, lda, x, xOffset, incx, beta, y,
       yOffset, incy)
-    time += (System.nanoTime() - start)
   }
 
   /**
@@ -123,8 +119,6 @@ object DenseTensorBLAS {
       aOffset: Int,
       lda: Int)(implicit ev: TensorNumeric[T]): Unit = {
 
-    val start = System.nanoTime()
     ev.ger(m, n, alpha, x, xOffset, incx, y, yOffset, incy, a, aOffset, lda)
-    time += (System.nanoTime() - start)
   }
 }

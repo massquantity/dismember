@@ -178,6 +178,7 @@ class FileWriter(fileName: String) {
   private val conf = File.getConfiguration(fileName)
   private val path = new Path(fileName)
   private val fs: FileSystem = path.getFileSystem(conf)
+  fs.setWriteChecksum(false)
 
   def create(overwrite: Boolean = false): OutputStream = {
     if (!overwrite) {

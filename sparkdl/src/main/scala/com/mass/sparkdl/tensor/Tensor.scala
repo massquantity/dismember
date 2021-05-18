@@ -172,8 +172,6 @@ object SparseType extends TensorType
 object MklDnnType extends TensorType
 
 object Tensor {
-  MKL.isMKLLoaded
-  val START_INDEX = 1  // index begins from 1, not 0
 
   def apply[@specialized(Float, Double) T: ClassTag]()(
     implicit ev: TensorNumeric[T]): Tensor[T] = new DenseTensor[T]()
@@ -231,7 +229,7 @@ object Tensor {
   def randn[@specialized(Float, Double) T: ClassTag](
       sizes: Array[Int],
       mean: Double,
-      stdv: Double,
+      stdev: Double,
       seed: Long = System.nanoTime())(
       implicit ev: TensorNumeric[T]): Tensor[T] = {
 
@@ -243,7 +241,7 @@ object Tensor {
     val data = res.storage().array()
     val offset = res.storageOffset()
     while (i < total) {
-      data(offset + i) = ev.fromType(generator.nextGaussian(mean, stdv))
+      data(offset + i) = ev.fromType(generator.nextGaussian(mean, stdev))
       i += 1
     }
     res

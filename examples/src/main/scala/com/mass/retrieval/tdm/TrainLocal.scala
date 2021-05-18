@@ -72,13 +72,18 @@ object TrainLocal {
   }
 
   def recommend(tdmModel: TDM): Unit = {
-    import com.mass.tdm.utils.Utils.time
     val sequence = Array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
-    time(println(tdmModel.recommend(sequence, 3).mkString("Array(", ", ", ")")), "recommend")
-    time(println(tdmModel.recommend(sequence, 3).mkString("Array(", ", ", ")")), "recommend")
-    time(println(tdmModel.recommend(sequence, 3).mkString("Array(", ", ", ")")), "recommend")
-    time(println(tdmModel.recommend(sequence, 3).mkString("Array(", ", ", ")")), "recommend")
-    time(println(tdmModel.recommend(sequence, 3).mkString("Array(", ", ", ")")), "recommend")
-    time(println(tdmModel.recommend(sequence, 3).mkString("Array(", ", ", ")")), "recommend")
+    println("recommendation result: " +
+      tdmModel.recommend(sequence, 3).mkString("Array(", ", ", ")"))
+    (1 to 10).foreach(_ => tdmModel.recommend(sequence, topk = 10, candidateNum = 20))
+
+    val start = System.nanoTime()
+    var i = 0
+    while (i < 100) {
+      tdmModel.recommend(sequence, topk = 10, candidateNum = 20)
+      i += 1
+    }
+    val end = System.nanoTime()
+    println(f"average recommend time: ${(end - start) * 10 / 1e9d}%.4fms")
   }
 }

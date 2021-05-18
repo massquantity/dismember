@@ -2,8 +2,7 @@ package com.mass
 
 import scala.language.implicitConversions
 
-import com.mass.sparkdl.nn.abstractnn.{AbstractModule, Activity, TensorModule}
-import com.mass.sparkdl.tensor.Tensor
+import com.mass.sparkdl.nn.abstractnn.{AbstractModule, Activity}
 
 package object sparkdl {
 
