@@ -7,8 +7,10 @@ import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
 
 class CrossEntropyCriterion[T: ClassTag](val sizeAverage: Boolean = true)(
     implicit ev: TensorNumeric[T]) extends AbstractCriterion[T] {
+
   private val logSoftMax = new LogSoftMax[T]()
-  private val crossEntropy = new ClassNLLCriterion[T](sizeAverage = sizeAverage, logProbAsInput = true)
+  private val crossEntropy = new ClassNLLCriterion[T](
+    sizeAverage = sizeAverage, logProbAsInput = true)
 
   override def updateOutput(input: Tensor[T], target: Tensor[T]): T = {
     logSoftMax.updateOutput(input)

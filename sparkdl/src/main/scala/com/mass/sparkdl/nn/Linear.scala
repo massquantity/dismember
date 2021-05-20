@@ -2,7 +2,7 @@ package com.mass.sparkdl.nn
 
 import scala.reflect.ClassTag
 
-import com.mass.sparkdl.nn.abstractnn.{AbstractModule, TensorModule}
+import com.mass.sparkdl.nn.abstractnn.TensorModule
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
 
 class Linear[T: ClassTag](

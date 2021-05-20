@@ -13,12 +13,12 @@ import com.mass.tdm.tree.TreeBuilder
 import org.apache.log4j.{Level, Logger}
 import smile.clustering.{KMeans, PartitionClustering}
 
-// todo: spectral clustering
+// todo: first spectral clustering, then Kmeans
 class RecursiveCluster(
     parallel: Boolean = false,
     numThreads: Int = 1,
     delimiter: String = ",",
-    threshold: Int = 1024,
+    threshold: Int = 256,
     clusterIterNum: Int = 10) {
 
   import RecursiveCluster._

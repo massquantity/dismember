@@ -33,7 +33,7 @@ class LogSoftMax[T: ClassTag](implicit ev: TensorNumeric[T]) extends TensorModul
       }
       Engine.model.sync(results)
     }
-    println(output.storage().array().mkString(" "))
+
     output
   }
 

@@ -5,7 +5,8 @@ import scala.reflect.ClassTag
 import com.mass.sparkdl.nn.abstractnn.TensorModule
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
 
-// -1 means infer one dim's shape, also assume first dim is batch size, thus excluded.
+// -1 means inferring shape of one dimension,
+// also assumes first dimension is batch size, thus excluded.
 class Reshape[T: ClassTag](val size: Array[Int])(
     implicit ev: TensorNumeric[T]) extends TensorModule[T] {
 
@@ -19,7 +20,7 @@ class Reshape[T: ClassTag](val size: Array[Int])(
     if (size.contains(-1)) {
       val totalSize = inputSize.product
       val concreteSize = size.filter(_ != -1).product
-      require(totalSize  % concreteSize == 0, "size doesn't match")
+      require(totalSize % concreteSize == 0, "size doesn't match")
       val index = size.indexOf(-1) + 1
       newSize(index) = totalSize / concreteSize
     } else {
