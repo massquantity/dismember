@@ -9,7 +9,7 @@ import scala.reflect.ClassTag
 
 import com.mass.sparkdl.{Criterion, Module}
 import com.mass.sparkdl.dataset.{DistributedDataSet, MiniBatch}
-import com.mass.sparkdl.nn.Module
+import com.mass.sparkdl.nn.mixin.Module
 import com.mass.sparkdl.parameters.AllReduceParameter
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
 import com.mass.sparkdl.utils._

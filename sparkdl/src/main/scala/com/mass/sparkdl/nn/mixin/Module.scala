@@ -1,4 +1,4 @@
-package com.mass.sparkdl.nn
+package com.mass.sparkdl.nn.mixin
 
 import scala.reflect.ClassTag
 
