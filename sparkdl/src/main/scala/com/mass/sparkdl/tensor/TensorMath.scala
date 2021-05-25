@@ -12,6 +12,8 @@ trait TensorMath[T] {
 
   def addmm(v: T, mat1: Tensor[T], mat2: Tensor[T]): Tensor[T]
 
+  def bmm(beta: T, alpha: T, mat1: Tensor[T], mat2: Tensor[T]): Tensor[T]
+
   def addr(v: T, vec1: Tensor[T], vec2: Tensor[T]): Tensor[T]
 
   def mul(value: T): Tensor[T]
@@ -62,7 +64,5 @@ trait TensorMath[T] {
   def sum(dim: Int): Tensor[T]
 
   def max(): T
-
-  // def range(xmin: Double, xmax: Double, step: Int = 1): Tensor[T]
 
 }

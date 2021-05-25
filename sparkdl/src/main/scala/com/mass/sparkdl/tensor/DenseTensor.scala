@@ -87,14 +87,14 @@ private[tensor] class DenseTensor[@specialized T: ClassTag](
   override def size(): Array[Int] = _size
 
   override def size(dim: Int): Int = {
-    require(dim >= 0 && dim < nDimension, "dimension out of range")
+    require(dim >= 0 && dim < nDimension, "dimension out of arange")
     _size(dim)
   }
 
   override def stride(): Array[Int] = _stride
 
   override def stride(dim: Int): Int = {
-    require(dim >= 0 && dim < nDimension, "dimension out of range")
+    require(dim >= 0 && dim < nDimension, "dimension out of arange")
     _stride(dim)
   }
 
@@ -162,8 +162,8 @@ private[tensor] class DenseTensor[@specialized T: ClassTag](
   }
 
   override def transpose(dim1: Int, dim2: Int): Tensor[T] = {
-    require(dim1 >= 0 && dim2 < nDimension, "dim1 out of range")
-    require(dim2 >= 0 && dim2 < nDimension, "dim2 out of range")
+    require(dim1 >= 0 && dim2 < nDimension, "dim1 out of arange")
+    require(dim2 >= 0 && dim2 < nDimension, "dim2 out of arange")
     val newTensor = DenseTensor.newWithTensor(this)
     if (dim1 != dim2) {
       var tmp = newTensor._stride(dim1)
@@ -185,7 +185,7 @@ private[tensor] class DenseTensor[@specialized T: ClassTag](
     var _index = index
     val dim_size = this._size(0)
     if (_index < 0) _index = dim_size + _index
-    require(_index >= 0 && _index < dim_size, "index out of range")
+    require(_index >= 0 && _index < dim_size, "index out of arange")
     val result = DenseTensor.newWithTensor(this)
     DenseTensor.select(result, null, 0, _index)
     result
@@ -251,7 +251,7 @@ private[tensor] class DenseTensor[@specialized T: ClassTag](
     require(this.nDimension > 0, "empty tensor")
     var _index = index
     if (_index < 0) _index = this._size(0) + _index
-    require(_index >= 0 && _index < this._size(0), "out of range")
+    require(_index >= 0 && _index < this._size(0), "out of arange")
     if (this.nDimension == 1) {
       this._storage(_storageOffset + _index * _stride(0)) = value
     } else {
@@ -318,10 +318,19 @@ private[tensor] class DenseTensor[@specialized T: ClassTag](
     }
   }
 
+  override def resize(size1: Int, size2: Int, size3: Int): Tensor[T] = {
+    if (this.nDimension != 3 || this.size(0) != size1 || this.size(1) != size2 ||
+        this.size(2) != size3) {
+      DenseTensor.resize(this, Array(size1, size2, size3))
+    } else {
+      this
+    }
+  }
+
   override def unfold(dim: Int, size: Int, step: Int): Tensor[T] = {
     require(this.nDimension > 0, "cannot unfold an empty tensor")
-    require(dim >= 0 && dim < this.nDimension, "out of range")
-    require(size <= this.size(dim), "out of range")
+    require(dim >= 0 && dim < this.nDimension, "out of arange")
+    require(size <= this.size(dim), "out of arange")
     require(step > 0, "invalid step")
 
     val newSize = new Array[Int](this.nDimension + 1)
@@ -499,6 +508,10 @@ private[tensor] class DenseTensor[@specialized T: ClassTag](
 
   override def addmm(v: T, mat1: Tensor[T], mat2: Tensor[T]): Tensor[T] = {
     DenseTensorMath.addmm[T](this, ev.fromType[Int](1), this, v, mat1, mat2)
+  }
+
+  override def bmm(beta: T, alpha: T, mat1: Tensor[T], mat2: Tensor[T]): Tensor[T] = {
+    DenseTensorMath.bmm(this, beta, this, alpha, mat1, mat2)
   }
 
   override def addr(v: T, vec1: Tensor[T], vec2: Tensor[T]): Tensor[T] = {
@@ -683,7 +696,7 @@ object DenseTensor {
   }
 
   private[tensor] def squeeze[@specialized(Float, Double) T](self: DenseTensor[T], _dim: Int): Tensor[T] = {
-    require(_dim >= 0 && _dim < self.nDimension, "dimension out of range")
+    require(_dim >= 0 && _dim < self.nDimension, "dimension out of arange")
     if (self._size(_dim) == 1 && self.nDimension > 1) {
       var d = _dim
       while (d < self.nDimension - 1) {
@@ -868,7 +881,7 @@ object DenseTensor {
 
     val newSize = totalSize + self._storageOffset
     if (newSize > 0) {
-      if (self._storage == null ) {
+      if (self._storage == null) {
         self._storage = new ArrayStorage(new Array[T](newSize))
       } else if (newSize > self._storage.length) {
         self._storage.resize(newSize)

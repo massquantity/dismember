@@ -88,6 +88,8 @@ trait Tensor[T] extends Serializable with TensorMath[T] with Activity {
 
   def resize(size1: Int, size2: Int): Tensor[T]
 
+  def resize(size1: Int, size2: Int, size3: Int): Tensor[T]
+
   def unfold(dim: Int, size: Int, step: Int): Tensor[T]
 
   def repeatTensor(sizes: Array[Int]): Tensor[T]
@@ -219,11 +221,11 @@ object Tensor {
   def apply[@specialized(Float, Double) T: ClassTag](other: Tensor[T])(
     implicit ev: TensorNumeric[T]): Tensor[T] = new DenseTensor(other)
 
-  def range[@specialized(Float, Double) T: ClassTag](xmin: Double, xmax: Double, step: Int = 1)(
+  def arange[@specialized(Float, Double) T: ClassTag](xmin: Double, xmax: Double, step: Int = 1)(
       implicit ev: TensorNumeric[T]): Tensor[T] = {
     val size = math.floor((xmax - xmin) / step).toInt.abs
     Tensor((xmin until xmax by step).map(ev.fromType(_)).toArray, Array(size))
-    // DenseTensor.range[T](xmin, xmax, step)
+    // DenseTensor.arange[T](xmin, xmax, step)
   }
 
   def randn[@specialized(Float, Double) T: ClassTag](

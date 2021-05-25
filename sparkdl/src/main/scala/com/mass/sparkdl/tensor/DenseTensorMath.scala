@@ -33,9 +33,8 @@ object DenseTensorMath {
     // To get m x n size in final result, we first swap m and n.
 
     // override equals
-    if (r != t) {
-      r.resizeAs(t)
-      r.copy(t)
+    if (!r.eq(t)) {
+      r.resizeAs(t).copy(t)
     }
 
     val m = m2.size(1)
@@ -130,7 +129,7 @@ object DenseTensorMath {
       r.resizeAs(t).copy(t)
     }
 
-    if (beta != 1) {
+    if (beta != ev.one) {
       r.mul(beta)
     }
 
@@ -155,6 +154,28 @@ object DenseTensorMath {
       r.copy(cr)
     }
     r
+  }
+
+  def bmm[@specialized(Float, Double) T: ClassTag](result: Tensor[T], beta: T, M: Tensor[T],
+      alpha: T, batch1: Tensor[T], batch2: Tensor[T])(implicit ev: TensorNumeric[T]): Tensor[T] = {
+    require(batch1.dim() == 3, s"expected 3D tensor, got ${batch1.dim()}D")
+    require(batch2.dim() == 3, s"expected 3D tensor, got ${batch2.dim()}D")
+
+    if (!result.eq(M)) {
+      result.resizeAs(M).copy(M)
+    }
+
+    val batchSize = batch1.size(0)
+    var i = 0
+    while (i < batchSize) {
+      val m1 = batch1.select(0, i)
+      val m2 = batch2.select(0, i)
+      val resultM = result.select(0, i)
+      addmm(resultM, beta, resultM, alpha, m1, m2)
+      i += 1
+    }
+
+    result
   }
 
   def cadd[@specialized(Float, Double) T](self: DenseTensor[T], x: Tensor[T], value: T,
@@ -229,7 +250,7 @@ object DenseTensorMath {
 
   def sum[@specialized T: ClassTag](self: DenseTensor[T], x: Tensor[T], _dim: Int)(
       implicit ev: TensorNumeric[T]): Tensor[T] = {
-    require(_dim >= 0 && _dim < x.nDimension, s"dimension ${_dim} out of range")
+    require(_dim >= 0 && _dim < x.nDimension, s"dimension ${_dim} out of arange")
     val result = if (self == null) new DenseTensor[T]() else self
     val sizes = x.size().clone()  // copy size, because will modify later
     sizes(_dim) = 1

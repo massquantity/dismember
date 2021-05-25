@@ -23,6 +23,8 @@ trait TensorNumeric[@specialized(Float, Double) T] extends Serializable {
 
   def max(x: T, y: T): T
 
+  def exp(x: T): T
+
   def log(x: T): T
 
   def inv(v: T): T
@@ -112,6 +114,8 @@ object TensorNumeric {
     override def divide(x: Float, y: Float): Float = x / y
 
     override def max(x: Float, y: Float): Float = java.lang.Math.max(x, y)
+
+    override def exp(x: Float): Float = java.lang.Math.exp(x).toFloat
 
     override def log(x: Float): Float = java.lang.Math.log(x).toFloat
 
@@ -283,6 +287,8 @@ object TensorNumeric {
 
     override def max(x: Double, y: Double): Double = java.lang.Math.max(x, y)
 
+    override def exp(x: Double): Double = java.lang.Math.exp(x)
+
     override def log(x: Double): Double = java.lang.Math.log(x)
 
     override def inv(v: Double): Double = 1 / v
@@ -451,6 +457,8 @@ object TensorNumeric {
 
     override def max(x: Int, y: Int): Int = java.lang.Math.max(x, y)
 
+    override def exp(x: Int): Int = java.lang.Math.exp(x).toInt
+
     override def log(x: Int): Int = java.lang.Math.log(x).toInt
 
     override def inv(v: Int): Int = 1 / v
@@ -526,6 +534,8 @@ object TensorNumeric {
     override def divide(x: Long, y: Long): Long = x / y
 
     override def max(x: Long, y: Long): Long = java.lang.Math.max(x, y)
+
+    override def exp(x: Long): Long = java.lang.Math.exp(x).toLong
 
     override def log(x: Long): Long = java.lang.Math.log(x).toLong
 

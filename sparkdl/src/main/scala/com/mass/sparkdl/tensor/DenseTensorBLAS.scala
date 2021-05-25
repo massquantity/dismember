@@ -1,7 +1,5 @@
 package com.mass.sparkdl.tensor
 
-
-
 object DenseTensorBLAS {
   var time = 0L
 
