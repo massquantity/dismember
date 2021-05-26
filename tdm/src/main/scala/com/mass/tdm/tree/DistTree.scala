@@ -1,9 +1,6 @@
 package com.mass.tdm.tree
 
 import java.io._
-import java.nio.channels.FileChannel
-import java.nio.charset.Charset
-import java.nio.file.Paths
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -24,6 +21,8 @@ class DistTree extends Serializable {
   private[tdm] var maxLevel: Int = 0
   private[tdm] var maxCode: Int = -1
   private var nonLeafOffset: Int = -1
+
+  private val paddingId: Int = 0  // padded original item id
 
   def getMaxLevel: Int = maxLevel
 
@@ -57,14 +56,15 @@ class DistTree extends Serializable {
     true
   }
 
+  // paddingIndex = -1, paddingId = 0
   def idToCode(itemIds: Array[Int]): Array[Int] = {
     require(initialized, "tree hasn't been initialized...")
-    val res = Array.fill[Int](itemIds.length)(-1)
+    val res = new Array[Int](itemIds.length)
     var i = 0
     while (i < itemIds.length) {
       val id = itemIds(i)
-      if (id == 0) {
-        res(i) = 0
+      if (id == paddingId) {
+        res(i) = -1
       } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
         res(i) = idCodeMap(id)
       } else {
@@ -76,39 +76,27 @@ class DistTree extends Serializable {
     res
   }
 
-  def idToCode(itemId: Int): Int = {
-    if (itemId == 0) {
-      0
-    } else if (itemId < nonLeafOffset && idCodeMap.contains(itemId)) {
-      idCodeMap(itemId)
-    } else {
-      val res = itemId - nonLeafOffset
-      if (res > maxCode) -1 else res
+  def idToCodeWithMask(itemIds: Array[Int]): (Array[Int], ArrayBuffer[Int]) = {
+    val mask = new ArrayBuffer[Int]()
+    val res = new Array[Int](itemIds.length)
+    var i = 0
+    while (i < itemIds.length) {
+      val id = itemIds(i)
+      if (id == paddingId) {
+        res(i) = -1
+        mask += i
+      } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
+        res(i) = idCodeMap(id)
+      } else {
+        res(i) = id - nonLeafOffset
+        if (res(i) > maxCode) res(i) = -1
+      }
+      i += 1
     }
+    (res, mask)
   }
-
-  /*
-  def ancestorNodes(code: Int): Array[TreeNode] = {
-    if (code == 0 || isFiltered(code))
-      return Array.empty[TreeNode]
-
-    val res = new ArrayBuffer[TreeNode]()
-    var _code = code
-    while (_code != 0) {
-      res += TreeNode(_code, kvData(_code.toString))
-      _code = (_code - 1) >> 1
-    }
-    res.toArray
-  }
-   */
 
   def getAncestorNodes(itemCodes: Array[Int]): Array[Array[TreeNode]] = {
-  //  val res = new Array[Array[TreeNode]](itemCodes.length)
-  //  itemCodes.zipWithIndex.foreach { case (code, i) =>
-  //    val ancCodes = ancestorCodes(code)
-  //    res(i) = ancCodes.map(ac => TreeNode(ac, kvData(ac.toString)))
-  //  }
-
     itemCodes.map(code => {
       if (code == 0 || isFiltered(code)) {
         Array.empty[TreeNode]
