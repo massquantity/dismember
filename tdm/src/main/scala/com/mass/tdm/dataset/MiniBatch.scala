@@ -1,6 +1,8 @@
 package com.mass.tdm.dataset
 
+import com.mass.sparkdl.nn.abstractnn.Activity
 import com.mass.sparkdl.tensor.Tensor
+import com.mass.sparkdl.utils.T
 import com.mass.tdm.operator.TDMOp
 
 class MiniBatch(
@@ -8,9 +10,11 @@ class MiniBatch(
     batchSize: Int,
     val seqLen: Int,
     val originalDataSize: Int,
-    layerNegCounts: String) extends Serializable {
+    layerNegCounts: String,
+    concat: Boolean) extends Serializable {
 
-  @transient private var features: Array[Tensor[Int]] = _
+  @transient private var features: Tensor[Int] = _
+  // @transient private var featuresGroup: Seq[Tensor[Int]] = _
   @transient private var labels: Tensor[Float] = _
   private var offset: Int = -1
   private var length: Int = -1
@@ -45,33 +49,46 @@ class MiniBatch(
       data: Array[TDMSample],
       threadOffset: Int,
       threadLen: Int,
-      threadId: Int): (Array[Tensor[Int]], Tensor[Float]) = {
+      threadId: Int): (Activity, Tensor[Float]) = {
+
     val (features, labels) = TDMOp.convert(data, threadOffset, threadLen,
-      threadId, sampledNodesNumPerTarget, seqLen)
-    val featureShape = Array(threadLen * sampledNodesNumPerTarget, seqLen)
+      threadId, sampledNodesNumPerTarget, seqLen, concat)
+    val itemSeqShape = Array(threadLen * sampledNodesNumPerTarget, seqLen)
     val labelShape = Array(threadLen * sampledNodesNumPerTarget)
-    (Array(Tensor(features, featureShape)), Tensor(labels, labelShape))
+
+    if (concat) {
+      val itemSeqs = features.head
+      (Tensor(itemSeqs, itemSeqShape), Tensor(labels, labelShape))
+    } else {
+      val Seq(targetItems, itemSeqs, masks) = features
+      val itemShape = Array(threadLen * sampledNodesNumPerTarget, 1)
+      val maskShape = Array(masks.length)
+      val convertedTable = T(Tensor(targetItems, itemShape),
+        Tensor(itemSeqs, itemSeqShape), Tensor(masks, maskShape))
+      (convertedTable, Tensor(labels, labelShape))
+    }
   }
 
   def convertAll(data: Array[TDMSample]): this.type = {
+    require(concat, "Attention mode only support parallel sampling")
     val (_features, _labels) = TDMOp.convert(data, offset, length, 0,
-      sampledNodesNumPerTarget, seqLen)
-    val featureShape = Array(length * sampledNodesNumPerTarget, seqLen)
+      sampledNodesNumPerTarget, seqLen, concat)
+    val itemSeqShape = Array(length * sampledNodesNumPerTarget, seqLen)
     val labelShape = Array(length * sampledNodesNumPerTarget)
-    this.features = Array(Tensor(_features, featureShape))
+    this.features = Tensor(_features.head, itemSeqShape)
     this.labels = Tensor(_labels, labelShape)
     this
   }
 
-  def slice(offset: Int, length: Int): (Array[Tensor[Int]], Tensor[Float]) = {
-    (Array(features.head.narrow(0, offset, length)), labels.narrow(0, offset, length))
+  def slice(offset: Int, length: Int): (Tensor[Int], Tensor[Float]) = {
+    (features.narrow(0, offset, length), labels.narrow(0, offset, length))
   }
 
   def getOffset: Int = offset
 
   def getLength: Int = length
 
-  def getFeatures: Array[Tensor[Int]] = features
+  def getFeatures: Tensor[Int] = features
 
   def getLabels: Tensor[Float] = labels
 

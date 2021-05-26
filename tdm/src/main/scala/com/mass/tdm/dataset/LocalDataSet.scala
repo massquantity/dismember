@@ -60,9 +60,9 @@ class LocalDataSet(
 
     if (null == miniBatchBuffer) {
       TDMOp(pbFilePath, layerNegCounts, withProb, startSampleLayer,
-        tolerance, numThreads, parallelSample, concat)
-      miniBatchBuffer = new MiniBatch(
-        batchSize, seqLen, dataBuffer.length, layerNegCounts)
+        tolerance, numThreads, parallelSample)
+      miniBatchBuffer = new MiniBatch(batchSize, seqLen,
+        dataBuffer.length, layerNegCounts, concat)
     }
 
     if (evaluateDuringTraining) {
@@ -74,6 +74,7 @@ class LocalDataSet(
 
   def readEvalFile(evalPath: String): Unit = {
   //  require(Files.exists(Paths.get(evalPath)), s"$evalPath doesn't exist")
+    val _seqLen = if (concat) seqLen else seqLen + 1
     val buffer = new ArrayBuffer[TDMEvalSample]()
     val fileReader = DistFileReader(evalPath)
     val input = fileReader.open()
@@ -81,8 +82,8 @@ class LocalDataSet(
     for {
       line <- fileInput.getLines
       arr = line.trim.split(delimiter)
-      seqItems = arr.slice(1, seqLen).map(_.toInt)
-      labels = arr.slice(seqLen, arr.length).map(_.toInt)
+      seqItems = arr.slice(1, _seqLen).map(_.toInt)
+      labels = arr.slice(_seqLen, arr.length).map(_.toInt)
     } {
       val sample = TDMEvalSample(seqItems, labels)
       buffer += sample
@@ -94,8 +95,8 @@ class LocalDataSet(
     evalDataBuffer = buffer.toArray
 
     if (null == evalMiniBatchBuffer ) {
-      evalMiniBatchBuffer = new MiniBatch(
-        evalBatchSize, seqLen, evalDataBuffer.length, layerNegCounts)
+      evalMiniBatchBuffer = new MiniBatch(evalBatchSize, seqLen,
+        evalDataBuffer.length, layerNegCounts, concat)
     }
   }
 

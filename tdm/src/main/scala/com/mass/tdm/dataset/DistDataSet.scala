@@ -88,8 +88,9 @@ class DistDataSet(
       val _batchSize = batchSizePerNode
       val _seqLen = seqLen
       val _layerNegCounts = layerNegCounts
+      val _concat = concat
       val localParams = (layerNegCounts, withProb, startSampleLayer,
-        tolerance, numThreadsPerNode, parallelSample, concat)
+        tolerance, numThreadsPerNode, parallelSample)
       // initialize tree on driver
       val pbPath = SparkFiles.get(pbFilePath.split("/").last)
       logger.info("pbFilePath: " + pbPath)
@@ -102,7 +103,7 @@ class DistDataSet(
         TDMOp.partialApply(pbPath) _ tupled localParams
         // val localTDM = TDMOp.apply _ tupled localParams
         val localMiniBatch = new MiniBatch(_batchSize, _seqLen,
-          localData.length, _layerNegCounts)
+          localData.length, _layerNegCounts, _concat)
         Iterator.single(localMiniBatch)
       }).setName("miniBatchBuffer").cache()
     }
@@ -118,7 +119,7 @@ class DistDataSet(
   //  require(Files.exists(Paths.get(evalPath)), s"$evalPath doesn't exist")
     val _partitionNum = partitionNum.getOrElse(Engine.nodeNumber())
     val _delimiter = delimiter
-    val _seqLen = seqLen
+    val _seqLen = if (concat) seqLen else seqLen + 1
     evalDataBuffer = sc.textFile(evalPath, _partitionNum)
       .map(data => {
         val line = data.trim.split(_delimiter)
@@ -135,10 +136,11 @@ class DistDataSet(
       val _batchSize = evalBatchSizePerNode
       val _seqLen = seqLen
       val _layerNegCounts = layerNegCounts
+      val _concat = concat
       evalMiniBatchBuffer = evalDataBuffer.mapPartitions(dataIter => {
         val localData = dataIter.next()
         val localMiniBatch = new MiniBatch(_batchSize, _seqLen,
-          localData.length, _layerNegCounts)
+          localData.length, _layerNegCounts, _concat)
         Iterator.single(localMiniBatch)
       }).setName("eval miniBatchBuffer").cache()
     }
