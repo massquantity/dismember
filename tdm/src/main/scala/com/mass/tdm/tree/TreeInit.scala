@@ -116,8 +116,7 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
   private def writeFile(filePath: String, mode: String): Unit = {
     val fileWriter: DistFileWriter = DistFileWriter(filePath)
     val output: OutputStream = fileWriter.create(overwrite = true)
-    val writer = new DataOutputStream(new BufferedOutputStream(output))
-    //  new BufferedWriter(new PrintWriter(new File(filePath)))
+    val writer = new PrintWriter(output, true)
 
     try {
       mode match {
@@ -228,14 +227,13 @@ object TreeInit extends Context {
 
   // write seqLen + 1 items (sequence + target)
   private def writeTrain(
-    writer: DataOutputStream,
-    userInteraction: Map[Int, Array[Int]],
-    userConsumed: mutable.HashMap[Int, Array[Int]],
-    seqLen: Int,
-    minSeqLen: Int,
-    stat: mutable.HashMap[Int, Int]): Unit = {
+      writer: PrintWriter,
+      userInteraction: Map[Int, Array[Int]],
+      userConsumed: mutable.HashMap[Int, Array[Int]],
+      seqLen: Int,
+      minSeqLen: Int,
+      stat: mutable.HashMap[Int, Int]): Unit = {
 
-    val sb = new StringBuilder
     userInteraction.foreach {
       case (user, items) =>
         userConsumed(user) = items
@@ -243,12 +241,9 @@ object TreeInit extends Context {
           val arr = Array.fill[Int](seqLen - minSeqLen)(0) ++ items
           var ui = 0
           arr.sliding(seqLen + 1) foreach { seq =>
-            sb ++= s"${user}_$ui,"
-         //   seq.foreach(i => sb ++= s",$i") // if (i != 0)
-            sb ++= seq.mkString(",")
-            writer.writeBytes(sb.toString())
-            writer.write('\n')
-            sb.clear()
+            writer.write(s"${user}_$ui,")
+         //   seq.foreach(i => writer.write(s",$i"))
+            writer.println(seq.mkString(","))  // if (i != 0)
 
             val targetItem = seq.last
             stat(targetItem) = stat.getOrElse(targetItem, 0) + 1
@@ -259,7 +254,7 @@ object TreeInit extends Context {
   }
 
   private def writeEither(
-      writer: DataOutputStream,
+      writer: PrintWriter,
       userInteraction: Map[Int, Array[Int]],
       userConsumed: mutable.HashMap[Int, Array[Int]],
       seqLen: Int,
@@ -273,6 +268,7 @@ object TreeInit extends Context {
       val items = userInteraction(user)
       if (train && items.length <= minSeqLen) {
         userConsumed(user) = items
+
       } else if (train && items.length > minSeqLen) {
         val arr = Array.fill[Int](seqLen - minSeqLen)(0) ++ items
         val trainNum = math.ceil((items.length - minSeqLen) * splitRatio).toInt
@@ -284,17 +280,15 @@ object TreeInit extends Context {
 
         var i = 0
         while (i < trainNum) {
-          sb ++= s"user_${user}_$i"
+          writer.write(s"user_${user}_$i")
         //  sb ++= arr.slice(i, i + seqLen + 1).mkString(",")
           var s = i
           val end = i + seqLen + 1
           while (s < end) {
-            sb ++= s",${arr(s)}"
+            writer.write(s",${arr(s)}")
             s += 1
           }
-          writer.writeBytes(sb.toString())
-          writer.write('\n')
-          sb.clear()
+          writer.println()
 
           val targetItem = arr(i + seqLen)
           stat(targetItem) = stat.getOrElse(targetItem, 0) + 1
@@ -313,7 +307,7 @@ object TreeInit extends Context {
         while (i < arr.length) {
           if (i < seqEnd) {
             sb ++= s",${arr(i)}"
-          } else if (!consumed.contains(arr(i))) {
+          } else if (!consumed.contains(arr(i))) {  // remove items appeared in train data
             hasNew = true
             sb ++= s",${arr(i)}"
           }
@@ -321,8 +315,7 @@ object TreeInit extends Context {
         }
 
         if (hasNew) {
-          writer.writeBytes(sb.toString())
-          writer.write('\n')
+          writer.println(sb.toString())
         }
         sb.clear()
       }
@@ -330,25 +323,25 @@ object TreeInit extends Context {
   }
 
   private def writeStat(
-      writer: DataOutputStream,
+      writer: PrintWriter,
       stat: mutable.HashMap[Int, Int]): Unit = {
 
     stat foreach {
       case (user, count) =>
-        writer.writeBytes(s"$user, $count\n")
+        writer.println(s"$user, $count")
       case _ =>
     }
   }
 
   private def writeUserConsumed(
-      writer: DataOutputStream,
+      writer: PrintWriter,
       userConsumed: mutable.Map[Int, Array[Int]]): Unit = {
 
     userConsumed foreach {
       case (user, items) =>
-        writer.writeBytes(s"user_$user")
-        items.foreach(i => writer.writeBytes(s",$i"))
-        writer.write('\n')
+        writer.write(s"user_$user")
+        items.foreach(i => writer.write(s",$i"))
+        writer.println()
       case _ =>
     }
   }
