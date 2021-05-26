@@ -23,7 +23,8 @@ class DistOptimizer(
     numIteration: Int,
     progressInterval: Int,
     topk: Int,
-    candidateNum: Int) {
+    candidateNum: Int,
+    concat: Boolean) {
 
   private val state: Table = T()
   private val endWhen: Trigger = Trigger.maxIteration(numIteration, "trainIter")
@@ -73,7 +74,7 @@ class DistOptimizer(
     modelBroadcast = broadcastModels
 
     DistOptimizer.optimizeImpl(model, dataset, coresPerNode, endWhen, cachedModelsRDD,
-      optimMethod, allReduceParameter, progressInterval, topk, candidateNum)
+      optimMethod, allReduceParameter, progressInterval, topk, candidateNum, concat)
 
     DistOptimizer.getModel(cachedModelsRDD, allReduceParameter, model)
 
@@ -169,7 +170,8 @@ object DistOptimizer {
       parameters: AllReduceParameter[Float],
       progressInterval: Int,
       topk: Int,
-      candidateNum: Int): Unit = {
+      candidateNum: Int,
+      concat: Boolean): Unit = {
 
     val sc = dataset.originalRDD().sparkContext
     val partitionNum = dataset.originalRDD().getNumPartitions
@@ -250,12 +252,12 @@ object DistOptimizer {
 
       if (progressInterval > 0 && driverState[Int]("trainIter") % progressInterval == 0) {
         reportProgress(dataset, models, parameters, topk, candidateNum,
-          driverState, recordsProcessedThisEpoch, iterationTime, epochTime, lossMean)
+          driverState, recordsProcessedThisEpoch, iterationTime, epochTime, lossMean, concat)
       }
 
       if (recordsProcessedThisEpoch >= numSamples) {
         reportProgress(dataset, models, parameters, topk, candidateNum,
-          driverState, recordsProcessedThisEpoch, iterationTime, epochTime, lossMean)
+          driverState, recordsProcessedThisEpoch, iterationTime, epochTime, lossMean, concat)
 
         driverState("epoch") = driverState[Int]("epoch") + 1
         dataset.shuffle()
@@ -345,7 +347,8 @@ object DistOptimizer {
       dataCount: Long,
       iterationTime: Long,
       epochTime: Long,
-      trainLoss: Double): Unit = {
+      trainLoss: Double,
+      concat: Boolean): Unit = {
 
     val progressInfo = new StringBuilder
     progressInfo ++= f"Epoch ${state[Int]("epoch") + 1} train time: ${epochTime / 1e9d}%.4fs, "
@@ -356,7 +359,7 @@ object DistOptimizer {
     if (dataset.evaluateDuringTraining) {
       require(dataset.parallelSampling, "must use parallel sampling in train data when evaluating")
       val evalStart = System.nanoTime()
-      val evalResult = Evaluator.evaluateRDD(models, dataset, parameters, topk, candidateNum, state)
+      val evalResult = Evaluator.evaluateRDD(models, dataset, parameters, topk, candidateNum, state, concat)
       val evalEnd = System.nanoTime()
       progressInfo ++= f"\teval time: ${(evalEnd - evalStart) / 1e9d}%.4fs, " +
         f"Metrics: $evalResult\n"

@@ -19,7 +19,8 @@ object Evaluator extends Serializable with Recommender {
       criterions: Array[Criterion[Float]],
       topk: Int,
       candidateNum: Int,
-      state: Table): EvalResult = {
+      state: Table,
+      concat: Boolean): EvalResult = {
 
     val subModelNum = Engine.coreNumber()
     val miniBatchIter = dataset.iteratorMiniBatch(train = false, expandBatch = true)
@@ -38,14 +39,14 @@ object Evaluator extends Serializable with Recommender {
           val (inputs, targets) = batch.convert(allData, offset, length, i)
           val localModel = models(i)
           localModel.evaluate()
-          val outputs = localModel.forward(inputs.head).asInstanceOf[Tensor[Float]]
+          val outputs = localModel.forward(inputs).asInstanceOf[Tensor[Float]]
           val localLoss = criterions(i).forward(outputs, targets).toDouble
           val evalResult = new EvalResult(loss = localLoss * length, count = length)
 
           var j = offset
           while (j < offset + length) {
             val recItems = recommendItems(allData(j).sequence, localModel,
-              TDMOp.tree, topk, candidateNum)
+              TDMOp.tree, topk, candidateNum, concat)
             val labels = allData(j).labels
             evalResult += computeMetrics(recItems, labels)
             j += 1
@@ -62,7 +63,8 @@ object Evaluator extends Serializable with Recommender {
       parameters: AllReduceParameter[Float],
       topk: Int,
       candidateNum: Int,
-      state: Table): EvalResult = {
+      state: Table,
+      concat: Boolean): EvalResult = {
 
     val subModelNum = Engine.coreNumber()
     val evalDataRDD = dataset.originalEvalRDD()
@@ -87,7 +89,7 @@ object Evaluator extends Serializable with Recommender {
             val (inputs, targets) = batch.convert(data, offset, length, i)
             val localModel = cachedModel.localModels(i)
             localModel.evaluate()
-            val outputs = localModel.forward(inputs.head).asInstanceOf[Tensor[Float]]
+            val outputs = localModel.forward(inputs).asInstanceOf[Tensor[Float]]
             val localCriterion = cachedModel.localCriterions(i)
             val localLoss = localCriterion.forward(outputs, targets).toDouble
             val evalResult = new EvalResult(loss = localLoss * length, count = length)
@@ -96,7 +98,7 @@ object Evaluator extends Serializable with Recommender {
             val end = offset + length
             while (j < end) {
               val recItems = recommendItems(data(j).sequence, localModel,
-                TDMOp.tree, topk, candidateNum)
+                TDMOp.tree, topk, candidateNum, concat)
               val labels = data(j).labels
               evalResult += computeMetrics(recItems, labels)
               j += 1

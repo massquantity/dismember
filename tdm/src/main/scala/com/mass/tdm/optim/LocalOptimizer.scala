@@ -1,6 +1,7 @@
 package com.mass.tdm.optim
 
 import com.mass.sparkdl.{Criterion, Module}
+import com.mass.sparkdl.nn.abstractnn.Activity
 import com.mass.sparkdl.optim.{OptimMethod, Trigger}
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.utils.{Engine, T, Table, Util}
@@ -16,7 +17,8 @@ class LocalOptimizer(
     numIteration: Int,
     progressInterval: Int,
     topk: Int,
-    candidateNum: Int) {
+    candidateNum: Int,
+    concat: Boolean) {
 
   val logger: Logger = Logger.getLogger(getClass)
   // logger.setLevel(Level.INFO)
@@ -102,14 +104,14 @@ class LocalOptimizer(
   }
 
   private def convertBatch(batch: MiniBatch, parallel: Boolean)
-    : Array[(Array[Tensor[Int]], Tensor[Float])] = {
+    : Array[(Activity, Tensor[Float])] = {
 
     val allData = dataset.getData
     val miniBatchSize = if (parallel) batch.getLength else batch.expandedSize()
     val taskSize = miniBatchSize / subModelNum
     val extraSize = miniBatchSize % subModelNum
     realParallelism = if (taskSize == 0) extraSize else subModelNum
-    val miniBatchBuffer = new Array[(Array[Tensor[Int]], Tensor[Float])](realParallelism)
+    val miniBatchBuffer = new Array[(Activity, Tensor[Float])](realParallelism)
 
     if (parallel) {
       Engine.default.invokeAndWait(
@@ -133,7 +135,7 @@ class LocalOptimizer(
     miniBatchBuffer
   }
 
-  def trainBatch(miniBatch: Array[(Array[Tensor[Int]], Tensor[Float])]): Double = {
+  def trainBatch(miniBatch: Array[(Activity, Tensor[Float])]): Double = {
     val lossSum = Engine.default.invokeAndWait(
       (0 until realParallelism).map(i => () => {
         val localModel = workingModels(i)
@@ -141,10 +143,10 @@ class LocalOptimizer(
         localModel.training()
         val localCriterion = workingCriterions(i)
         val (inputs, labels) = miniBatch(i)
-        val outputs = localModel.forward(inputs.head).asInstanceOf[Tensor[Float]]
+        val outputs = localModel.forward(inputs).asInstanceOf[Tensor[Float]]
         val localLoss = localCriterion.forward(outputs, labels).toDouble
         val gradients = localCriterion.backward(outputs, labels)
-        localModel.backward(inputs.head, gradients)
+        localModel.backward(inputs, gradients)
         localLoss
       })
     ).sum
@@ -202,7 +204,8 @@ class LocalOptimizer(
     if (dataset.evaluateDuringTraining) {
       require(dataset.parallelSampling, "must use parallel sampling in train data when evaluating")
       val evalStart = System.nanoTime()
-      val evalResult = Evaluator.evaluate(models, dataset, criterions, topk, candidateNum, state)
+      val evalResult = Evaluator.evaluate(models, dataset, criterions, topk,
+        candidateNum, state, concat)
       val evalEnd = System.nanoTime()
       progressInfo ++= f"\teval time: ${(evalEnd - evalStart) / 1e9d}%.4fs, " +
         f"Metrics: $evalResult\n"

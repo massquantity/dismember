@@ -8,8 +8,6 @@ import scala.util.{Failure, Success, Using}
 import com.mass.sparkdl.Module
 import com.mass.sparkdl.utils.{FileReader => DistFileReader, FileWriter => DistFileWriter}
 import com.mass.tdm.operator.TDMOp
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.io.IOUtils
 
 object Serialization {
@@ -32,21 +30,18 @@ object Serialization {
 
     val fileWriter = DistFileWriter(path)
     val output = fileWriter.create(overwrite = true)
-    val sb = new StringBuilder
-    Using(new DataOutputStream(new BufferedOutputStream(output))) { writer =>
+    Using(new BufferedWriter(new OutputStreamWriter(output))) { writer =>
       itemIds.foreach { id =>
-        sb ++= s"$id"
+        writer.write(s"$id")
         val code = idCodeMap(id)
         val offset = code * embedSize
         val end = offset + embedSize
         var i = offset
         while (i < end) {
-          sb ++= s", ${formatter.format(embeddings(i))}"
+          writer.write(s", ${formatter.format(embeddings(i))}")
           i += 1
         }
-        sb += '\n'
-        writer.writeBytes(sb.toString)
-        sb.clear()
+        writer.write('\n')
       }
     } match {
       case Success(_) =>
