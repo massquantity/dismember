@@ -76,7 +76,7 @@ class Table(
   }
 
   def delete(obj: Any): this.type = {
-    if (state.get(obj).isDefined) {
+    if (state.contains(obj)) {
       state.remove(obj)
     }
     this
@@ -111,9 +111,9 @@ class Table(
 object T {
   def apply(): Table = new Table()
 
-  def apply(data1: Any, datas: Any*): Table = {
-    val firstElement = Array(data1)
-    val otherElements = datas.toArray
+  def apply(first: Any, rest: Any*): Table = {
+    val firstElement = Array(first)
+    val otherElements = rest.toArray
     new Table(firstElement ++ otherElements)
   }
 
