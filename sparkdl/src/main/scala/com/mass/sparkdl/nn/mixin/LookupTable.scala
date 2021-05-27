@@ -6,6 +6,8 @@ import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
 
 trait LookupTable[T] {
 
+  protected val zeroArray: Array[T]
+
   protected def padWeight(weight: Tensor[T], paddingIdx: Int): Unit = {
     if (paddingIdx >= 0 && paddingIdx < weight.size(0)) {
       weight.select(0, paddingIdx).zero()
@@ -20,17 +22,20 @@ trait LookupTable[T] {
       weightData: Array[T],
       weightOffset: Int,
       embedSize: Int,
-      numIndex: Int): Unit = {
+      numIndex: Int,
+      paddingIdx: Int): Unit = {
 
     val invalidIndices = ListBuffer.empty[String]
     val numElem = indexData.length
     var i = 0
     while (i < numElem) {
       val index = indexData(i + indexOffset)
-      if (index >= 0 && index < numIndex) {
-        val offset1 = indexData(i + indexOffset) * embedSize + weightOffset
-        val offset2 = i * embedSize + outputOffset
-        System.arraycopy(weightData, offset1, outputData, offset2, embedSize)
+      val _outputOffset = i * embedSize + outputOffset
+      if (index == paddingIdx) {
+        System.arraycopy(zeroArray, 0, outputData, _outputOffset, embedSize)
+      } else if (index >= 0 && index < numIndex && index != paddingIdx) {
+        val offset1 = index * embedSize + weightOffset
+        System.arraycopy(weightData, offset1, outputData, _outputOffset, embedSize)
       } else {
         invalidIndices += s"\t ${i / embedSize}    ${i % embedSize}     $index"
       }

@@ -15,7 +15,10 @@ class EmbeddingShare[T: ClassTag](
 
   var weight: Tensor[T] = Tensor[T](nIndex, embedSize).randn(0.0, 0.05)
   var gradWeight: Tensor[T] = Tensor[T](nIndex, embedSize).zero()
+
   private val inputBuffer = T()
+  override val zeroArray: Array[T] = Array.fill[T](embedSize)(ev.zero)
+
   padWeight(weight, paddingIdx)
 
   override def updateOutput(input: Table): Table = {
@@ -35,7 +38,7 @@ class EmbeddingShare[T: ClassTag](
       val weightOffset = weight.storageOffset()
 
       embeddingLookup(index, indexOffset, outputData, outputOffset,
-        weightData, weightOffset, embedSize, nIndex)
+        weightData, weightOffset, embedSize, nIndex, paddingIdx)
 
       if (input[Tensor[T]](i).dim() == 2) {
         output(i) = output[Tensor[T]](i).view(
@@ -72,8 +75,6 @@ class EmbeddingShare[T: ClassTag](
       updateEmbeddings(inputData, inputOffset, gradOutputData, gradOutputOffset,
         gradWeightData, gradWeightOffset, embedSize, paddingIdx, scaleW)
 
-      println(s"gradWeight: ${gradWeightData.mkString("Array(", ", ", ")")}")
-      println(s"gradOutput: ${gradOutputData.mkString("Array(", ", ", ")")}")
       i += 1
     }
   }
