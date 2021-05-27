@@ -19,44 +19,84 @@ class Linear[T: ClassTag](
   val gradBias: Tensor[T] = if (withBias) Tensor[T]() else null
 
   override def updateOutput(input: Tensor[T]): Tensor[T] = {
-    require(input.dim() == 1 || input.dim() == 2, "input dim must be 1D or 2D.")
     if (input.dim() == 1) {
       output.resize(Array(outputSize))
       if (withBias) output.copy(bias) else output.zero()
       output.addmv(ev.fromType[Int](1), weight, input)
-    } else if (input.dim() == 2) {
-      val batchSize = input.size(0)
-      val nElement = output.nElement()
-      output.resize(Array(batchSize, weight.size(0)))
-      if (output.nElement() != nElement) output.zero()
+    } else {
+      val batchSize = {
+        if (input.dim() == 2) {
+          input.size(0)
+        } else {
+          input.size().init.product
+        }
+      }
+      val _input = {
+        if (input.dim() == 2) {
+          input
+        } else {
+          input.view(Array(batchSize, inputSize))
+        }
+      }
+
+      output.resize(Array(batchSize, outputSize))
+      output.addmm(ev.zero, ev.one, _input, weight.t())
 
       if (addBuffer.nElement() != batchSize) {
         addBuffer.resize(Array(batchSize)).fill(ev.one)
       }
-      output.addmm(ev.zero, output, ev.one, input, weight.t())
-      if (withBias) output.addr(ev.one, addBuffer, bias)
+      if (withBias) {
+        output.addr(ev.one, addBuffer, bias)
+      }
+      if (input.dim() > 2) {
+        val _outputSize = input.size().init ++ Array(outputSize)
+        output = output.view(_outputSize)
+      }
     }
+
     output
   }
 
   override def updateGradInput(input: Tensor[T], gradOutput: Tensor[T]): Tensor[T] = {
-    require(input.dim() == 1 || input.dim() == 2, "input dim must be 1D or 2D.")
-    val nElement = gradInput.nElement()
-    gradInput.resizeAs(input)
-    if (nElement != gradInput.nElement()) gradInput.zero()
+    if (input.dim() <= 2) {
+      gradInput.resizeAs(input)
+    } else {
+      val gradInputSize = Array(input.size().init.product, inputSize)
+      gradInput.resize(gradInputSize)
+    }
+    val _gradOutput = {
+      if (input.dim() <= 2) {
+        gradOutput
+      } else {
+        val gradOutputSize = Array(input.size().init.product, outputSize)
+        gradOutput.view(gradOutputSize)
+      }
+    }
 
     if (input.dim() == 1) {
-      gradInput.addmv(ev.fromType[Int](0), ev.fromType[Int](1), weight.t(), gradOutput)
-    } else if (input.dim() == 2) {
-      gradInput.addmm(ev.fromType[Int](0), ev.fromType[Int](1), gradOutput, weight)
+      gradInput.addmv(ev.zero, ev.one, weight.t(), _gradOutput)
+    } else {
+      gradInput.addmm(ev.zero, ev.one, _gradOutput, weight)
+    }
+
+    if (input.dim() > 2) {
+      gradInput = gradInput.view(input.size())
     }
     gradInput
   }
 
   override def accGradParameters(input: Tensor[T], gradOutput: Tensor[T]): Unit = {
-    require(input.dim() == 1 || input.dim() == 2, "input dim must be 1D or 2D.")
     gradWeight.resize(outputSize, inputSize)
     if (withBias) gradBias.resize(outputSize)
+
+    val (_input, _gradOutput) = {
+      if (input.dim() <= 2) {
+        (input, gradOutput)
+      } else {
+        val flatSize = input.size().init.product
+        (input.view(Array(flatSize, inputSize)), gradOutput.view(Array(flatSize, outputSize)))
+      }
+    }
 
     if (input.dim() == 1) {
       if (scaleW != 0) {
@@ -65,12 +105,12 @@ class Linear[T: ClassTag](
       if (withBias && scaleB != 0) {
         gradBias.add(ev.fromType[Double](scaleB), gradOutput)
       }
-    } else if (input.dim() == 2) {
+    } else {
       if (scaleW != 0) {
-        gradWeight.addmm(ev.fromType[Double](scaleW), gradOutput.t(), input)
+        gradWeight.addmm(ev.fromType[Double](scaleW), _gradOutput.t(), _input)
       }
       if (withBias && scaleB != 0) {
-        gradBias.addmv(ev.fromType[Double](scaleB), gradOutput.t(), addBuffer)
+        gradBias.addmv(ev.fromType[Double](scaleB), _gradOutput.t(), addBuffer)
       }
     }
   }
