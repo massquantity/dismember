@@ -1,5 +1,7 @@
 package com.mass.tdm.operator
 
+import scala.collection.mutable.ArrayBuffer
+
 import com.mass.tdm.dataset.TDMSample
 import com.mass.tdm.tree.DistTree
 import com.mass.tdm.utils.NegativeSampler
@@ -67,8 +69,7 @@ object TDMOp {
       startSampleLayer: Int = -1,
       tolerance: Int = 20,
       numThreads: Int = 1,
-      parallelSample: Boolean,
-      concat: Boolean = true): Unit = {
+      parallelSample: Boolean): Unit = {
 
     init(pbFilePath, layerNegCounts, withProb, startSampleLayer, tolerance,
       numThreads, parallelSample)
@@ -83,8 +84,7 @@ object TDMOp {
       startSampleLayer: Int = -1,
       tolerance: Int = 20,
       numThreads: Int,
-      parallelSample: Boolean,
-      concat: Boolean = true): Unit = {
+      parallelSample: Boolean): Unit = {
 
     init(pbFilePath, layerNegCounts, withProb, startSampleLayer, tolerance,
       numThreads, parallelSample)
@@ -99,14 +99,22 @@ object TDMOp {
       length: Int,
       threadId: Int,
       sampledNodesNumPerTarget: Int,
-      seqLen: Int): (Array[Int], Array[Float]) = {
+      seqLen: Int,
+      concat: Boolean): (Seq[Array[Int]], Array[Float]) = {
+
     val targetItems = (offset until offset + length).map(i => data(i).target).toArray
     val (itemCodes, labels) = sampleNegative(targetItems, threadId)
-    val features = transform(data, offset, length, itemCodes, sampledNodesNumPerTarget, seqLen)
-    (features, labels)
+    if (concat) {
+      val itemSeqs = transform(data, offset, length, itemCodes, sampledNodesNumPerTarget, seqLen)
+      (Seq(itemSeqs), labels)
+    } else {
+      val (itemSeqs, masks) = transform(data, offset, length, sampledNodesNumPerTarget, seqLen)
+      (Seq(itemCodes, itemSeqs, masks), labels)
+    }
   }
 
-  def sampleNegative(targetItemIds: Array[Int], threadId: Int): (Array[Int], Array[Float]) = {
+  def sampleNegative(targetItemIds: Array[Int], threadId: Int)
+      : (Array[Int], Array[Float]) = {
     val (itemIds, labels) = sampler.sample(targetItemIds, threadId)
     val itemCodes = tree.idToCode(itemIds)
     (itemCodes, labels)
@@ -114,8 +122,8 @@ object TDMOp {
 
   def transform(data: Array[TDMSample], offset: Int, length: Int, targetItems: Array[Int],
       sampledNodesNumPerTarget: Int, seqLen: Int): Array[Int] = {
-    // or fill with maxCode
-    val features = Array.fill[Int](length * sampledNodesNumPerTarget * seqLen)(0)
+
+    val features = new Array[Int](length * sampledNodesNumPerTarget * seqLen)
     var dataOffset = offset
     var i = 0
     while (i < length) {
@@ -124,18 +132,38 @@ object TDMOp {
       var j = 0
       while (j < sampledNodesNumPerTarget) {
         val offset2 = offset1 + j * seqLen
-        var s = 0
-        while (s < seqLen - 1) {
-          features(offset2 + s) = featItems(s)
-          s += 1
-        }
+        val length = seqLen - 1
+        System.arraycopy(featItems, 0, features, offset2, length)
         // seqLen = seq items + target item
-        features(offset2 + s) = targetItems(i * sampledNodesNumPerTarget + j)
+        features(offset2 + length) = targetItems(i * sampledNodesNumPerTarget + j)
         j += 1
       }
       i += 1
       dataOffset += 1
     }
     features
+  }
+
+  def transform(data: Array[TDMSample], offset: Int, length: Int,
+      sampledNodesNumPerTarget: Int, seqLen: Int): (Array[Int], Array[Int]) = {
+
+    val features = new Array[Int](length * sampledNodesNumPerTarget * seqLen)
+    val maskBuffer = new ArrayBuffer[Int]()
+    var dataOffset = offset
+    var i = 0
+    while (i < length) {
+      val (featItems, mask) = tree.idToCodeWithMask(data(dataOffset).sequence)
+      val offset1 = i * (sampledNodesNumPerTarget * seqLen)
+      var j = 0
+      while (j < sampledNodesNumPerTarget) {
+        val offset2 = offset1 + j * seqLen
+        System.arraycopy(featItems, 0, features, offset2, seqLen)
+        mask.foreach(m => maskBuffer += (m + offset2))
+        j += 1
+      }
+      i += 1
+      dataOffset += 1
+    }
+    (features, maskBuffer.toArray)
   }
 }

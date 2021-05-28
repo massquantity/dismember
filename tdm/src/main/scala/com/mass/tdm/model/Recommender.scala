@@ -4,7 +4,9 @@ import scala.collection.mutable.ArrayBuffer
 import scala.math.Ordering
 
 import com.mass.sparkdl.Module
+import com.mass.sparkdl.nn.abstractnn.Activity
 import com.mass.sparkdl.tensor.Tensor
+import com.mass.sparkdl.utils.{T, Table}
 import com.mass.tdm.protobuf.tree.Node
 import com.mass.tdm.tree.DistTree
 import com.mass.tdm.tree.DistTree.TreeNode
@@ -17,9 +19,10 @@ trait Recommender {
       model: Module[Float],
       tree: DistTree,
       topk: Int,
-      candidateNum: Int): Array[Int] = {
+      candidateNum: Int,
+      concat: Boolean): Array[Int] = {
 
-    val recs = _recommend(sequence, model, tree, candidateNum)
+    val recs = _recommend(sequence, model, tree, candidateNum, concat)
     // recs.sorted(Ordering.by[TreeNodePred, Float](_.pred)(Ordering[Float].reverse))
     recs.sortBy(_._2)(Ordering[Float].reverse).take(topk).map(_._1)
   }
@@ -28,13 +31,23 @@ trait Recommender {
       sequence: Array[Int],
       model: Module[Float],
       tree: DistTree,
-      candidateNum: Int): Array[(Int, Float)] = {
+      candidateNum: Int,
+      concat: Boolean): Array[(Int, Float)] = {
 
-    val seqCodes = tree.idToCode(sequence)
+    // binary tree with 2 child => 2 * candidateNum
+    val modelInputs = duplicateSequence(sequence, tree, concat, candidateNum * 2)
     val leafIds = ArrayBuffer.empty[(Int, Float)]
     val childNodes = ArrayBuffer.empty[TreeNode]
-    val rootNode = TreeNodePred(0, tree.kvData(0.toString), 0.0f)
-    val candidateNodes: ArrayBuffer[TreeNodePred] = ArrayBuffer(rootNode)
+    val candidateNodes = ArrayBuffer.empty[TreeNodePred]
+
+    // no need to compute score if nodes number < candidateNum,
+    // initialize candidateNodes to number of candidateNum
+    var i = getLevelStart(candidateNum)
+    val levelEnd = i * 2 + 1
+    while (i < levelEnd) {
+      candidateNodes += TreeNodePred(i, tree.kvData(i.toString), 0.0f)
+      i += 1
+    }
 
     while (candidateNodes.nonEmpty) {
       var (leafNodes, nonLeafNodes) = candidateNodes.partition(
@@ -66,12 +79,15 @@ trait Recommender {
           i += 1
         }
 
-        val feature = duplicateSequence(seqCodes, childNodes)
+        val feature = modelInputs.generateInputs(childNodes)
         val preds = model.forward(feature).asInstanceOf[Tensor[Float]].storage().array()
         candidateNodes.clear()
 
-        childNodes.zip(preds) map { case (c, p) =>
-          candidateNodes += TreeNodePred(c.code, c.node, p)
+        i = 0
+        val nextLen = childNodes.length
+        while (i < nextLen) {
+          candidateNodes += TreeNodePred(childNodes(i).code, childNodes(i).node, preds(i))
+          i += 1
         }
         childNodes.clear()
       }
@@ -84,81 +100,98 @@ trait Recommender {
   def sigmoid(logit: Float): Double = {
     1.0 / (1 + java.lang.Math.exp(-logit))
   }
+
+  def getLevelStart(candidateNum: Int): Int = {
+    var i = 0
+    var _can = candidateNum
+    while (_can > 0) {
+      i = i * 2 + 1
+      _can  = (_can - 1) / 2
+    }
+    i
+  }
 }
 
 object Recommender {
 
   case class TreeNodePred(code: Int, rawNode: Array[Byte], pred: Float)
 
-  private def duplicateSequence(sequence: Array[Int], candidate: ArrayBuffer[TreeNode]): Tensor[Int] = {
-    val seqLen = sequence.length
-    val newLen = seqLen + 1
-    val canLen = candidate.length
-    val features = Array.fill[Int](newLen * canLen)(0)
-    var i = 0
-    while (i < canLen) {
-      val offset = i * newLen
-      var j = 0
-      while (j < seqLen) {
-        features(offset + j) = sequence(j)
-        j += 1
+  private class ModelInputs(
+      concatSeq: Tensor[Int] = null,
+      targetItem: Tensor[Int] = null,
+      attentionSeq: Tensor[Int] = null,
+      masks: Tensor[Int] = null,
+      maskLen: Int = -1,
+      seqLen: Int = -1,
+      concat: Boolean) {
+
+    def generateInputs(targetNodes: ArrayBuffer[TreeNode]): Activity = {
+      val num = targetNodes.length
+      if (concat) {
+        var i = 0
+        while (i < num) {
+          concatSeq.setValue(i, seqLen - 1, targetNodes(i).code)
+          i += 1
+        }
+        concatSeq.narrow(0, 0, num)
+      } else {
+        var i = 0
+        while (i < num) {
+          targetItem.setValue(i, 0, targetNodes(i).code)
+          i += 1
+        }
+        val item = targetItem.narrow(0, 0, num)
+        val seq = attentionSeq.narrow(0, 0, num)
+        // masks is one-dimensional
+        val mask = if (masks.isEmpty) masks else masks.narrow(0, 0, num * maskLen)
+        T(item, seq, mask)
       }
-      features(offset + j) = candidate(i).code
-      i += 1
     }
-    Tensor(features, Array(canLen, newLen))
   }
 
-  def recommendWithProb2(
-      model: Module[Float],
-      tree: DistTree,
-      topk: Int,
-      candidateNum: Int,
-      sequence: Array[Int],
-      transform: (Array[Int], ArrayBuffer[TreeNode]) => Tensor[Int]): Unit = {
+  private def duplicateSequence(sequence: Array[Int], tree: DistTree,
+      concat: Boolean, candidateLen: Int): ModelInputs = {
 
-    val seqCodes = tree.idToCode(sequence)
-    val leafIds = ArrayBuffer.empty[(Int, Float)]
-    val childNodes = ArrayBuffer.empty[TreeNode]
-    val rootNode = TreeNodePred(0, tree.kvData(0.toString), 0.0f)
-    var candidateNodes = ArrayBuffer(rootNode)
-
-    while (candidateNodes.nonEmpty) {
-      if (candidateNodes.length > candidateNum) {
-        candidateNodes = candidateNodes.sortBy(-_.pred)
+    if (concat) {
+      val seqCodes = tree.idToCode(sequence)
+      val seqLen = seqCodes.length
+      val newLen = seqLen + 1
+      val features = new Array[Int](candidateLen * newLen)
+      var i = 0
+      while (i < candidateLen) {
+        val offset = i * newLen
+        System.arraycopy(seqCodes, 0, features, offset, seqLen)
+        //  features(offset + seqLen) = candidate(i).code
+        i += 1
       }
+      val seq = Tensor(features, Array(candidateLen, newLen))
+      new ModelInputs(concatSeq = seq, seqLen = newLen, concat = true)
 
-      var i, num = 0
-      while (i < candidateNodes.length && num < candidateNum) {
-        val internalNode = candidateNodes(i)
-        val children = tree.getChildNodes(internalNode.code)
-        if (children.isEmpty) {
-          val node = Node.parseFrom(internalNode.rawNode)
-          leafIds += Tuple2(node.id, internalNode.pred)
-        } else {
-          childNodes ++= children
-          num += 1
-        }
+    } else {
+      val (seqCodes, mask) = tree.idToCodeWithMask(sequence)
+      val seqLen = seqCodes.length
+      val features = new Array[Int](candidateLen * seqLen)
+      val targets = new Array[Int](candidateLen)
+      val maskBuffer = new ArrayBuffer[Int]()
+      var i = 0
+      while (i < candidateLen) {
+        val offset = i * seqLen
+        System.arraycopy(seqCodes, 0, features, offset, seqLen)
+        // targets(i) = candidate(i).code
+        mask.foreach(m => maskBuffer += (m + offset))
         i += 1
       }
 
-      if (childNodes.isEmpty) {
-        candidateNodes.clear()
+      val targetItems = Tensor(targets, Array(candidateLen, 1))
+      val seqItems = Tensor(features, Array(candidateLen, seqLen))
+      val masks = if (maskBuffer.isEmpty) {
+        Tensor[Int]()
       } else {
-        val feature = transform(seqCodes, childNodes)
-        val preds = model.forward(feature).asInstanceOf[Tensor[Float]].storage().array()
-        val nextLen = childNodes.length
-        candidateNodes.clear()
-
-        i = 0
-        while (i < nextLen) {
-          candidateNodes += TreeNodePred(childNodes(i).code, childNodes(i).node, preds(i))
-          i += 1
-        }
-        childNodes.clear()
+        Tensor(maskBuffer.toArray, Array(maskBuffer.length))
       }
-    }
 
-    // leafIds.sortBy(-_._2).take(topk).map(i => (i._1, sigmoid(i._2)))
+      new ModelInputs(targetItem = targetItems, attentionSeq = seqItems,
+        masks = masks, maskLen = mask.length, concat = false)
+    }
   }
 }
