@@ -1,6 +1,6 @@
 package com.mass.tdm.evaluation
 
-class EvalResult (
+private[tdm] class EvalResult (
     private[evaluation] var loss: Double = 0.0,
     private[evaluation] var precision: Double = 0.0,
     private[evaluation] var recall: Double = 0.0,
@@ -28,5 +28,4 @@ class EvalResult (
     f"recall: ${recall / count}%.6f, " +
     f"ndcg: ${ndcg / count}%.6f}"
   }
-
 }

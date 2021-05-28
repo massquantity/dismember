@@ -3,16 +3,18 @@ package com.mass.tdm.model
 import scala.math.Ordering
 
 import com.mass.sparkdl.Module
-import com.mass.sparkdl.nn.{Add, FM, Graph, Linear, LookupTable, Reshape}
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.tdm.operator.TDMOp
 import com.mass.tdm.utils.Serialization
 import com.mass.tdm.utils.Serialization.{saveEmbeddings, saveModel => sersaveModel}
 
-class TDM(featSeqLen: Int, val embedSize: Int) extends Serializable with Recommender {
+class TDM(featSeqLen: Int, val embedSize: Int, deepModel: String, paddingIndex: Int)
+    extends Serializable with Recommender {
 
   private[this] var dlModel: Module[Float] = _
   // @transient private[this] var tdmTree: DistTree = TDMOp.tree
+  private val dlModelName = deepModel.toLowerCase
+  lazy val concatSequence: Boolean = if (dlModelName == "deepfm") true else false
 
   // def loadTree(pbFilePath: String): Unit = {
   //  tdmTree = DistTree(pbFilePath)
@@ -29,14 +31,15 @@ class TDM(featSeqLen: Int, val embedSize: Int) extends Serializable with Recomme
   }
 
   private def buildModel(): TDM.this.type = {
-    val numIndex = (math.pow(2, TDMOp.tree.getMaxLevel) - 1).toInt
-    val embedding = LookupTable[Float](numIndex, embedSize).inputs()
-    val fm = FM[Float]().inputs(embedding)  // FM
-    val embeddingReshape = Reshape[Float](Array(featSeqLen * embedSize)).inputs(embedding)
-    val linear = Linear[Float](featSeqLen * embedSize, featSeqLen).inputs(embeddingReshape)
-    val linear2 = Linear[Float](featSeqLen, 1).inputs(linear)  // DNN
-    val add = Add[Float]().inputs(fm, linear2)
-    dlModel = Graph[Float](embedding, add)
+    dlModel = {
+      if (dlModelName == "deepfm") {
+        DeepFM.buildModel[Float](featSeqLen, embedSize, paddingIndex)
+      } else if (dlModelName == "din") {
+        DIN.buildModel[Float](embedSize, paddingIndex)
+      } else {
+        throw new IllegalArgumentException("deepModel name should DeepFM or DIN")
+      }
+    }
     this
   }
 
@@ -48,26 +51,31 @@ class TDM(featSeqLen: Int, val embedSize: Int) extends Serializable with Recomme
   }
 
   def recommend(sequence: Array[Int], topk: Int, candidateNum: Int = 20): Array[(Int, Double)] = {
-    val recs = _recommend(sequence, dlModel, TDMOp.tree, candidateNum)
+    val recs = _recommend(sequence, dlModel, TDMOp.tree, candidateNum, concatSequence)
     // recs.sorted(Ordering.by[TreeNodePred, Float](_.pred)(Ordering[Float].reverse))
     recs.sortBy(_._2)(Ordering[Float].reverse).take(topk).map(i => (i._1, sigmoid(i._2)))
+  }
+
+  private def clearState(): Unit = {
+    dlModel.clearState()
   }
 }
 
 object TDM {
 
-  def apply(featSeqLen: Int, embedSize: Int): TDM = {
-    val tdm = new TDM(featSeqLen, embedSize)
+  def apply(featSeqLen: Int, embedSize: Int, deepModel: String, paddingIndex: Int): TDM = {
+    val tdm = new TDM(featSeqLen, embedSize, deepModel, paddingIndex)
     tdm.buildModel()
   }
 
   def saveModel(modelPath: String, embedPath: String, model: TDM): Unit = {
+    model.clearState()
     sersaveModel(modelPath, model.getModel)
     saveEmbeddings(embedPath, model.getModel, model.embedSize)
   }
 
   def loadModel(path: String): TDM = {
-    val tdm = new TDM(0, 0)
+    val tdm = new TDM(0, 0, "DIN", -1)
     tdm.setModel(Serialization.loadModel(path))
     tdm
   }
