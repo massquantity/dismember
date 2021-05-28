@@ -115,6 +115,28 @@ $ spark-submit --class com.mass.retrieval.tdm.ClusterTree \
 
 Finally the fourth step is retraining the deep model, and this is the same as the second step.
 
+It is also possible to recommend items in a Java program:
+
+```Java
+import com.mass.tdm.model.TDM;
+import java.util.Arrays;
+
+public class JavaRecommend {
+    public static void main(String[] args) {
+        String modelPath = "path/to/model";
+        String treePath = "path/to/tree_pb_file";
+        TDM tdmModel = TDM.loadModel(modelPath);
+        TDM.loadTree(treePath);
+
+        // user interacted sequence with 10 items, recommend 3 items with 20 candidates
+        int[] sequence = new int[] {0, 0, 2126, 204, 3257, 3439, 996, 1681, 3438, 1882};
+        System.out.println("Recommendation result: " + Arrays.toString(tdmModel.recommend(sequence, 3, 20)));
+    }
+}
+```
+
+
+
 
 
 ## Configuration

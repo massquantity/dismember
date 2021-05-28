@@ -24,6 +24,8 @@ For spark related configurations, see [Spark Configuration](https://spark.apache
 
 | Entry                          | Example                               | Description                                                  |
 | ------------------------------ | ------------------------------------- | ------------------------------------------------------------ |
+| model.deep_model               | DIN                                   | Deep model type in TDM, currently either be "DIN" or "DeepFM". |
+| model.padding_index            | -1                                    | The specified index will be padded zero in Embedding_lookup and masked in Attention module. |
 | model.train_path               | hdfs://user/hadoop/train_data.csv     | The train data path.                                         |
 | model.eval_path                | hdfs://user/hadoop/eval_data.csv      | The eval data path.                                          |
 | model.tree_protobuf_path       | hdfs://user/hadoop/tree_pb_data.txt   | Tree protobuf file path.                                     |

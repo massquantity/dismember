@@ -34,47 +34,84 @@ object TrainLocal {
     val conf = Property.readConf(path = params.tdmConfFile, prefix = "model", print = true)
     Property.configLocal(conf)
 
+    val deepModel = getOrStop(conf, "deep_model").toLowerCase
+    var seqLen = getOrStop(conf, "seq_len").toInt
+    if (deepModel == "deepfm") seqLen += 1  // deepfm need to concat sequence and target
+    // val paddingId = 0  padded original item id
+    val paddingIndex = conf.getOrElse("padding_index", "-1").toInt   // padded index or code
+    val concat = if (deepModel == "deepfm") true else false
+
+    val totalBatchSize = getOrStop(conf, "total_batch_size").toInt
+    val totalEvalBatchSize = conf.getOrElse("total_eval_batch_size", "-1").toInt
+    val evaluate = conf.getOrElse("evaluate_during_training", "false").toBoolean
+    val layerNegCounts = getOrStop(conf, "layer_negative_counts")
+    val withProb = conf.getOrElse("sample_with_probability", "true").toBoolean
+    val startSampleLayer = conf.getOrElse("start_sample_layer", "-1").toInt
+    val tolerance = conf.getOrElse("sample_tolerance", "20").toInt
+    val numThreads = Engine.coreNumber()
+    val parallelSample = conf.getOrElse("parallel_sample", "true").toBoolean
+
+    val dataPath = getOrStop(conf, "train_path")
+    val pbFilePath = getOrStop(conf, "tree_protobuf_path")
+    val evalPath = conf.get("eval_path")
+
+    val embedSize = getOrStop(conf, "embed_size").toInt
+    val learningRate = getOrStop(conf, "learning_rate").toDouble
+    val numIteration = conf.getOrElse("iteration_number", "100").toInt
+    val progressInterval = conf.getOrElse("show_progress_interval", "1").toInt
+    val topk = conf.getOrElse("topk_number", "10").toInt
+    val candidateNum = conf.getOrElse("candidate_num_per_layer", "20").toInt
+
+    val modelPath = getOrStop(conf, "model_path")
+    val embedPath = getOrStop(conf, "embed_path")
+
     val dataset = new LocalDataSet(
-      totalBatchSize = getOrStop(conf, "total_batch_size").toInt,
-      totalEvalBatchSize = conf.getOrElse("total_eval_batch_size", "-1").toInt,
-      evaluate = conf.getOrElse("evaluate_during_training", "false").toBoolean,
-      seqLen = getOrStop(conf, "seq_len").toInt + 1,
-      layerNegCounts = getOrStop(conf, "layer_negative_counts"),
-      withProb = conf.getOrElse("sample_with_probability", "true").toBoolean,
-      startSampleLayer = conf.getOrElse("start_sample_layer", "-1").toInt,
-      tolerance = conf.getOrElse("sample_tolerance", "20").toInt,
-      numThreads = Engine.coreNumber(),
-      parallelSample = conf.getOrElse("parallel_sample", "true").toBoolean)
+      totalBatchSize = totalBatchSize,
+      totalEvalBatchSize = totalEvalBatchSize,
+      evaluate = evaluate,
+      seqLen = seqLen,
+      layerNegCounts = layerNegCounts,
+      withProb = withProb,
+      startSampleLayer = startSampleLayer,
+      tolerance = tolerance,
+      numThreads = numThreads,
+      parallelSample = parallelSample,
+      concat = concat)
 
     dataset.readFile(
-      dataPath = getOrStop(conf, "train_path"),
-      pbFilePath = getOrStop(conf, "tree_protobuf_path"),
-      evalPath = conf.get("eval_path"))
+      dataPath = dataPath,
+      pbFilePath = pbFilePath,
+      evalPath = evalPath)
 
     val tdmModel = TDM(
-      featSeqLen = conf("seq_len").toInt + 1,
-      embedSize = getOrStop(conf, "embed_size").toInt)
+      featSeqLen = seqLen,
+      embedSize = embedSize,
+      deepModel = deepModel,
+      paddingIndex = paddingIndex)
 
     val optimizer = new LocalOptimizer(
       model = tdmModel.getModel,
       dataset = dataset,
       criterion = BCECriterionWithLogits(),
-      optimMethod = Adam[Float](learningRate = getOrStop(conf, "learning_rate").toDouble),
-      numIteration = conf.getOrElse("iteration_number", "100").toInt,
-      progressInterval = conf.getOrElse("show_progress_interval", "1").toInt,
-      topk = conf.getOrElse("topk_number", "10").toInt,
-      candidateNum = conf.getOrElse("candidate_num_per_layer", "20").toInt)
+      optimMethod = Adam[Float](learningRate = learningRate),
+      numIteration = numIteration,
+      progressInterval = progressInterval,
+      topk = topk,
+      candidateNum = candidateNum,
+      concat = concat)
+
     optimizer.optimize()
 
-    TDM.saveModel(getOrStop(conf, "model_path"), getOrStop(conf, "embed_path"), tdmModel)
+    TDM.saveModel(modelPath, embedPath, tdmModel)
 
     recommend(tdmModel)
   }
 
   def recommend(tdmModel: TDM): Unit = {
-    val sequence = Array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
-    println("recommendation result: " +
+    val sequence = Array(0, 0, 2126, 204, 3257, 3439, 996, 1681, 3438, 1882)
+    println("Recommendation result: " +
       tdmModel.recommend(sequence, 3).mkString("Array(", ", ", ")"))
+
     (1 to 10).foreach(_ => tdmModel.recommend(sequence, topk = 10, candidateNum = 20))
 
     val start = System.nanoTime()
@@ -84,6 +121,6 @@ object TrainLocal {
       i += 1
     }
     val end = System.nanoTime()
-    println(f"average recommend time: ${(end - start) * 10 / 1e9d}%.4fms")
+    println(f"Average recommend time: ${(end - start) * 10 / 1e9d}%.4fms")
   }
 }

@@ -4,7 +4,6 @@ import java.io.Serializable
 
 import scala.reflect.ClassTag
 
-import com.intel.analytics.bigdl.mkl.MKL
 import com.mass.sparkdl.nn.abstractnn.Activity
 import com.mass.sparkdl.utils.Table
 import org.apache.commons.math3.random.RandomDataGenerator

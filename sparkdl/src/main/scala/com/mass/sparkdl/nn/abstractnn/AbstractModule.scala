@@ -5,7 +5,7 @@ import scala.reflect.ClassTag
 import com.mass.sparkdl.nn.Graph.ModuleNode
 import com.mass.sparkdl.nn.mixin.Module
 import com.mass.sparkdl.optim.OptimMethod
-import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
+import com.mass.sparkdl.tensor.{Tensor, TensorDataType, TensorNumeric}
 import com.mass.sparkdl.utils.{DistriParameterSynchronizer, Edge}
 import org.apache.commons.lang3.SerializationUtils
 
@@ -23,7 +23,8 @@ abstract class AbstractModule[A <: Activity: ClassTag, B <: Activity: ClassTag, 
       updateParameter()
       updateOutput(input)
     } catch  {
-      case e: RuntimeException => throw e
+      case e: Throwable =>
+        throw e
     }
     output
   }
@@ -161,6 +162,10 @@ abstract class AbstractModule[A <: Activity: ClassTag, B <: Activity: ClassTag, 
 
   final def cloneModule(): this.type = {
     SerializationUtils.clone(this)
+  }
+
+  final def getNumericType: TensorDataType = {
+    ev.getType
   }
 
   def release(): Unit = { }
