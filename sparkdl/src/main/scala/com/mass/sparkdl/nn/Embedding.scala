@@ -23,8 +23,8 @@ class Embedding[T: ClassTag](
   override def updateOutput(input: Tensor[T]): Tensor[T] = {
     inputBuffer = input.contiguous().asInstanceOf[Tensor[Int]]
     val batchSize = input.size(0)
-    val numEle = inputBuffer.nElement()
-    output.resize(Array(numEle, embedSize))
+    val numElem = inputBuffer.nElement()
+    output.resize(Array(numElem, embedSize))
 
     val inputData = inputBuffer.storage().array()
     val inputOffset = inputBuffer.storageOffset()
@@ -33,7 +33,7 @@ class Embedding[T: ClassTag](
     val weightData = weight.storage().array()
     val weightOffset = weight.storageOffset()
 
-    embeddingLookup(inputData, inputOffset, outputData, outputOffset,
+    embeddingLookup(numElem, inputData, inputOffset, outputData, outputOffset,
       weightData, weightOffset, embedSize, nIndex, paddingIdx)
 
     if (input.dim() == 2) {
@@ -53,6 +53,7 @@ class Embedding[T: ClassTag](
   override def accGradParameters(input: Tensor[T], gradOutput: Tensor[T]): Unit = {
     require(gradWeight.isContiguous, "Embedding: gradWeight must be contiguous")
     inputBuffer = input.contiguous().asInstanceOf[Tensor[Int]]
+    val numElem = inputBuffer.nElement()
     val inputData: Array[Int] = inputBuffer.storage().array()
     val inputOffset: Int = inputBuffer.storageOffset()
     val _gradOutput = gradOutput.contiguous()
@@ -61,7 +62,7 @@ class Embedding[T: ClassTag](
     val gradOutputData = _gradOutput.storage().array()
     val gradOutputOffset = _gradOutput.storageOffset()
 
-    updateEmbeddings(inputData, inputOffset, gradOutputData, gradOutputOffset,
+    updateEmbeddings(numElem, inputData, inputOffset, gradOutputData, gradOutputOffset,
       gradWeightData, gradWeightOffset, embedSize, paddingIdx, scaleW)
 
   }

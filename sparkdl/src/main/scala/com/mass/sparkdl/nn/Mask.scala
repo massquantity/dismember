@@ -22,9 +22,10 @@ class Mask[T: ClassTag](useScale: Boolean = false, factor: Int = -1)(
     }
 
     if (!input[Tensor[T]](1).isEmpty) {
+      val num = input[Tensor[Int]](1).nElement()
       val maskData = input[Tensor[Int]](1).storage().array()
       var i = 0
-      while (i < maskData.length) {
+      while (i < num) {
         val index = maskData(i)
         outputData(index) = ev.fromType(maskValue)
         i += 1
@@ -41,9 +42,10 @@ class Mask[T: ClassTag](useScale: Boolean = false, factor: Int = -1)(
     }
 
     if (!input[Tensor[Int]](1).isEmpty) {
+      val num = input[Tensor[Int]](1).nElement()
       val maskData = input[Tensor[Int]](1).storage().array()
       var i = 0
-      while (i < maskData.length) {
+      while (i < num) {
         val index = maskData(i)
         gradInputData(index) = ev.fromType(0.0)
         i += 1

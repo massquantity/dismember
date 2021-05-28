@@ -3,7 +3,7 @@ package com.mass.sparkdl.nn.abstractnn
 import scala.reflect.ClassTag
 
 import com.mass.sparkdl.nn.Graph.ModuleNode
-import com.mass.sparkdl.nn.Module
+import com.mass.sparkdl.nn.mixin.Module
 import com.mass.sparkdl.optim.OptimMethod
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
 import com.mass.sparkdl.utils.{DistriParameterSynchronizer, Edge}
@@ -83,6 +83,31 @@ abstract class AbstractModule[A <: Activity: ClassTag, B <: Activity: ClassTag, 
     processInputs(nodes)
   }
 
+  def inputs(nodesWithIndex: Seq[(ModuleNode[T], Int)], nodes: ModuleNode[T]*): ModuleNode[T] = {
+    val curNode = new ModuleNode[T](this)
+    if (nodesWithIndex != null) {
+      nodesWithIndex.foreach { case (node, index) =>
+        node.add(curNode, Edge(index))
+      }
+    }
+
+    if (nodes != null) {
+      nodes.foreach(node => node.add(curNode, Edge()))
+    }
+    curNode
+  }
+
+  def inputs(node: ModuleNode[T], preNode: ModuleNode[T], name: String): ModuleNode[T] = {
+    preNode.find(name) match {
+      case Some(n) =>
+        node.add(n, Edge())
+      case None =>
+        val curNode = new ModuleNode[T](this)
+        curNode.setName(name)
+        node.add(curNode, Edge())
+    }
+  }
+
   protected def processInputs(nodes: Seq[ModuleNode[T]]): ModuleNode[T] = {
     val curNode = new ModuleNode[T](this)
     nodes.foreach(node => node.add(curNode, Edge()))
@@ -140,7 +165,7 @@ abstract class AbstractModule[A <: Activity: ClassTag, B <: Activity: ClassTag, 
 
   def release(): Unit = { }
 
-  private var namePostfix = Integer.toHexString(java.util.UUID.randomUUID().hashCode())
+  private val namePostfix = Integer.toHexString(java.util.UUID.randomUUID().hashCode())
 
   protected var scaleW: Double = 1.0
   protected var scaleB: Double = 1.0

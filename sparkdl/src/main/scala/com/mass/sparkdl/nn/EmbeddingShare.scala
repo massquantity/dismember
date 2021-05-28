@@ -26,9 +26,9 @@ class EmbeddingShare[T: ClassTag](
     while (i < input.length) {
       inputBuffer(i) = input[Tensor[T]](i).contiguous().asInstanceOf[Tensor[Int]]
       val batchSize = input[Tensor[T]](i).size(0)
-      val numEle = inputBuffer[Tensor[T]](i).nElement()
+      val numElem = inputBuffer[Tensor[T]](i).nElement()
       output(i) = output.getOrElse[Tensor[T]](i, Tensor())
-        .resize(Array(numEle, embedSize))
+        .resize(Array(numElem, embedSize))
 
       val index = inputBuffer[Tensor[Int]](i).storage().array()
       val indexOffset = inputBuffer[Tensor[Int]](i).storageOffset()
@@ -37,7 +37,7 @@ class EmbeddingShare[T: ClassTag](
       val weightData = weight.storage().array()
       val weightOffset = weight.storageOffset()
 
-      embeddingLookup(index, indexOffset, outputData, outputOffset,
+      embeddingLookup(numElem, index, indexOffset, outputData, outputOffset,
         weightData, weightOffset, embedSize, nIndex, paddingIdx)
 
       if (input[Tensor[T]](i).dim() == 2) {
@@ -64,6 +64,7 @@ class EmbeddingShare[T: ClassTag](
     var i = 0
     while (i < input.length) {
       inputBuffer(i) = input[Tensor[T]](i).contiguous().asInstanceOf[Tensor[Int]]
+      val numElem = inputBuffer[Tensor[Int]](i).nElement()
       val inputData: Array[Int] = inputBuffer[Tensor[Int]](i).storage().array()
       val inputOffset: Int = inputBuffer[Tensor[Int]](i).storageOffset()
       val _gradOutput = gradOutput[Tensor[T]](i).contiguous()
@@ -72,7 +73,7 @@ class EmbeddingShare[T: ClassTag](
       val gradOutputData = _gradOutput.storage().array()
       val gradOutputOffset = _gradOutput.storageOffset()
 
-      updateEmbeddings(inputData, inputOffset, gradOutputData, gradOutputOffset,
+      updateEmbeddings(numElem, inputData, inputOffset, gradOutputData, gradOutputOffset,
         gradWeightData, gradWeightOffset, embedSize, paddingIdx, scaleW)
 
       i += 1

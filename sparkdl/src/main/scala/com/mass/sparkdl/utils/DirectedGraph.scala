@@ -56,9 +56,9 @@ class DirectedGraph[T](val source: Node[T], val reverse: Boolean = false) extend
 
   def BFS(): Iterator[Node[T]] = {
     new Iterator[Node[T]] {
+      private val visited = new mutable.HashSet[Node[T]]()
       private val queue = new mutable.Queue[Node[T]]()
       queue.enqueue(source)
-      private val visited = new mutable.HashSet[Node[T]]()
 
       override def hasNext: Boolean = queue.nonEmpty
 
@@ -110,12 +110,27 @@ class DirectedGraph[T](val source: Node[T], val reverse: Boolean = false) extend
   }
 }
 
-class Node[T](var element: T) extends Serializable { self =>
+private[sparkdl] class Node[T](var element: T) extends Serializable { self =>
 
   private val nexts = new ArrayBuffer[(Node[T], Edge)]()
   private val prevs = new ArrayBuffer[(Node[T], Edge)]()
 
   override def toString: String = s"(${element.toString})"
+
+  private var nodeName: String = _
+
+  def getName: String = nodeName
+
+  def setName(name: String): Unit = {
+    nodeName = name
+  }
+
+  def find(name: String): Option[Node[T]] = {
+    nexts.find(_._1.nodeName == name) match {
+      case Some(i) => Some(i._1)
+      case _ => None
+    }
+  }
 
   def nextNodes: Seq[Node[T]] = nexts.map(_._1)
 
