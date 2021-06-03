@@ -142,7 +142,7 @@ object Recommender {
         }
         val item = targetItem.narrow(0, 0, num)
         val seq = attentionSeq.narrow(0, 0, num)
-        // masks is one-dimensional
+        // masks is one-dimensional tensor
         val mask = if (masks.isEmpty) masks else masks.narrow(0, 0, num * maskLen)
         T(item, seq, mask)
       }

@@ -9,7 +9,7 @@ import scala.util.Using
 import com.mass.sparkdl.utils.{FileReader => DistFileReader}
 import com.mass.tdm.encoding
 import com.mass.tdm.protobuf.store_kv.KVItem
-import com.mass.tdm.protobuf.tree.{IdCodePair, IdCodePart, TreeMeta}
+import com.mass.tdm.protobuf.tree.{IdCodePart, TreeMeta}
 
 class DistTree extends Serializable {
   import DistTree.{TreeNode, loadData, loadItems}
@@ -136,7 +136,7 @@ object DistTree {
     tree
   }
 
-  private def loadItems(tree: DistTree): Unit = {
+  def loadItems(tree: DistTree): Unit = {
     val _kvData = tree.kvData
     val _idCodeMap = mutable.HashMap.empty[Int, Int]
     val _allCodes = mutable.BitSet.empty
@@ -160,17 +160,24 @@ object DistTree {
     tree.allCodes = _allCodes
     tree.maxCode = _maxCode
     tree.maxLevel = meta.maxLevel
+
+    meta.idCodePart.foreach { p =>
+      val partId = p.toString(encoding.name())
+      tree.kvData.remove(partId)
+    }
+    tree.kvData.remove("tree_meta")
  //   println(s"Load successfully, leaf node count: ${tree.idCodeMap.size}, " +
  //     s"nonLeafOffset: ${tree.nonLeafOffset}")
   }
 
-  private def loadData(path: String, tree: DistTree): Unit = {
+  def loadData(path: String, tree: DistTree): Unit = {
     val kBatchSize = 500
     val kvData = mutable.HashMap.empty[String, Array[Byte]]
     val keys = new ArrayBuffer[String]()
     val values = new ArrayBuffer[Array[Byte]]()
     val fileReader = DistFileReader(path)
     val input = fileReader.open()
+
     Using(new DataInputStream(new BufferedInputStream(input))) { input =>
       while (input.available() > 0) {
         val num = input.readInt()
@@ -192,8 +199,8 @@ object DistTree {
         throw e
       case _: EOFException =>
         println(s"file: $path read ended")
-      case e: Throwable =>
-        throw e
+      case t: Throwable =>
+        throw t
     }.get
 
     if (keys.nonEmpty) {

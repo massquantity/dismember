@@ -111,7 +111,7 @@ class TreeBuilder(outputTreePath: String, embedPath: Option[String] = None) {
         writeKV(partKV, writer)
       }
 
-      val partIds = parts.toArray.map(x => x.partId)
+      val partIds = parts.map(x => x.partId).toArray
       val meta = TreeMeta(maxLevel, partIds)
       val metaKV = KVItem(toByteString("tree_meta"), meta.toByteString)
       writeKV(metaKV, writer)
@@ -125,8 +125,8 @@ class TreeBuilder(outputTreePath: String, embedPath: Option[String] = None) {
       case Failure(e: FileNotFoundException) =>
         println(s"""file "${embedPath.get}" not found""")
         throw e
-      case Failure(e: Throwable) =>
-        throw e
+      case Failure(t: Throwable) =>
+        throw t
     }
   }
 
