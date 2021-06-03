@@ -3,6 +3,7 @@ package com.mass.tdm.tree
 import java.io._
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 
 import com.mass.tdm.utils.Context
@@ -97,14 +98,19 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
   }
 
   private def getUserInteracted(trainSample: InitSample): Map[Int, Array[Int]] = {
-    val interactions = mutable.Map.empty[Int, List[(Int, Long)]]
-    // (user, item, time).zipped
-    trainSample.user.zip(trainSample.item).zip(trainSample.timestamp) foreach {
-      case ((u: Int, i: Int), t: Long) =>
-        interactions(u) = (i, t) :: interactions.getOrElse(u, Nil)
-      case _ =>
-        throw new IllegalArgumentException
+    val interactions = mutable.Map.empty[Int, ArrayBuffer[(Int, Long)]]
+    var i = 0
+    val length = trainSample.user.length
+    while (i < length) {
+      val user = trainSample.user(i)
+      val item = trainSample.item(i)
+      val time = trainSample.timestamp(i)
+      val value = interactions.getOrElse(user, ArrayBuffer.empty[(Int, Long)])
+      value += Tuple2(item, time)
+      interactions(user) = value
+      i += 1
     }
+
     val res = interactions.map { case (user, items) =>
       val sortedUniqueItems = items.sortBy(_._2).map(_._1).toArray.distinct
       (user, sortedUniqueItems)
