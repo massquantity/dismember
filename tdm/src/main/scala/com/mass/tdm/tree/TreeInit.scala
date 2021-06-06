@@ -112,7 +112,7 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
     }
 
     val res = interactions.map { case (user, items) =>
-      val sortedUniqueItems = items.sortBy(_._2).map(_._1).toArray.distinct
+      val sortedUniqueItems = items.toArray.sortBy(_._2).map(_._1).distinct
       (user, sortedUniqueItems)
     }
 
@@ -195,16 +195,6 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
       val mid = (start + end) >>> 1
       genCode(mid, end, 2 * code + 1)
       genCode(start, mid, 2 * code + 2)
-    }
-
-    def genCode2(start: Int, end: Int, code: Int): Unit = {
-      if (end == start + 1) {
-        items(start).code = code
-      } else if (end > start + 1) {
-        val mid = (start + end) >>> 1
-        genCode2(mid, end, 2 * code + 1)
-        genCode2(start, mid, 2 * code + 2)
-      }
     }
 
     genCode(0, items.length, 0)

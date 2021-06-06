@@ -83,8 +83,8 @@ class RecursiveCluster(
         val _stat = mutable.HashMap.empty[Int, Int]
         val fileReader = DistFileReader(sf)
         val inputStream = fileReader.open()
-        Using(new BufferedReader(new InputStreamReader(inputStream))) { sfinput =>
-          sfinput.lines.forEach { line =>
+        Using(new BufferedReader(new InputStreamReader(inputStream))) { sfInput =>
+          sfInput.lines.forEach { line =>
             val arr = line.split(delimiter)
             _stat(arr(0).toDouble.toInt) = arr(1).toDouble.toInt
           }

@@ -45,7 +45,7 @@ trait Recommender {
     var i = getLevelStart(candidateNum)
     val levelEnd = i * 2 + 1
     while (i < levelEnd) {
-      candidateNodes += TreeNodePred(i, tree.kvData(i.toString), 0.0f)
+      candidateNodes += TreeNodePred(i, tree.codeNodeMap(i), 0.0f)
       i += 1
     }
 

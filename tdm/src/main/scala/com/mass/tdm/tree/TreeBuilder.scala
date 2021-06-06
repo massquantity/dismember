@@ -70,15 +70,15 @@ class TreeBuilder(outputTreePath: String, embedPath: Option[String] = None) {
       ids.indices.foreach { i =>
         val id = ids(i)
         val code = codes(i)
-        val probality = stat match {
+        val prob = stat match {
           case Some(s) if s.contains(id) => s(id).toFloat
           case _ => 1.0f
         }
         val leafCatId = 0
         val isLeaf = true
         val leafNode: Node = embeds match {
-          case Some(emb) => Node(id, probality, leafCatId, isLeaf, emb(i).toSeq)
-          case None => Node(id, probality, leafCatId, isLeaf)
+          case Some(emb) => Node(id, prob, leafCatId, isLeaf, emb(i).toSeq)
+          case None => Node(id, prob, leafCatId, isLeaf)
         }
         val leafKV = KVItem(toByteString(code), leafNode.toByteString)
         writeKV(leafKV, writer)
@@ -94,10 +94,10 @@ class TreeBuilder(outputTreePath: String, embedPath: Option[String] = None) {
         ancestors.foreach { ancCode =>
           if (!savedItems.contains(ancCode)) {
             val id = ancCode + offset
-            val probality = pstat.getOrElse(ancCode, 1.0f)
+            val prob = pstat.getOrElse(ancCode, 1.0f)
             val leafCatId = 0
             val isLeaf = false
-            val node = Node(id, probality, leafCatId, isLeaf)
+            val node = Node(id, prob, leafCatId, isLeaf)
             val ancestorKV = KVItem(toByteString(ancCode), node.toByteString)
             writeKV(ancestorKV, writer)
             savedItems += ancCode
