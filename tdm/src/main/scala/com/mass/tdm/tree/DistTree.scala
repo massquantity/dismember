@@ -1,6 +1,6 @@
 package com.mass.tdm.tree
 
-import java.io._
+import java.io.{BufferedInputStream, DataInputStream, EOFException, FileNotFoundException}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -9,32 +9,18 @@ import scala.util.Using
 import com.mass.sparkdl.utils.{FileReader => DistFileReader}
 import com.mass.tdm.encoding
 import com.mass.tdm.protobuf.store_kv.KVItem
-import com.mass.tdm.protobuf.tree.{IdCodePart, TreeMeta}
+import com.mass.tdm.protobuf.tree.{IdCodePart, Node, TreeMeta}
 
-class DistTree extends Serializable {
-  import DistTree.{TreeNode, loadData, loadItems}
+trait DistTree {
+  import com.mass.tdm.tree.DistTree.multiPut
 
-  private[tdm] var kvData: mutable.HashMap[String, Array[Byte]] = _
-  private var idCodeMap: mutable.HashMap[Int, Int] = _
-  private var allCodes: mutable.BitSet = _   // mutable.HashSet
-  private[tdm] var initialized: Boolean = false
-  private[tdm] var maxLevel: Int = 0
-  private[tdm] var maxCode: Int = -1
-  private var nonLeafOffset: Int = -1
-
-  private val paddingId: Int = 0  // padded original item id
-
-  def getMaxLevel: Int = maxLevel
-
-  def getIds: Array[Int] = idCodeMap.keys.toArray
-
-  def getIdCodeMap: mutable.HashMap[Int, Int] = idCodeMap
-
-  def init(path: String): Unit = {
-    loadData(path, this)
-    loadItems(this)
-    initialized = true
-  }
+  protected val codeNodeMap: mutable.HashMap[Int, Node]
+  protected val idCodeMap: mutable.HashMap[Int, Int]
+  protected val leafCodes: mutable.BitSet
+  protected var initialized: Boolean
+  protected var maxLevel: Int
+  protected var maxCode: Int
+  protected var nonLeafOffset: Int
 
   @inline
   def isFiltered(code: Int): Boolean = {
@@ -48,7 +34,7 @@ class DistTree extends Serializable {
 
     var _code = code
     while (_code < maxIdx) {
-      if (allCodes.contains(_code)) {
+      if (leafCodes.contains(_code)) {
         return false
       }
       _code = _code * 2 + 1
@@ -56,125 +42,32 @@ class DistTree extends Serializable {
     true
   }
 
-  // paddingIndex = -1, paddingId = 0
-  def idToCode(itemIds: Array[Int]): Array[Int] = {
-    require(initialized, "tree hasn't been initialized...")
-    val res = new Array[Int](itemIds.length)
-    var i = 0
-    while (i < itemIds.length) {
-      val id = itemIds(i)
-      if (id == paddingId) {
-        res(i) = -1
-      } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
-        res(i) = idCodeMap(id)
-      } else {
-        res(i) = id - nonLeafOffset
-        if (res(i) > maxCode) res(i) = -1
-      }
-      i += 1
-    }
-    res
-  }
-
-  def idToCodeWithMask(itemIds: Array[Int]): (Array[Int], ArrayBuffer[Int]) = {
-    val mask = new ArrayBuffer[Int]()
-    val res = new Array[Int](itemIds.length)
-    var i = 0
-    while (i < itemIds.length) {
-      val id = itemIds(i)
-      if (id == paddingId) {
-        res(i) = -1
-        mask += i
-      } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
-        res(i) = idCodeMap(id)
-      } else {
-        res(i) = id - nonLeafOffset
-        if (res(i) > maxCode) res(i) = -1
-      }
-      i += 1
-    }
-    (res, mask)
-  }
-
-  def getAncestorNodes(itemCodes: Array[Int]): Array[Array[TreeNode]] = {
-    itemCodes.map(code => {
-      if (code == 0 || isFiltered(code)) {
-        Array.empty[TreeNode]
-      } else {
-        val res = new ArrayBuffer[TreeNode]()
-        var _code = code
-        while (_code != 0) {
-          res += TreeNode(_code, kvData(_code.toString))
-          _code = (_code - 1) >> 1
-        }
-        res.toArray
-      }
-    })
-  }
-
-  def getChildNodes(itemCode: Int): List[TreeNode] = {
-    var res = List.empty[TreeNode]
-    val childLeft = 2 * itemCode + 1
-    if (!isFiltered(childLeft)) {
-      res = TreeNode(childLeft, kvData(childLeft.toString)) :: res
-    }
-    val childRight = 2 * itemCode + 2
-    if (!isFiltered(childRight)) {
-      res = TreeNode(childRight, kvData(childRight.toString)) :: res
-    }
-    res
-  }
-}
-
-object DistTree {
-
-  case class TreeNode(code: Int, node: Array[Byte])
-
-  def apply(pbFilePath: String): DistTree = {
-    val tree = new DistTree
-    tree.init(pbFilePath)
-    tree
-  }
-
-  def loadItems(tree: DistTree): Unit = {
-    val _kvData = tree.kvData
-    val _idCodeMap = mutable.HashMap.empty[Int, Int]
-    val _allCodes = mutable.BitSet.empty
+  def loadItems(idCodeAllParts: ArrayBuffer[IdCodePart], meta: TreeMeta): Unit = {
     var _maxCode: Int = -1
     var maxLeafId: Int = -1
-    val meta: TreeMeta = TreeMeta.parseFrom(_kvData("tree_meta"))
 
-    meta.idCodePart.foreach { p =>
-      val partId = p.toString(encoding.name())
-      val part = IdCodePart.parseFrom(_kvData(partId))
-      part.idCodeList.foreach { i =>
-        _idCodeMap(i.id) = i.code
-        _allCodes += i.code
-        maxLeafId = math.max(maxLeafId, i.id)
-        _maxCode = math.max(_maxCode, i.code)
+    idCodeAllParts.foreach { part =>
+      if (meta.idCodePart.contains(part.partId)) {
+        part.idCodeList.foreach { i =>
+          idCodeMap(i.id) = i.code
+          leafCodes += i.code
+          maxLeafId = math.max(maxLeafId, i.id)
+          _maxCode = math.max(_maxCode, i.code)
+        }
       }
     }
 
-    tree.nonLeafOffset = maxLeafId + 1
-    tree.idCodeMap = _idCodeMap
-    tree.allCodes = _allCodes
-    tree.maxCode = _maxCode
-    tree.maxLevel = meta.maxLevel
-
-    meta.idCodePart.foreach { p =>
-      val partId = p.toString(encoding.name())
-      tree.kvData.remove(partId)
-    }
-    tree.kvData.remove("tree_meta")
- //   println(s"Load successfully, leaf node count: ${tree.idCodeMap.size}, " +
- //     s"nonLeafOffset: ${tree.nonLeafOffset}")
+    nonLeafOffset = maxLeafId + 1
+    maxCode = _maxCode
+    maxLevel = meta.maxLevel
   }
 
-  def loadData(path: String, tree: DistTree): Unit = {
+  def loadData(path: String): (ArrayBuffer[IdCodePart], TreeMeta) = {
     val kBatchSize = 500
-    val kvData = mutable.HashMap.empty[String, Array[Byte]]
-    val keys = new ArrayBuffer[String]()
-    val values = new ArrayBuffer[Array[Byte]]()
+    val idCodeAllParts = ArrayBuffer.empty[IdCodePart]
+    var treeMeta: TreeMeta = null
+    val keys = new ArrayBuffer[Int]()
+    val values = new ArrayBuffer[Node]()
     val fileReader = DistFileReader(path)
     val input = fileReader.open()
 
@@ -185,12 +78,20 @@ object DistTree {
         // input.read(buf, 0, num)
         input.readFully(buf)
         val item = KVItem.parseFrom(buf)
-        keys += item.key.toString(encoding.name())
-        values += item.value.toByteArray
-        if (keys.length >= kBatchSize) {
-          multiPut(kvData, keys, values)
-          keys.clear()
-          values.clear()
+        val key = item.key.toString(encoding.name())
+        val value = item.value.toByteArray
+        if (key.startsWith("tree_meta")) {
+          treeMeta = TreeMeta.parseFrom(value)
+        } else if (key.startsWith("Part_")) {
+          idCodeAllParts += IdCodePart.parseFrom(value)
+        } else {
+          keys += item.key.toString(encoding.name()).toInt
+          values += Node.parseFrom(item.value.toByteArray)
+          if (keys.length >= kBatchSize) {
+            multiPut(codeNodeMap, keys, values)
+            keys.clear()
+            values.clear()
+          }
         }
       }
     }.recover {
@@ -204,39 +105,25 @@ object DistTree {
     }.get
 
     if (keys.nonEmpty) {
-      multiPut(kvData, keys, values)
+      multiPut(codeNodeMap, keys, values)
     }
-    tree.kvData = kvData
 
-   /*
-   val channel = FileChannel.open(Paths.get(path))
-   val length = channel.size()
-   val buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, length)
-   var p = 0
-   while (buffer.remaining() > 0) {
-     val num = buffer.getInt()
-     val buf = new Array[Byte](num)
-     // input.read(buf, 0, num)
-     buffer.get(buf)
-     val item = KVItem.parseFrom(buf)
-     keys += item.key.toString(encoding)
-     values += item.value.toByteArray
-     if (keys.length >= kBatchSize) {
-       multiPut(keys, values)
-       keys.clear()
-       values.clear()
-     }
-   }
-   */
+    (idCodeAllParts, treeMeta)
   }
 
+}
+
+object DistTree {
+
+  case class TreeNode(code: Int, node: Node)
+
   private def multiPut(
-      map: mutable.HashMap[String, Array[Byte]],
-      keys: ArrayBuffer[String],
-      values: ArrayBuffer[Array[Byte]]): Unit = {
+      map: mutable.HashMap[Int, Node],
+      keys: ArrayBuffer[Int],
+      values: ArrayBuffer[Node]): Unit = {
 
     keys.zip(values) foreach {
-      case (k: String, v: Array[Byte]) => map(k) = v
+      case (k: Int, v: Node) => map(k) = v
     }
   }
 }
