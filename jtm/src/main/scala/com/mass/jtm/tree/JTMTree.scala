@@ -47,56 +47,34 @@ class JTMTree extends DistTree with Serializable {
     val levelEnd = levelStart * 2 + 1
     (levelStart until levelEnd).toArray.filter(codeNodeMap.contains)
   }
-  /*
+
   def getChildrenAtLevel(ancestor: Int, level: Int): Array[Int] = {
     val levelStart = (math.pow(2, level) - 1).toInt
     val levelEnd = levelStart * 2 + 1
     var parent = Array(ancestor)
     val children = ArrayBuffer.empty[Int]
+    // index start from 0, so all level subtract 1
+    val _maxLevel = maxLevel - 1
     var finished = false
     while (!finished) {
-      parent.foreach { p =>
-        val childLeft = 2 * p + 1
-        if (codeNodeMap.contains(childLeft)) {
-          children += childLeft
+      if (level < _maxLevel) {
+        parent.foreach { p =>
+          val childLeft = 2 * p + 1
+          if (codeNodeMap.contains(childLeft)) {
+            children += childLeft
+          }
+          val childRight = 2 * p + 2
+          if (codeNodeMap.contains(childRight)) {
+            children += childRight
+          }
         }
-        val childRight = 2 * p + 2
-        if (codeNodeMap.contains(childRight)) {
-          children += childRight
-        }
-      }
-
-      if (children.isEmpty || (children.head >= levelStart && children.head < levelEnd)) {
-        finished = true
       } else {
-        parent = children.toArray
-        children.clear()
-      }
-    }
-    children.toArray
-  }
-  */
-  def getChildrenAtLevel(ancestor: Int, level: Int): Array[Int] = {
-    val levelStart = (math.pow(2, level) - 1).toInt
-    val levelEnd = levelStart * 2 + 1
-    var parent = Array(ancestor)
-    val children = ArrayBuffer.empty[Int]
-    // var newChildren = Array.empty[Int]
-    var finished = false
-    while (!finished) {
-      parent.foreach { p =>
-        children += 2 * p + 1
-        children += 2 * p + 2
-      }
-
-      /*
-      newChildren = {
-        if (children.count(codeNodeMap.contains) <= 1) {
-          children.toArray
-        } else {
-          children.filter(codeNodeMap.contains).toArray
+        // leaf nodes can be different in final tree, so didn't exclude them
+        parent.foreach { p =>
+          children += 2 * p + 1
+          children += 2 * p + 2
         }
-      } */
+      }
 
       if (children.head >= levelStart && children.head < levelEnd) {
         finished = true
@@ -134,7 +112,7 @@ class JTMTree extends DistTree with Serializable {
     val leafStat = mutable.HashMap.empty[Int, (Int, Float)]
     val pstat = mutable.HashMap.empty[Int, Float]
 
-    projectionPi foreach { case (itemId, newCode) =>
+    projectionPi.foreach { case (itemId, newCode) =>
       val oldCode = idCodeMap(itemId)
       val prob = codeNodeMap(oldCode).probality
       leafStat(newCode) = (itemId, prob)
@@ -178,35 +156,7 @@ class JTMTree extends DistTree with Serializable {
         val ancestorKV = KVItem(toByteString(code), node.toByteString)
         writeKV(ancestorKV, writer)
       }
-      /*
-      val codeOfAllNodes = codeNodeMap.keys.toArray
-      codeOfAllNodes.foreach { code =>
-        if (leafStat.contains(code)) {
-          val id = leafStat(code)._1
-          val prob = leafStat(code)._2
-          val leafCatId = 0
-          val isLeaf = true
-          val leafNode = Node(id, prob, leafCatId, isLeaf)
-          val leafKV = KVItem(toByteString(code), leafNode.toByteString)
-          writeKV(leafKV, writer)
 
-          tmpItems += IdCodePair(id, code)
-          if (code == codeOfAllNodes.last || tmpItems.length == 512) {
-            val partId = "Part_" + (parts.length + 1)
-            parts += IdCodePart(toByteString(partId), tmpItems.clone())
-            tmpItems.clear()
-          }
-        } else {
-          val id = codeNodeMap(code).id
-          val prob = pstat(code)
-          val leafCatId = 0
-          val isLeaf = false
-          val node = Node(id, prob, leafCatId, isLeaf)
-          val ancestorKV = KVItem(toByteString(code), node.toByteString)
-          writeKV(ancestorKV, writer)
-        }
-      }
-      */
       parts.foreach { p =>
         val partKV = KVItem(p.partId, p.toByteString)
         writeKV(partKV, writer)
@@ -228,11 +178,8 @@ class JTMTree extends DistTree with Serializable {
         throw t
     }
 
-    logger.info(s"item num: ${projectionPi.size}, tree level: $maxLevel, " +
-      s"leaf code start: ${projectionPi.values.min}, " +
-      s"leaf code end: ${projectionPi.values.max}")
-
-    println(s"item num: ${projectionPi.size}, tree level: $maxLevel, " +
+    logger.info(s"item num: ${projectionPi.size}, " +
+      s"tree level: $maxLevel, " +
       s"leaf code start: ${projectionPi.values.min}, " +
       s"leaf code end: ${projectionPi.values.max}")
   }
@@ -255,4 +202,43 @@ object JTMTree {
     }
     ancs.toArray
   }
+
+  /*
+  def getChildrenAtLevel(ancestor: Int, level: Int): Array[Int] = {
+    val levelStart = (math.pow(2, level) - 1).toInt
+    val levelEnd = levelStart * 2 + 1
+    var parent = Array(ancestor)
+    val children = ArrayBuffer.empty[Int]
+    var finished = false
+    while (!finished) {
+      parent.foreach { p =>
+        val childLeft = 2 * p + 1
+        if (codeNodeMap.contains(childLeft)) {
+          children += childLeft
+        }
+        val childRight = 2 * p + 2
+        if (codeNodeMap.contains(childRight)) {
+          children += childRight
+        }
+      }
+
+      newChildren = {
+        if (children.count(codeNodeMap.contains) <= 1) {
+          children.toArray
+        } else {
+          children.filter(codeNodeMap.contains).toArray
+        }
+      }
+
+      if (children.isEmpty || (children.head >= levelStart && children.head < levelEnd)) {
+        finished = true
+      } else {
+        parent = children.toArray
+        children.clear()
+      }
+    }
+    children.toArray
+  }
+ */
+
 }

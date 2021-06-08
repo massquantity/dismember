@@ -13,6 +13,7 @@
         <module>sparkdl</module>
         <module>tdm</module>
         <module>examples</module>
+        <module>jtm</module>
     </modules>
 
     <properties>
@@ -91,6 +92,12 @@
             <groupId>org.scalanlp</groupId>
             <artifactId>breeze_${scala.version}</artifactId>
             <version>1.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.typelevel</groupId>
+            <artifactId>spire_2.12</artifactId>
+            <version>0.17.0</version>
         </dependency>
 
     </dependencies>
