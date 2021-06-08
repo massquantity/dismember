@@ -6,20 +6,18 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.hashing.MurmurHash3
 
-import com.mass.tdm.protobuf.tree.Node
-import com.mass.tdm.tree.DistTree
+import com.mass.tdm.tree.DistTree.TreeNode
+import com.mass.tdm.tree.TDMTree
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution
 import org.apache.commons.math3.random.MersenneTwister
 
 class NegativeSampler(
-    tree: DistTree,
+    tree: TDMTree,
     layerNegCounts: String,
     withProb: Boolean = true,
     startSampleLayer: Int = -1,
     tolerance: Int = 20,
     numThreads: Int) extends Serializable {
-
-  import DistTree._
   require(tree.initialized, "tree hasn't been initialized...")
 
   private var negNumPerLayer: Array[Int] = _
@@ -90,8 +88,8 @@ class NegativeSampler(
     (1 to level).foreach(_ => index = index * 2 + 1)
     val end = index * 2 + 1
     while (index < end) {
-      if (!tree.isFiltered(index)) {
-        val node = Node.parseFrom(tree.kvData(index.toString))
+      if (tree.codeNodeMap.contains(index)) {
+        val node = tree.codeNodeMap(index)
         codes += index
         probs += node.probality.toDouble
       }
@@ -134,7 +132,7 @@ class NegativeSampler(
       var j = 0
       while (j < ancs.length && level - 1 >= startSampleLayer) {
         level -= 1  // upward sampling, will stop at `startSampleLayer` if possible
-        val posNode = Node.parseFrom(ancs(j).node)
+        val posNode = ancs(j).node
         val positiveId = posNode.id
         outputIds(offset) = positiveId
         labels(offset) = 1.0f
@@ -154,7 +152,7 @@ class NegativeSampler(
           // println(s"level $level tolerance: " + layerTolerance)
           while (hasSampled.size < negNum && t < layerTolerance) {
             val s = weightedDist.sample()
-            if (!hasSampled.contains(s) && s != positiveId && !tree.isFiltered(s)) {
+            if (!hasSampled.contains(s) && s != positiveId && tree.codeNodeMap.contains(s)) {
               hasSampled += s
             }
             t += 1
@@ -170,7 +168,7 @@ class NegativeSampler(
             while (k < numRemain) {
               // try using maxCode EnumeratedIntegerDistribution
               val s = ThreadLocalRandom.current.nextInt(levelStart, levelEnd)
-              if (!tree.isFiltered(s)) {
+              if (tree.codeNodeMap.contains(s)) {
                 hasSampled += s
                 k += 1
               }
@@ -181,14 +179,14 @@ class NegativeSampler(
           val levelEnd = levelStart * 2 + 1
           while (hasSampled.size < negNum) {
             val s = ThreadLocalRandom.current.nextInt(levelStart, levelEnd)
-            if (!hasSampled.contains(s) && s != positiveId && !tree.isFiltered(s)) {
+            if (!hasSampled.contains(s) && s != positiveId && tree.codeNodeMap.contains(s)) {
               hasSampled += s
             }
           }
         }
 
         hasSampled.foreach { s =>
-          val negNode = Node.parseFrom(tree.kvData(s.toString))
+          val negNode = tree.codeNodeMap(s)
           outputIds(offset) = negNode.id
           labels(offset) = 0.0f
           offset += 1

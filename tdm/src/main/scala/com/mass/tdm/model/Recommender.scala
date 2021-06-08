@@ -8,7 +8,7 @@ import com.mass.sparkdl.nn.abstractnn.Activity
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.utils.{T, Table}
 import com.mass.tdm.protobuf.tree.Node
-import com.mass.tdm.tree.DistTree
+import com.mass.tdm.tree.TDMTree
 import com.mass.tdm.tree.DistTree.TreeNode
 
 trait Recommender {
@@ -17,7 +17,7 @@ trait Recommender {
   def recommendItems(
       sequence: Array[Int],
       model: Module[Float],
-      tree: DistTree,
+      tree: TDMTree,
       topk: Int,
       candidateNum: Int,
       concat: Boolean): Array[Int] = {
@@ -30,7 +30,7 @@ trait Recommender {
   private[model] def _recommend(
       sequence: Array[Int],
       model: Module[Float],
-      tree: DistTree,
+      tree: TDMTree,
       candidateNum: Int,
       concat: Boolean): Array[(Int, Float)] = {
 
@@ -44,7 +44,7 @@ trait Recommender {
     // initialize candidateNodes to number of candidateNum
     var i = getLevelStart(candidateNum)
     val levelEnd = i * 2 + 1
-    while (i < levelEnd) {
+    while (tree.codeNodeMap.contains(i) && i < levelEnd) {
       candidateNodes += TreeNodePred(i, tree.codeNodeMap(i), 0.0f)
       i += 1
     }
@@ -55,8 +55,7 @@ trait Recommender {
 
       if (leafNodes.nonEmpty) {
         leafNodes.foreach(i => {
-          val node = Node.parseFrom(i.rawNode)
-          leafIds += Tuple2(node.id, i.pred)
+          leafIds += Tuple2(i.node.id, i.pred)
         })
       }
 
@@ -114,7 +113,7 @@ trait Recommender {
 
 object Recommender {
 
-  case class TreeNodePred(code: Int, rawNode: Array[Byte], pred: Float)
+  case class TreeNodePred(code: Int, node: Node, pred: Float)
 
   private class ModelInputs(
       concatSeq: Tensor[Int] = null,
@@ -149,7 +148,7 @@ object Recommender {
     }
   }
 
-  private def duplicateSequence(sequence: Array[Int], tree: DistTree,
+  private def duplicateSequence(sequence: Array[Int], tree: TDMTree,
       concat: Boolean, candidateLen: Int): ModelInputs = {
 
     if (concat) {

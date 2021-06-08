@@ -105,9 +105,11 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
       val user = trainSample.user(i)
       val item = trainSample.item(i)
       val time = trainSample.timestamp(i)
-      val value = interactions.getOrElse(user, ArrayBuffer.empty[(Int, Long)])
-      value += Tuple2(item, time)
-      interactions(user) = value
+      if (interactions.contains(user)) {
+        interactions(user) += Tuple2(item, time)
+      } else {
+        interactions(user) = ArrayBuffer((item, time))
+      }
       i += 1
     }
 
@@ -160,22 +162,25 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
 
     // val item_id_set = trainSample("item").distinct.toSet[Int]
     val itemSet = mutable.HashSet.empty[Int]
-    var items = mutable.ArrayBuffer.empty[Item]
-    trainSample.item zip trainSample.category foreach {
-      case (item_id: Int, cat_id: Int) =>
-        if (!itemSet.contains(item_id)) {
-          itemSet += item_id
-          items += Item(item_id, cat_id)
-        }
-      case _ =>
+    val itemBuffer = mutable.ArrayBuffer.empty[Item]
+    var i = 0
+    while (i < trainSample.item.length) {
+      val itemId = trainSample.item(i)
+      val catId = trainSample.category(i)
+      if (!itemSet.contains(itemId)) {
+        itemSet += itemId
+        itemBuffer += Item(itemId, catId)
+      }
+      i += 1
     }
+    var items = itemBuffer.toArray
 
     val fileWriter = DistFileWriter(leafIdFile)
     val output = fileWriter.create(overwrite = true)
     val writer = new DataOutputStream(new BufferedOutputStream(output))
   //  val writer = new BufferedWriter(new FileWriter(new File(leafIdFile)))
     try {
-      itemSet.foreach(x => writer.writeBytes(s"${x.toString}\n"))
+      items.foreach(x => writer.writeBytes(s"${x.itemId.toString}\n"))
     } finally {
       writer.close()
       output.close()
@@ -198,8 +203,8 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
     }
 
     genCode(0, items.length, 0)
-    val ids = items.map(_.itemId).toArray
-    val codes = items.map(_.code).toArray
+    val ids = items.map(_.itemId)
+    val codes = items.map(_.code)
 
     val builder = new TreeBuilder(treePbFile)
     builder.build(
@@ -260,7 +265,8 @@ object TreeInit extends Context {
       train: Boolean): Unit = {
 
     val sb = new StringBuilder
-    userInteraction.keysIterator.foreach { user =>
+    val users = userInteraction.keys.toArray
+    users.foreach { user =>
       val items = userInteraction(user)
       if (train && items.length <= minSeqLen) {
         userConsumed(user) = items
@@ -322,7 +328,7 @@ object TreeInit extends Context {
       writer: PrintWriter,
       stat: mutable.HashMap[Int, Int]): Unit = {
 
-    stat foreach {
+    stat.foreach {
       case (user, count) =>
         writer.println(s"$user, $count")
       case _ =>
@@ -333,7 +339,7 @@ object TreeInit extends Context {
       writer: PrintWriter,
       userConsumed: mutable.Map[Int, Array[Int]]): Unit = {
 
-    userConsumed foreach {
+    userConsumed.foreach {
       case (user, items) =>
         writer.write(s"user_$user")
         items.foreach(i => writer.write(s",$i"))

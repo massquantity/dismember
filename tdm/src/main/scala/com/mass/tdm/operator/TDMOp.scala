@@ -3,7 +3,7 @@ package com.mass.tdm.operator
 import scala.collection.mutable.ArrayBuffer
 
 import com.mass.tdm.dataset.TDMSample
-import com.mass.tdm.tree.DistTree
+import com.mass.tdm.tree.TDMTree
 import com.mass.tdm.utils.NegativeSampler
 import org.apache.log4j.Logger
 
@@ -19,7 +19,7 @@ object TDMOp {
   private var _numThreads: Int = _
   private var _parallelSample: Boolean = _
 
-  lazy val tree: DistTree = buildTree(_pbFilePath)
+  lazy val tree: TDMTree = buildTree(_pbFilePath)
   lazy val sampler: NegativeSampler = buildSampler(tree)
 
   def initTree(pbFilePath: String): Unit = {
@@ -45,13 +45,13 @@ object TDMOp {
     _parallelSample = parallelSample
   }
 
-  private def buildTree(pbFilePath: String): DistTree = {
+  private def buildTree(pbFilePath: String): TDMTree = {
     require(pbFilePath != "", "must initialize tree first...")
-    val singletonTree = DistTree(pbFilePath)
+    val singletonTree = TDMTree(pbFilePath)
     singletonTree
   }
 
-  private def buildSampler(tree: DistTree): NegativeSampler = {
+  private def buildSampler(tree: TDMTree): NegativeSampler = {
     val singletonSampler = new NegativeSampler(tree, _layerNegCounts, _withProb,
       _startSampleLayer, _tolerance, _numThreads)
     if (_parallelSample) {

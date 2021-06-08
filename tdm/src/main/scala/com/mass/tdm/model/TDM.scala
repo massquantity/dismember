@@ -12,12 +12,12 @@ class TDM(featSeqLen: Int, val embedSize: Int, deepModel: String, paddingIndex: 
     extends Serializable with Recommender {
 
   private[this] var dlModel: Module[Float] = _
-  // @transient private[this] var tdmTree: DistTree = TDMOp.tree
+  // @transient private[this] var tdmTree: TDMTree = TDMOp.tree
   private val dlModelName = deepModel.toLowerCase
   lazy val concatSequence: Boolean = if (dlModelName == "deepfm") true else false
 
   // def loadTree(pbFilePath: String): Unit = {
-  //  tdmTree = DistTree(pbFilePath)
+  //  tdmTree = TDMTree(pbFilePath)
   // }
 
   def getModel: Module[Float] = {
