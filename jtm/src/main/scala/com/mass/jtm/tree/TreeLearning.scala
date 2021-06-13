@@ -18,7 +18,7 @@ class TreeLearning(
     parallel: Boolean,
     numThreads: Int,
     delimiter: String = ",") {
-  import TreeLearning.buildFeatures
+  import TreeLearning.{buildFeatures, ItemInfo}
 
   private val itemSequenceMap = new mutable.HashMap[Int, Array[Int]]()
   private var tree: JTMTree = _
@@ -77,7 +77,7 @@ class TreeLearning(
       val nodes = tree.getAllNodesAtLevel(level - _gap)
       val start = System.nanoTime()
       nodes.foreach { node =>
-        val itemsAssignedToNode = projectionPi.filter(p => p._2 == node).keys.toArray
+        val itemsAssignedToNode = projectionPi.toArray.filter(_._2 == node).map(_._1)
         updateProjection(projectionPi, level, node, itemsAssignedToNode)
       }
       val end = System.nanoTime()
@@ -96,7 +96,7 @@ class TreeLearning(
       node: Int,
       itemsAssignedToNode: Array[Int]): Unit = {
 
-    val nodeItemMapWithWeights = new mutable.HashMap[Int, ArrayBuffer[(Int, Float)]]()
+    val nodeItemMapWithWeights = new mutable.HashMap[Int, ArrayBuffer[ItemInfo]]()
     val oldItemNodeMap = new mutable.HashMap[Int, Int]()
     val maxAssignNum = math.pow(2, maxLevel - level).toInt
     val childrenAtLevel = tree.getChildrenAtLevel(node, level)
@@ -107,9 +107,9 @@ class TreeLearning(
       val maxWeightChildNode = candidateNodes(item).head
       val maxWeight = candidateWeights(item).head
       if (nodeItemMapWithWeights.contains(maxWeightChildNode)) {
-        nodeItemMapWithWeights(maxWeightChildNode) += Tuple2(item, maxWeight)
+        nodeItemMapWithWeights(maxWeightChildNode) += ItemInfo(item, maxWeight)
       } else {
-        nodeItemMapWithWeights(maxWeightChildNode) = ArrayBuffer((item, maxWeight))
+        nodeItemMapWithWeights(maxWeightChildNode) = ArrayBuffer(ItemInfo(item, maxWeight))
       }
 
       oldItemNodeMap(item) = tree.getAncestorAtLevel(item, level)
@@ -120,7 +120,7 @@ class TreeLearning(
 
     nodeItemMapWithWeights.foreach { case (node, items) =>
       require(items.length <= maxAssignNum)
-      items.foreach(i => projection(i._1) = node)
+      items.foreach(i => projection(i.id) = node)
     }
   }
 
@@ -145,7 +145,7 @@ class TreeLearning(
         i += 1
       }
 
-      // sort according to weight
+      // sort according to descending weight
       val index = candidateWeight.toArray.argSort(inplace = true).reverse
       candidateNodesOfItems(item) = index.map(candidateNode(_))
       candidateWeightsOfItems(item) = index.map(candidateWeight(_))
@@ -155,7 +155,7 @@ class TreeLearning(
 
   private def aggregateWeights(item: Int, currentNode: Int, childNode: Int): Float = {
     // items that never appeared as target are assigned low weights
-    if (!itemSequenceMap.contains(item)) return -1e9f
+    if (!itemSequenceMap.contains(item)) return -1e6f
     var weights = 0.0f
     var node = childNode
     while (node > currentNode) {
@@ -167,7 +167,7 @@ class TreeLearning(
   }
 
   private def rebalance(
-      nodeItemMapWithWeights: mutable.HashMap[Int, ArrayBuffer[(Int, Float)]],
+      nodeItemMapWithWeights: mutable.HashMap[Int, ArrayBuffer[ItemInfo]],
       oldItemNodeMap: mutable.HashMap[Int, Int],
       childrenAtLevel: Array[Int],
       maxAssignNum: Int,
@@ -193,13 +193,13 @@ class TreeLearning(
       } else {
         processedNodes.add(maxAssignNode)
         val sortedItemsAndWeights = nodeItemMapWithWeights(maxAssignNode)
-          .sortBy(i => (oldItemNodeMap(i._1) != maxAssignNode, i._2))(
+          .sortBy(i => (oldItemNodeMap(i.id) != maxAssignNode, i.weight))(
             Ordering.Tuple2(Ordering.Boolean, Ordering.Float.reverse))
 
         // start from maxAssignNum, and move the redundant items to other nodes
         var i = maxAssignNum
         while (i < sortedItemsAndWeights.length) {
-          val redundantItem = sortedItemsAndWeights(i)._1
+          val redundantItem = sortedItemsAndWeights(i).id
           val candidateNodes = candidateNodesOfItems(redundantItem)
           val candidateWeights = candidateWeightsOfItems(redundantItem)
           var j = 0
@@ -208,12 +208,12 @@ class TreeLearning(
             val node = candidateNodes(j)
             val weight = candidateWeights(j)
             if (!processedNodes.contains(node)) {
-              if (nodeItemMapWithWeights.contains(node)) {
-                nodeItemMapWithWeights(node) += Tuple2(redundantItem, weight)
-              } else {
-                nodeItemMapWithWeights(node) = ArrayBuffer((redundantItem, weight))
-              }
               found = true
+              if (nodeItemMapWithWeights.contains(node)) {
+                nodeItemMapWithWeights(node) += ItemInfo(redundantItem, weight)
+              } else {
+                nodeItemMapWithWeights(node) = ArrayBuffer(ItemInfo(redundantItem, weight))
+              }
             }
             j += 1
           }
@@ -228,6 +228,8 @@ class TreeLearning(
 }
 
 object TreeLearning {
+
+  case class ItemInfo(id: Int, weight: Float)
 
   def apply(
       gap: Int,

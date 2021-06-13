@@ -34,7 +34,7 @@ class JTMTree extends DistTree with Serializable {
   }
 
   def getAncestorAtLevel(item: Int, level: Int): Int = {
-    val maxCode = (math.pow(2, level + 1) - 1).toInt
+    val maxCode = math.pow(2, level + 1).toInt - 1
     var code = idCodeMap(item)
     while (code >= maxCode) {
       code = (code - 1) >> 1
@@ -43,13 +43,13 @@ class JTMTree extends DistTree with Serializable {
   }
 
   def getAllNodesAtLevel(level: Int): Array[Int] = {
-    val levelStart = (math.pow(2, level) - 1).toInt
+    val levelStart = math.pow(2, level).toInt - 1
     val levelEnd = levelStart * 2 + 1
     (levelStart until levelEnd).toArray.filter(codeNodeMap.contains)
   }
 
   def getChildrenAtLevel(ancestor: Int, level: Int): Array[Int] = {
-    val levelStart = (math.pow(2, level) - 1).toInt
+    val levelStart = math.pow(2, level).toInt - 1
     val levelEnd = levelStart * 2 + 1
     var parent = Array(ancestor)
     val children = ArrayBuffer.empty[Int]

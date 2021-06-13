@@ -47,13 +47,11 @@ trait DistTree {
     var maxLeafId: Int = -1
 
     idCodeAllParts.foreach { part =>
-      if (meta.idCodePart.contains(part.partId)) {
-        part.idCodeList.foreach { i =>
-          idCodeMap(i.id) = i.code
-          leafCodes += i.code
-          maxLeafId = math.max(maxLeafId, i.id)
-          _maxCode = math.max(_maxCode, i.code)
-        }
+      part.idCodeList.foreach { i =>
+        idCodeMap(i.id) = i.code
+        leafCodes += i.code
+        maxLeafId = math.max(maxLeafId, i.id)
+        _maxCode = math.max(_maxCode, i.code)
       }
     }
 
