@@ -33,7 +33,7 @@ class TDM(featSeqLen: Int, val embedSize: Int, deepModel: String, paddingIndex: 
   private def buildModel(): TDM.this.type = {
     dlModel = {
       if (dlModelName == "deepfm") {
-        DeepFM.buildModel[Float](featSeqLen, embedSize, paddingIndex)
+        DeepFM.buildModel(featSeqLen, embedSize, paddingIndex)
       } else if (dlModelName == "din") {
         DIN.buildModel[Float](embedSize, paddingIndex)
       } else {

@@ -20,9 +20,9 @@ trait Recommender {
       tree: TDMTree,
       topk: Int,
       candidateNum: Int,
-      concat: Boolean): Array[Int] = {
+      useMask: Boolean): Array[Int] = {
 
-    val recs = _recommend(sequence, model, tree, candidateNum, concat)
+    val recs = _recommend(sequence, model, tree, candidateNum, useMask)
     // recs.sorted(Ordering.by[TreeNodePred, Float](_.pred)(Ordering[Float].reverse))
     recs.sortBy(_._2)(Ordering[Float].reverse).take(topk).map(_._1)
   }
@@ -32,10 +32,10 @@ trait Recommender {
       model: Module[Float],
       tree: TDMTree,
       candidateNum: Int,
-      concat: Boolean): Array[(Int, Float)] = {
+      useMask: Boolean): Array[(Int, Float)] = {
 
     // binary tree with 2 child => 2 * candidateNum
-    val modelInputs = duplicateSequence(sequence, tree, concat, candidateNum * 2)
+    val modelInputs = duplicateSequence(sequence, tree, useMask, candidateNum * 2)
     val leafIds = ArrayBuffer.empty[(Int, Float)]
     val childNodes = ArrayBuffer.empty[TreeNode]
     val candidateNodes = ArrayBuffer.empty[TreeNodePred]
@@ -51,7 +51,7 @@ trait Recommender {
 
     while (candidateNodes.nonEmpty) {
       var (leafNodes, nonLeafNodes) = candidateNodes.partition(
-        n => tree.getChildNodes(n.code).isEmpty)
+        n => tree.codeNodeMap(n.code).isLeaf)
 
       if (leafNodes.nonEmpty) {
         leafNodes.foreach(i => {
@@ -116,61 +116,55 @@ object Recommender {
   case class TreeNodePred(code: Int, node: Node, pred: Float)
 
   private class ModelInputs(
-      concatSeq: Tensor[Int] = null,
-      targetItem: Tensor[Int] = null,
-      attentionSeq: Tensor[Int] = null,
+      targetItem: Tensor[Int],
+      seqItems: Tensor[Int],
       masks: Tensor[Int] = null,
       maskLen: Int = -1,
-      seqLen: Int = -1,
-      concat: Boolean) {
+      useMask: Boolean) {
 
     def generateInputs(targetNodes: ArrayBuffer[TreeNode]): Activity = {
       val num = targetNodes.length
-      if (concat) {
-        var i = 0
-        while (i < num) {
-          concatSeq.setValue(i, seqLen - 1, targetNodes(i).code)
-          i += 1
-        }
-        concatSeq.narrow(0, 0, num)
-      } else {
-        var i = 0
-        while (i < num) {
-          targetItem.setValue(i, 0, targetNodes(i).code)
-          i += 1
-        }
-        val item = targetItem.narrow(0, 0, num)
-        val seq = attentionSeq.narrow(0, 0, num)
+      var i = 0
+      while (i < num) {
+        targetItem.setValue(i, 0, targetNodes(i).code)
+        i += 1
+      }
+      val item = targetItem.narrow(0, 0, num)
+      val seq = seqItems.narrow(0, 0, num)
+      if (useMask) {
         // masks is one-dimensional tensor
         val mask = if (masks.isEmpty) masks else masks.narrow(0, 0, num * maskLen)
         T(item, seq, mask)
+      } else {
+        T(item, seq)
       }
     }
   }
 
   private def duplicateSequence(sequence: Array[Int], tree: TDMTree,
-      concat: Boolean, candidateLen: Int): ModelInputs = {
+      useMask: Boolean, candidateLen: Int): ModelInputs = {
 
-    if (concat) {
+    val seqLen = sequence.length
+    val features = new Array[Int](candidateLen * seqLen)
+    val targets = new Array[Int](candidateLen)
+    val targetItems = Tensor(targets, Array(candidateLen, 1))
+    val seqItems = Tensor(features, Array(candidateLen, seqLen))
+
+    if (!useMask) {
       val seqCodes = tree.idToCode(sequence)
-      val seqLen = seqCodes.length
-      val newLen = seqLen + 1
-      val features = new Array[Int](candidateLen * newLen)
       var i = 0
       while (i < candidateLen) {
-        val offset = i * newLen
+        val offset = i * seqLen
         System.arraycopy(seqCodes, 0, features, offset, seqLen)
         //  features(offset + seqLen) = candidate(i).code
         i += 1
       }
-      val seq = Tensor(features, Array(candidateLen, newLen))
-      new ModelInputs(concatSeq = seq, seqLen = newLen, concat = true)
+
+      new ModelInputs(targetItem = targetItems, seqItems = seqItems,
+        useMask = false)
 
     } else {
       val (seqCodes, mask) = tree.idToCodeWithMask(sequence)
-      val seqLen = seqCodes.length
-      val features = new Array[Int](candidateLen * seqLen)
-      val targets = new Array[Int](candidateLen)
       val maskBuffer = new ArrayBuffer[Int]()
       var i = 0
       while (i < candidateLen) {
@@ -181,16 +175,14 @@ object Recommender {
         i += 1
       }
 
-      val targetItems = Tensor(targets, Array(candidateLen, 1))
-      val seqItems = Tensor(features, Array(candidateLen, seqLen))
       val masks = if (maskBuffer.isEmpty) {
         Tensor[Int]()
       } else {
         Tensor(maskBuffer.toArray, Array(maskBuffer.length))
       }
 
-      new ModelInputs(targetItem = targetItems, attentionSeq = seqItems,
-        masks = masks, maskLen = mask.length, concat = false)
+      new ModelInputs(targetItem = targetItems, seqItems = seqItems,
+        masks = masks, maskLen = mask.length, useMask = true)
     }
   }
 }
