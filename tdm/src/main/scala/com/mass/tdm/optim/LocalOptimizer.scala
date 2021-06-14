@@ -18,7 +18,7 @@ class LocalOptimizer(
     progressInterval: Int,
     topk: Int,
     candidateNum: Int,
-    concat: Boolean) {
+    useMask: Boolean) {
 
   val logger: Logger = Logger.getLogger(getClass)
   // logger.setLevel(Level.INFO)
@@ -205,7 +205,7 @@ class LocalOptimizer(
       require(dataset.parallelSampling, "must use parallel sampling in train data when evaluating")
       val evalStart = System.nanoTime()
       val evalResult = Evaluator.evaluate(models, dataset, criterions, topk,
-        candidateNum, state, concat)
+        candidateNum, state, useMask)
       val evalEnd = System.nanoTime()
       progressInfo ++= f"\teval time: ${(evalEnd - evalStart) / 1e9d}%.4fs, " +
         f"Metrics: $evalResult\n"

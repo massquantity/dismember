@@ -11,7 +11,7 @@ class MiniBatch(
     val seqLen: Int,
     val originalDataSize: Int,
     layerNegCounts: String,
-    concat: Boolean) extends Serializable {
+    useMask: Boolean) extends Serializable {
 
   @transient private var features: Tensor[Int] = _
   // @transient private var featuresGroup: Seq[Tensor[Int]] = _
@@ -51,31 +51,40 @@ class MiniBatch(
       threadLen: Int,
       threadId: Int): (Activity, Tensor[Float]) = {
 
-    val (features, labels) = TDMOp.convert(data, threadOffset, threadLen,
-      threadId, sampledNodesNumPerTarget, seqLen, concat)
+    val (targetItems, features, labels) = TDMOp.convert(data, threadOffset, threadLen,
+      threadId, sampledNodesNumPerTarget, seqLen, useMask)
+    val itemShape = Array(threadLen * sampledNodesNumPerTarget, 1)
     val itemSeqShape = Array(threadLen * sampledNodesNumPerTarget, seqLen)
     val labelShape = Array(threadLen * sampledNodesNumPerTarget)
 
-    if (concat) {
-      val itemSeqs = features.head
-      (Tensor(itemSeqs, itemSeqShape), Tensor(labels, labelShape))
+    if (!useMask) {
+      val convertedTable = T(
+        Tensor(targetItems, itemShape),
+        Tensor(features.itemSeqs, itemSeqShape))
+      (convertedTable, Tensor(labels, labelShape))
+
     } else {
-      val Seq(targetItems, itemSeqs, masks) = features
-      val itemShape = Array(threadLen * sampledNodesNumPerTarget, 1)
-      val maskShape = Array(masks.length)
-      val convertedTable = T(Tensor(targetItems, itemShape),
-        Tensor(itemSeqs, itemSeqShape), Tensor(masks, maskShape))
+      val masks = if (features.masks.isEmpty) {
+        Tensor[Int]()
+      } else {
+        val maskShape = Array(features.masks.length)
+        Tensor(features.masks, maskShape)
+      }
+      val convertedTable = T(
+        Tensor(targetItems, itemShape),
+        Tensor(features.itemSeqs, itemSeqShape),
+        masks)
       (convertedTable, Tensor(labels, labelShape))
     }
   }
 
   def convertAll(data: Array[TDMSample]): this.type = {
-    require(concat, "Attention mode only support parallel sampling")
-    val (_features, _labels) = TDMOp.convert(data, offset, length, 0,
-      sampledNodesNumPerTarget, seqLen, concat)
+    require(useMask, "Attention mode only support parallel sampling")
+    val (targetItems, _features, _labels) = TDMOp.convert(data, offset, length, 0,
+      sampledNodesNumPerTarget, seqLen, useMask)
     val itemSeqShape = Array(length * sampledNodesNumPerTarget, seqLen)
     val labelShape = Array(length * sampledNodesNumPerTarget)
-    this.features = Tensor(_features.head, itemSeqShape)
+    this.features = Tensor(_features.itemSeqs, itemSeqShape)
     this.labels = Tensor(_labels, labelShape)
     this
   }

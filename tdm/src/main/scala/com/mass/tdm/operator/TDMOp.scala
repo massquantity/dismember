@@ -2,6 +2,7 @@ package com.mass.tdm.operator
 
 import scala.collection.mutable.ArrayBuffer
 
+import com.mass.tdm.Feature
 import com.mass.tdm.dataset.TDMSample
 import com.mass.tdm.tree.TDMTree
 import com.mass.tdm.utils.NegativeSampler
@@ -100,16 +101,16 @@ object TDMOp {
       threadId: Int,
       sampledNodesNumPerTarget: Int,
       seqLen: Int,
-      concat: Boolean): (Seq[Array[Int]], Array[Float]) = {
+      useMask: Boolean): (Array[Int], Feature, Array[Float]) = {
 
     val targetItems = (offset until offset + length).map(i => data(i).target).toArray
     val (itemCodes, labels) = sampleNegative(targetItems, threadId)
-    if (concat) {
+    if (!useMask) {
       val itemSeqs = transform(data, offset, length, itemCodes, sampledNodesNumPerTarget, seqLen)
-      (Seq(itemSeqs), labels)
+      (itemCodes, itemSeqs, labels)
     } else {
-      val (itemSeqs, masks) = transform(data, offset, length, sampledNodesNumPerTarget, seqLen)
-      (Seq(itemCodes, itemSeqs, masks), labels)
+      val itemSeqsWithMasks = transform(data, offset, length, sampledNodesNumPerTarget, seqLen)
+      (itemCodes, itemSeqsWithMasks, labels)
     }
   }
 
@@ -121,7 +122,7 @@ object TDMOp {
   }
 
   def transform(data: Array[TDMSample], offset: Int, length: Int, targetItems: Array[Int],
-      sampledNodesNumPerTarget: Int, seqLen: Int): Array[Int] = {
+      sampledNodesNumPerTarget: Int, seqLen: Int): Feature = {
 
     val features = new Array[Int](length * sampledNodesNumPerTarget * seqLen)
     var dataOffset = offset
@@ -132,20 +133,17 @@ object TDMOp {
       var j = 0
       while (j < sampledNodesNumPerTarget) {
         val offset2 = offset1 + j * seqLen
-        val length = seqLen - 1
-        System.arraycopy(featItems, 0, features, offset2, length)
-        // seqLen = seq items + target item
-        features(offset2 + length) = targetItems(i * sampledNodesNumPerTarget + j)
+        System.arraycopy(featItems, 0, features, offset2, seqLen)
         j += 1
       }
       i += 1
       dataOffset += 1
     }
-    features
+    Feature(features)
   }
 
   def transform(data: Array[TDMSample], offset: Int, length: Int,
-      sampledNodesNumPerTarget: Int, seqLen: Int): (Array[Int], Array[Int]) = {
+      sampledNodesNumPerTarget: Int, seqLen: Int): Feature = {
 
     val features = new Array[Int](length * sampledNodesNumPerTarget * seqLen)
     val maskBuffer = new ArrayBuffer[Int]()
@@ -164,6 +162,6 @@ object TDMOp {
       i += 1
       dataOffset += 1
     }
-    (features, maskBuffer.toArray)
+    Feature(features, maskBuffer.toArray)
   }
 }

@@ -149,7 +149,6 @@ class NegativeSampler(
           val weightedDist = levelProbDistributions(tid * totalLevel + level)
           var t = 0
           val layerTolerance = negNum + tolerance
-          // println(s"level $level tolerance: " + layerTolerance)
           while (hasSampled.size < negNum && t < layerTolerance) {
             val s = weightedDist.sample()
             if (!hasSampled.contains(s) && s != positiveId && tree.codeNodeMap.contains(s)) {

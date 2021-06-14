@@ -24,7 +24,7 @@ class DistDataSet(
     partitionNum: Option[Int] = None,
     miniBatch: Option[RDD[MiniBatch]] = None,
     delimiter: String = ",",
-    concat: Boolean = true) {
+    useMask: Boolean = true) {
 
   val logger: Logger = Logger.getLogger(getClass)
 
@@ -88,7 +88,7 @@ class DistDataSet(
       val _batchSize = batchSizePerNode
       val _seqLen = seqLen
       val _layerNegCounts = layerNegCounts
-      val _concat = concat
+      val _useMask = useMask
       val localParams = (layerNegCounts, withProb, startSampleLayer,
         tolerance, numThreadsPerNode, parallelSample)
       // initialize tree on driver
@@ -103,7 +103,7 @@ class DistDataSet(
         TDMOp.partialApply(pbPath) _ tupled localParams
         // val localTDM = TDMOp.apply _ tupled localParams
         val localMiniBatch = new MiniBatch(_batchSize, _seqLen,
-          localData.length, _layerNegCounts, _concat)
+          localData.length, _layerNegCounts, _useMask)
         Iterator.single(localMiniBatch)
       }).setName("miniBatchBuffer").cache()
     }
@@ -119,7 +119,7 @@ class DistDataSet(
   //  require(Files.exists(Paths.get(evalPath)), s"$evalPath doesn't exist")
     val _partitionNum = partitionNum.getOrElse(Engine.nodeNumber())
     val _delimiter = delimiter
-    val _seqLen = if (concat) seqLen else seqLen + 1
+    val _seqLen = seqLen + 1
     evalDataBuffer = sc.textFile(evalPath, _partitionNum)
       .map(data => {
         val line = data.trim.split(_delimiter)
@@ -136,11 +136,11 @@ class DistDataSet(
       val _batchSize = evalBatchSizePerNode
       val _seqLen = seqLen
       val _layerNegCounts = layerNegCounts
-      val _concat = concat
+      val _useMask = useMask
       evalMiniBatchBuffer = evalDataBuffer.mapPartitions(dataIter => {
         val localData = dataIter.next()
         val localMiniBatch = new MiniBatch(_batchSize, _seqLen,
-          localData.length, _layerNegCounts, _concat)
+          localData.length, _layerNegCounts, _useMask)
         Iterator.single(localMiniBatch)
       }).setName("eval miniBatchBuffer").cache()
     }

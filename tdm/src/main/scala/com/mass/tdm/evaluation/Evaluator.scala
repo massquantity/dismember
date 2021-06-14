@@ -20,7 +20,7 @@ object Evaluator extends Serializable with Recommender {
       topk: Int,
       candidateNum: Int,
       state: Table,
-      concat: Boolean): EvalResult = {
+      useMask: Boolean): EvalResult = {
 
     val subModelNum = Engine.coreNumber()
     val miniBatchIter = dataset.iteratorMiniBatch(train = false, expandBatch = true)
@@ -46,7 +46,7 @@ object Evaluator extends Serializable with Recommender {
           var j = offset
           while (j < offset + length) {
             val recItems = recommendItems(allData(j).sequence, localModel,
-              TDMOp.tree, topk, candidateNum, concat)
+              TDMOp.tree, topk, candidateNum, useMask)
             val labels = allData(j).labels
             evalResult += computeMetrics(recItems, labels)
             j += 1
@@ -64,7 +64,7 @@ object Evaluator extends Serializable with Recommender {
       topk: Int,
       candidateNum: Int,
       state: Table,
-      concat: Boolean): EvalResult = {
+      useMask: Boolean): EvalResult = {
 
     val subModelNum = Engine.coreNumber()
     val evalDataRDD = dataset.originalEvalRDD()
@@ -98,7 +98,7 @@ object Evaluator extends Serializable with Recommender {
             val end = offset + length
             while (j < end) {
               val recItems = recommendItems(data(j).sequence, localModel,
-                TDMOp.tree, topk, candidateNum, concat)
+                TDMOp.tree, topk, candidateNum, useMask)
               val labels = data(j).labels
               evalResult += computeMetrics(recItems, labels)
               j += 1

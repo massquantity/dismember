@@ -42,11 +42,10 @@ object TrainDist {
     val sc: SparkContext = Property.configDist(sparkConf)
 
     val deepModel = getOrStop(modelConf, "deep_model").toLowerCase
-    var seqLen = getOrStop(modelConf, "seq_len").toInt
-    if (deepModel == "deepfm") seqLen += 1  // deepfm need to concat sequence and target
+    val seqLen = getOrStop(modelConf, "seq_len").toInt
     // val paddingId = 0  padded original item id
     val paddingIndex = modelConf.getOrElse("padding_index", "-1").toInt   // padded index or code
-    val concat = if (deepModel == "deepfm") true else false
+    val useMask = if (deepModel == "din") true else false
 
     val totalBatchSize = getOrStop(modelConf, "total_batch_size").toInt
     val totalEvalBatchSize = modelConf.getOrElse("total_eval_batch_size", "-1").toInt
@@ -83,7 +82,7 @@ object TrainDist {
       tolerance = tolerance,
       numThreadsPerNode = numThreadsPerNode,
       parallelSample = parallelSample,
-      concat = concat)
+      useMask = useMask)
 
     dataset.readRDD(
       sc = sc,
@@ -106,7 +105,7 @@ object TrainDist {
       progressInterval = progressInterval,
       topk = topk,
       candidateNum = candidateNum,
-      concat = concat)
+      useMask = useMask)
 
     optimizer.optimize()
 

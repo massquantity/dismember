@@ -52,7 +52,7 @@ class Mask[T: ClassTag](useScale: Boolean = false, factor: Int = -1)(
       }
     }
 
-    gradInput[Tensor[Int]](1).resizeAs(input(1)).zero()
+  //  gradInput[Tensor[Int]](1).resizeAs(input(1)).zero()
     gradInput
   }
 

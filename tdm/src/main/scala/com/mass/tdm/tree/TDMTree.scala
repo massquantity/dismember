@@ -76,7 +76,7 @@ class TDMTree extends DistTree with Serializable {
 
   def getAncestorNodes(itemCodes: Array[Int]): Array[Array[TreeNode]] = {
     itemCodes.map(code => {
-      if (code == 0 || !codeNodeMap.contains(code)) {
+      if (code <= 0 || !codeNodeMap.contains(code)) {
         Array.empty[TreeNode]
       } else {
         val res = new ArrayBuffer[TreeNode]()

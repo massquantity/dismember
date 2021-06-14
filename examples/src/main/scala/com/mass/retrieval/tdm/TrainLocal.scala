@@ -35,11 +35,10 @@ object TrainLocal {
     Property.configLocal(conf)
 
     val deepModel = getOrStop(conf, "deep_model").toLowerCase
-    var seqLen = getOrStop(conf, "seq_len").toInt
-    if (deepModel == "deepfm") seqLen += 1  // deepfm need to concat sequence and target
+    val seqLen = getOrStop(conf, "seq_len").toInt
     // val paddingId = 0  padded original item id
     val paddingIndex = conf.getOrElse("padding_index", "-1").toInt   // padded index or code
-    val concat = if (deepModel == "deepfm") true else false
+    val useMask = if (deepModel == "din") true else false
 
     val totalBatchSize = getOrStop(conf, "total_batch_size").toInt
     val totalEvalBatchSize = conf.getOrElse("total_eval_batch_size", "-1").toInt
@@ -76,7 +75,7 @@ object TrainLocal {
       tolerance = tolerance,
       numThreads = numThreads,
       parallelSample = parallelSample,
-      concat = concat)
+      useMask = useMask)
 
     dataset.readFile(
       dataPath = dataPath,
@@ -98,7 +97,7 @@ object TrainLocal {
       progressInterval = progressInterval,
       topk = topk,
       candidateNum = candidateNum,
-      concat = concat)
+      useMask = useMask)
 
     optimizer.optimize()
 
