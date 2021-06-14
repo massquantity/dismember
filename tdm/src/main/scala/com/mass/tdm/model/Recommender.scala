@@ -122,7 +122,7 @@ object Recommender {
       maskLen: Int = -1,
       useMask: Boolean) {
 
-    def generateInputs(targetNodes: ArrayBuffer[TreeNode]): Activity = {
+    def generateInputs(targetNodes: ArrayBuffer[TreeNode]): Table = {
       val num = targetNodes.length
       var i = 0
       while (i < num) {

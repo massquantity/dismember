@@ -31,14 +31,14 @@ class TDM(featSeqLen: Int, val embedSize: Int, deepModel: String, paddingIndex: 
   }
 
   private def buildModel(): TDM.this.type = {
-    dlModel = {
-      if (dlModelName == "deepfm") {
-        DeepFM.buildModel(featSeqLen, embedSize, paddingIndex)
-      } else if (dlModelName == "din") {
-        DIN.buildModel[Float](embedSize, paddingIndex)
-      } else {
-        throw new IllegalArgumentException("deepModel name should DeepFM or DIN")
-      }
+    if (dlModelName == "deepfm") {
+      dlModel = DeepFM.buildModel(featSeqLen, embedSize, paddingIndex)
+      dlModel.setName("DeepFM")
+    } else if (dlModelName == "din") {
+      dlModel = DIN.buildModel[Float](embedSize, paddingIndex)
+      dlModel.setName("DIN")
+    } else {
+      throw new IllegalArgumentException("deepModel name should DeepFM or DIN")
     }
     this
   }
