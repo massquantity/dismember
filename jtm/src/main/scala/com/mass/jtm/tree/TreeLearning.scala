@@ -4,13 +4,17 @@ import java.io.{BufferedReader, FileNotFoundException, InputStreamReader}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Using}
 
+import com.mass.jtm.tree.TreeLearning.sortOnFormerAndWeights
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.utils.{T, Table, FileReader => DistFileReader}
 import com.mass.sparkdl.Module
 import com.mass.tdm.ArrayExtension
 import com.mass.tdm.utils.Serialization
+import spire.algebra.Order
+import spire.math.{Sorting => SpireSorting}
 
 class TreeLearning(
     modelName: String,
@@ -283,5 +287,27 @@ object TreeLearning {
       val seqItems = Tensor(seqCodes, Array(length, seqLen))
       T(targetItems, seqItems)
     }
+  }
+
+  def sortOnFormerAndWeights(
+      items: Array[ItemInfo],
+      maxAssignNode: Int,
+      oldItemNodeMap: mutable.HashMap[Int, Int]): ArrayBuffer[ItemInfo] = {
+
+    SpireSorting.quickSort(items)(new Order[ItemInfo] {
+      override def compare(x: ItemInfo, y: ItemInfo): Int = {
+        val xNode = oldItemNodeMap(x.id)
+        val yNode = oldItemNodeMap(y.id)
+        if (xNode == maxAssignNode && yNode != maxAssignNode) {
+          -1
+        } else if (xNode != maxAssignNode && yNode == maxAssignNode) {
+          1
+        } else {
+          java.lang.Double.compare(y.weight, x.weight)
+        }
+      }
+    }, ClassTag[ItemInfo](getClass))
+
+    ArrayBuffer(items: _*)
   }
 }
