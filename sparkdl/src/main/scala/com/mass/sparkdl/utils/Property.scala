@@ -62,7 +62,7 @@ object Property {
   }
 
   def configLocal(conf: Map[String, String]): Unit = {
-    logger.info(s"Scala version: $getScalaVersion, Spark version: $getSparkVersion.")
+    logger.info(s"Scala version: $getScalaVersion, Spark version: $getSparkVersion")
     val nodeNum = 1
     val coreNum = getCoreNumber(conf("thread_number").toInt)
     logger.info(s"Total thread num: $coreNum")

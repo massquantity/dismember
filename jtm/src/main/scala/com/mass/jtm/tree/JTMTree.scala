@@ -48,46 +48,60 @@ class JTMTree extends DistTree with Serializable {
     (levelStart until levelEnd).toArray.filter(codeNodeMap.contains)
   }
 
-  def getChildrenAtLevel(ancestor: Int, level: Int): Array[Int] = {
-    val levelStart = math.pow(2, level).toInt - 1
-    val levelEnd = levelStart * 2 + 1
+  def getChildrenAtLevel(ancestor: Int, oldLevel: Int, level: Int): Array[Int] = {
+    var diff = level - oldLevel
     var parent = Array(ancestor)
     val children = ArrayBuffer.empty[Int]
-    // index start from 0, so all level subtract 1
-    val _maxLevel = maxLevel - 1
     var finished = false
     while (!finished) {
-      if (level < _maxLevel) {
-        parent.foreach { p =>
-          val childLeft = 2 * p + 1
-          if (codeNodeMap.contains(childLeft)) {
-            children += childLeft
-          }
-          val childRight = 2 * p + 2
-          if (codeNodeMap.contains(childRight)) {
-            children += childRight
-          }
-        }
-      } else {
-        // leaf nodes can be different in final tree, so didn't exclude them
-        parent.foreach { p =>
-          children += 2 * p + 1
-          children += 2 * p + 2
-        }
+      parent.foreach { p =>
+        children += 2 * p + 1
+        children += 2 * p + 2
       }
-
-      if (children.head >= levelStart && children.head < levelEnd) {
+      diff -= 1
+      if (diff == 0) {
         finished = true
       } else {
         parent = children.toArray
         children.clear()
       }
     }
-    children.toArray
+
+    children.toArray.filter(codeNodeMap.contains)
+}
+
+  def idToCode(
+      itemIds: Array[Int],
+      level: Int,
+      hierarchical: Boolean,
+      minLevel: Int): Array[Int] = {
+
+    val res = new Array[Int](itemIds.length)
+    var i = 0
+    while (i < itemIds.length) {
+      val id = itemIds(i)
+      if (id == paddingId) {
+        res(i) = -1
+      } else if (idCodeMap.contains(id)) {
+        res(i) = if (hierarchical && level >= minLevel) {
+          getAncestorAtLevel(id, level)
+        } else {
+          idCodeMap(id)
+        }
+      } else {
+        res(i) = -1
+      }
+      i += 1
+    }
+    res
   }
 
-  // paddingIndex = -1, paddingId = 0
-  def idToCodeWithMask(itemIds: Array[Int]): (Array[Int], ArrayBuffer[Int]) = {
+  def idToCodeWithMask(
+      itemIds: Array[Int],
+      level: Int,
+      hierarchical: Boolean,
+      minLevel: Int): (Array[Int], ArrayBuffer[Int]) = {
+
     val mask = new ArrayBuffer[Int]()
     val res = new Array[Int](itemIds.length)
     var i = 0
@@ -96,11 +110,13 @@ class JTMTree extends DistTree with Serializable {
       if (id == paddingId) {
         res(i) = -1
         mask += i
-      } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
-        res(i) = idCodeMap(id)
+      } else if (idCodeMap.contains(id)) {
+        res(i) = if (hierarchical && level >= minLevel) {
+          getAncestorAtLevel(id, level)
+        } else {
+          idCodeMap(id)
+        }
       } else {
-      //  res(i) = id - nonLeafOffset
-      //  if (res(i) > maxCode) res(i) = -1
         res(i) = -1
       }
       i += 1
@@ -108,9 +124,48 @@ class JTMTree extends DistTree with Serializable {
     (res, mask)
   }
 
+  def flattenLeaves(projectionPi: mutable.HashMap[Int, Int], maxLevel: Int): Unit = {
+    val minLeafCode = math.pow(2, maxLevel).toInt - 1
+    val projection = projectionPi.toArray
+    val projectionLeafCodes = projection.map(_._2).filter(_ >= minLeafCode).toSet
+    val unassignedLeafCodes = leafCodes.diff(projectionLeafCodes)
+    val (noPlaceItems, originalPlaceItems) = projection
+      .filter(_._2 < minLeafCode)
+      .partition(i => {
+        val oldCode = idCodeMap(i._1)
+        projectionLeafCodes.contains(oldCode)
+      })
+
+    println(s"unassigned nodes: ${unassignedLeafCodes.size}, " +
+      s"no place items: ${noPlaceItems.length}, " +
+      s"original place items: ${originalPlaceItems.length}")
+
+    // projectionPi doesn't contain these leaf codes, so original places are kept
+    originalPlaceItems.foreach { case (itemId, code) =>
+      val oldCode = idCodeMap(itemId)
+      projectionPi(itemId) = oldCode
+      unassignedLeafCodes -= oldCode
+    }
+
+    // assign to nearest leaf code
+    noPlaceItems.foreach { case (itemId, code) =>
+      val leafCode = code * 2 + 1
+      val nearestCode = unassignedLeafCodes.reduce { (a, b) =>
+        if (math.abs(a - leafCode) < math.abs(b - leafCode)) a else b
+      }
+      projectionPi(itemId) = nearestCode
+      unassignedLeafCodes -= nearestCode
+    }
+
+    println("unassigned nodes remained: " + unassignedLeafCodes.size)
+    require(unassignedLeafCodes.isEmpty, "still remains unassigned codes")
+  }
+
   def writeTree(projectionPi: mutable.HashMap[Int, Int], pbFilePath: String): Unit = {
     val leafStat = mutable.HashMap.empty[Int, (Int, Float)]
     val pstat = mutable.HashMap.empty[Int, Float]
+    // some original leaf nodes may stay in upper level, so put all of them to leaves
+    flattenLeaves(projectionPi, maxLevel - 1)
 
     projectionPi.foreach { case (itemId, newCode) =>
       val oldCode = idCodeMap(itemId)
@@ -127,34 +182,35 @@ class JTMTree extends DistTree with Serializable {
     Using(new BufferedOutputStream(output)) { writer =>
       val parts = new ArrayBuffer[IdCodePart]()
       val tmpItems = new ArrayBuffer[IdCodePair]()
-      val leafCodes = leafStat.keys.toArray
-      val ancestorCodes = pstat.keys.toArray
+      val codes = codeNodeMap.keys.toArray
+      var i = 0
+      while (i < codes.length) {
+        val code = codes(i)
+        if (leafStat.contains(code)) {
+          val id = leafStat(code)._1
+          val prob = leafStat(code)._2
+          val leafCatId = 0
+          val isLeaf = true
+          val leafNode = Node(id, prob, leafCatId, isLeaf)
+          val leafKV = KVItem(toByteString(code), leafNode.toByteString)
+          writeKV(leafKV, writer)
 
-      leafCodes.foreach { code =>
-        val id = leafStat(code)._1
-        val prob = leafStat(code)._2
-        val leafCatId = 0
-        val isLeaf = true
-        val leafNode = Node(id, prob, leafCatId, isLeaf)
-        val leafKV = KVItem(toByteString(code), leafNode.toByteString)
-        writeKV(leafKV, writer)
-
-        tmpItems += IdCodePair(id, code)
-        if (code == leafCodes.last || tmpItems.length == 512) {
-          val partId = "Part_" + (parts.length + 1)
-          parts += IdCodePart(toByteString(partId), tmpItems.clone())
-          tmpItems.clear()
+          tmpItems += IdCodePair(id, code)
+          if (i == codes.length - 1 || tmpItems.length == 512) {
+            val partId = "Part_" + (parts.length + 1)
+            parts += IdCodePart(toByteString(partId), tmpItems.clone())
+            tmpItems.clear()
+          }
+        } else {
+          val id = codeNodeMap(code).id
+          val prob = pstat(code)
+          val leafCatId = 0
+          val isLeaf = false
+          val node = Node(id, prob, leafCatId, isLeaf)
+          val ancestorKV = KVItem(toByteString(code), node.toByteString)
+          writeKV(ancestorKV, writer)
         }
-      }
-
-      ancestorCodes.foreach { code =>
-        val id = codeNodeMap(code).id
-        val prob = pstat(code)
-        val leafCatId = 0
-        val isLeaf = false
-        val node = Node(id, prob, leafCatId, isLeaf)
-        val ancestorKV = KVItem(toByteString(code), node.toByteString)
-        writeKV(ancestorKV, writer)
+        i += 1
       }
 
       parts.foreach { p =>
@@ -204,41 +260,53 @@ object JTMTree {
   }
 
   /*
-  def getChildrenAtLevel(ancestor: Int, level: Int): Array[Int] = {
-    val levelStart = (math.pow(2, level) - 1).toInt
-    val levelEnd = levelStart * 2 + 1
+  def getChildrenAtLevel(ancestor: Int, oldLevel: Int, level: Int): Array[Int] = {
+  //  val levelStart = math.pow(2, level).toInt - 1
+  //  val levelEnd = levelStart * 2 + 1
+    var diff = level - oldLevel
     var parent = Array(ancestor)
     val children = ArrayBuffer.empty[Int]
+    // index start from 0, so all level subtract 1
+    var _level = oldLevel
+    val _maxLevel = maxLevel - 1
     var finished = false
     while (!finished) {
-      parent.foreach { p =>
-        val childLeft = 2 * p + 1
-        if (codeNodeMap.contains(childLeft)) {
-          children += childLeft
+      if (_level < _maxLevel) {
+        parent.foreach { p =>
+          val childLeft = 2 * p + 1
+          if (codeNodeMap.contains(childLeft)) {
+            children += childLeft
+          }
+          val childRight = 2 * p + 2
+          if (codeNodeMap.contains(childRight)) {
+            children += childRight
+          }
         }
-        val childRight = 2 * p + 2
-        if (codeNodeMap.contains(childRight)) {
-          children += childRight
+      } else {
+        // leaf nodes can be different in final tree, so didn't exclude them
+        parent.foreach { p =>
+          children += 2 * p + 1
+          children += 2 * p + 2
         }
       }
 
-      newChildren = {
-        if (children.count(codeNodeMap.contains) <= 1) {
-          children.toArray
-        } else {
-          children.filter(codeNodeMap.contains).toArray
-        }
-      }
-
-      if (children.isEmpty || (children.head >= levelStart && children.head < levelEnd)) {
+      _level += 1
+      diff -= 1
+      if (diff == 0) {
         finished = true
       } else {
         parent = children.toArray
         children.clear()
       }
+      /*
+      if (children.head >= levelStart && children.head < levelEnd) {
+        finished = true
+      } else {
+        parent = children.toArray
+        children.clear()
+      } */
     }
     children.toArray
-  }
- */
+  } */
 
 }

@@ -14,7 +14,7 @@ class TDM(featSeqLen: Int, val embedSize: Int, deepModel: String, paddingIndex: 
   private[this] var dlModel: Module[Float] = _
   // @transient private[this] var tdmTree: TDMTree = TDMOp.tree
   private val dlModelName = deepModel.toLowerCase
-  lazy val concatSequence: Boolean = if (dlModelName == "deepfm") true else false
+  lazy val useMask: Boolean = if (dlModelName == "din") true else false
 
   // def loadTree(pbFilePath: String): Unit = {
   //  tdmTree = TDMTree(pbFilePath)
@@ -51,7 +51,7 @@ class TDM(featSeqLen: Int, val embedSize: Int, deepModel: String, paddingIndex: 
   }
 
   def recommend(sequence: Array[Int], topk: Int, candidateNum: Int = 20): Array[(Int, Double)] = {
-    val recs = _recommend(sequence, dlModel, TDMOp.tree, candidateNum, concatSequence)
+    val recs = _recommend(sequence, dlModel, TDMOp.tree, candidateNum, useMask)
     // recs.sorted(Ordering.by[TreeNodePred, Float](_.pred)(Ordering[Float].reverse))
     recs.sortBy(_._2)(Ordering[Float].reverse).take(topk).map(i => (i._1, sigmoid(i._2)))
   }
