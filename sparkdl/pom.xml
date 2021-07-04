@@ -29,6 +29,12 @@
             <version>0.12.1</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.intel.analytics.bigdl.core.native.mkl</groupId>
+            <artifactId>mkl-java-mac</artifactId>
+            <version>0.12.1</version>
+        </dependency>
+
     </dependencies>
 
 </project>

@@ -4,7 +4,6 @@ import scala.collection.mutable.ArrayBuffer
 import scala.math.Ordering
 
 import com.mass.sparkdl.Module
-import com.mass.sparkdl.nn.abstractnn.Activity
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.utils.{T, Table}
 import com.mass.tdm.protobuf.tree.Node
