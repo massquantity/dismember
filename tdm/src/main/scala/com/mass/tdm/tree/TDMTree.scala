@@ -42,11 +42,12 @@ class TDMTree extends DistTree with Serializable {
       if (id == paddingId) {
         res(i) = -1
       } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
+        // leaves
         res(i) = idCodeMap(id)
       } else {
-     //   res(i) = id - nonLeafOffset
-     //   if (res(i) > maxCode) res(i) = -1
-        res(i) = -1
+        // ancestors
+        res(i) = id - nonLeafOffset
+        if (res(i) > maxCode) res(i) = -1
       }
       i += 1
     }
@@ -65,9 +66,8 @@ class TDMTree extends DistTree with Serializable {
       } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
         res(i) = idCodeMap(id)
       } else {
-      //  res(i) = id - nonLeafOffset
-      //  if (res(i) > maxCode) res(i) = -1
-        res(i) = -1
+        res(i) = id - nonLeafOffset
+        if (res(i) > maxCode) res(i) = -1
       }
       i += 1
     }
