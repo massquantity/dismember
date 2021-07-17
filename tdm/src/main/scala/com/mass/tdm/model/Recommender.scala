@@ -19,9 +19,18 @@ trait Recommender {
       tree: TDMTree,
       topk: Int,
       candidateNum: Int,
-      useMask: Boolean): Array[Int] = {
+      useMask: Boolean,
+      consumedItems: Option[Array[Int]] = None): Array[Int] = {
 
-    val recs = _recommend(sequence, model, tree, candidateNum, useMask)
+    // If a user has consumed many items, the candidate number may be large.
+    val (_candidateNum, _consumedItems) = consumedItems match {
+      case Some(items) =>
+        (math.max((items.length + topk) / 2, candidateNum), items.toSet)
+      case None =>
+        (candidateNum, null)
+    }
+
+    val recs = _recommend(sequence, model, tree, _candidateNum, useMask, _consumedItems)
     // recs.sorted(Ordering.by[TreeNodePred, Float](_.pred)(Ordering[Float].reverse))
     recs.sortBy(_._2)(Ordering[Float].reverse).take(topk).map(_._1)
   }
@@ -31,7 +40,8 @@ trait Recommender {
       model: Module[Float],
       tree: TDMTree,
       candidateNum: Int,
-      useMask: Boolean): Array[(Int, Float)] = {
+      useMask: Boolean,
+      consumedItems: Set[Int] = null): Array[(Int, Float)] = {
 
     // binary tree with 2 child => 2 * candidateNum
     val modelInputs = duplicateSequence(sequence, tree, useMask, candidateNum * 2)
@@ -54,7 +64,9 @@ trait Recommender {
 
       if (leafNodes.nonEmpty) {
         leafNodes.foreach(i => {
-          leafIds += Tuple2(i.node.id, i.pred)
+          val itemId = i.node.id
+          if (null != consumedItems && !consumedItems.contains(itemId))
+            leafIds += Tuple2(itemId, i.pred)
         })
       }
 

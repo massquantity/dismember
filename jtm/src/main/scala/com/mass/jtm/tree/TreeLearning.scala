@@ -7,7 +7,6 @@ import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Using}
 
-import com.mass.jtm.tree.TreeLearning.sortOnFormerAndWeights
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.utils.{T, Table, FileReader => DistFileReader}
 import com.mass.sparkdl.Module

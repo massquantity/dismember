@@ -53,6 +53,7 @@ object TrainLocal {
     val dataPath = getOrStop(conf, "train_path")
     val pbFilePath = getOrStop(conf, "tree_protobuf_path")
     val evalPath = conf.get("eval_path")
+    val userConsumedPath = conf.get("user_consumed_path")
 
     val embedSize = getOrStop(conf, "embed_size").toInt
     val learningRate = getOrStop(conf, "learning_rate").toDouble
@@ -80,7 +81,9 @@ object TrainLocal {
     dataset.readFile(
       dataPath = dataPath,
       pbFilePath = pbFilePath,
-      evalPath = evalPath)
+      evalPath = evalPath,
+      userConsumedPath = userConsumedPath
+    )
 
     val tdmModel = TDM(
       featSeqLen = seqLen,

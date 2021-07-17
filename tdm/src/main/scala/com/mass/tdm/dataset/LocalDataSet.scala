@@ -3,6 +3,7 @@ package com.mass.tdm.dataset
 import java.nio.file.{Files, Paths}
 import java.util.concurrent.atomic.AtomicInteger
 
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 import com.mass.sparkdl.utils.{FileReader => DistFileReader}
@@ -32,9 +33,15 @@ class LocalDataSet(
   private var miniBatchBuffer: MiniBatch = miniBatch.orNull
   private var evalMiniBatchBuffer: MiniBatch = _
   private[tdm] val parallelSampling = parallelSample
-  private[tdm] var evaluateDuringTraining = evaluate
+  private[tdm] val evaluateDuringTraining = evaluate
+  private[tdm] val userConsumed = new mutable.HashMap[Int, Array[Int]]()
 
-  def readFile(dataPath: String, pbFilePath: String, evalPath: Option[String] = None): Unit = {
+  def readFile(
+      dataPath: String,
+      pbFilePath: String,
+      evalPath: Option[String] = None,
+      userConsumedPath: Option[String] = None): Unit = {
+
     val buffer = new ArrayBuffer[TDMSample]()
     val fileReader = DistFileReader(dataPath)
     val input = fileReader.open()
@@ -46,8 +53,7 @@ class LocalDataSet(
       target = arr.last
       if seqItems.exists(_.toDouble.toInt != 0)
     } {
-      val sample = TDMTrainSample(seqItems.map(_.toInt), target.toInt)
-      buffer += sample
+      buffer += TDMTrainSample(seqItems.map(_.toInt), target.toInt)
     }
 
     fileInput.close()
@@ -63,14 +69,20 @@ class LocalDataSet(
     }
 
     if (evaluateDuringTraining) {
-      require(evalPath.isDefined)
       require(evalBatchSize > 0, "must set evalBatchSize for evaluating")
-      readEvalFile(evalPath.get)
+      evalPath match {
+        case Some(path: String) => readEvalFile(path)
+        case _ => throw new IllegalArgumentException("invalid evaluate data path...")
+      }
+      userConsumedPath match {
+        case Some(path: String) => readUserConsumed(path)
+        case _ => throw new IllegalArgumentException("invalid user consumed file path...")
+      }
     }
   }
 
   def readEvalFile(evalPath: String): Unit = {
-    // item sequence range [1, seqLen + 1)
+    // item sequence range [1, seqLen + 1), sequence + target
     val _seqLen = seqLen + 1
     val buffer = new ArrayBuffer[TDMEvalSample]()
     val fileReader = DistFileReader(evalPath)
@@ -79,11 +91,11 @@ class LocalDataSet(
     for {
       line <- fileInput.getLines
       arr = line.trim.split(delimiter)
+      user = arr.head.substring(5).toInt
       seqItems = arr.slice(1, _seqLen).map(_.toInt)
       labels = arr.slice(_seqLen, arr.length).map(_.toInt)
     } {
-      val sample = TDMEvalSample(seqItems, labels)
-      buffer += sample
+      buffer += TDMEvalSample(seqItems, labels, user)
     }
 
     fileInput.close()
@@ -95,6 +107,24 @@ class LocalDataSet(
       evalMiniBatchBuffer = new MiniBatch(evalBatchSize, seqLen,
         evalDataBuffer.length, layerNegCounts, useMask)
     }
+  }
+
+  def readUserConsumed(userConsumedPath: String): Unit = {
+    val fileReader = DistFileReader(userConsumedPath)
+    val input = fileReader.open()
+    val fileInput = scala.io.Source.fromInputStream(input, encoding.name())
+    for {
+      line <- fileInput.getLines
+      arr = line.trim.split(delimiter)
+      user = arr.head.substring(5).toInt
+      items = arr.tail.map(_.toInt)
+    } {
+      userConsumed(user) = items
+    }
+
+    fileInput.close()
+    input.close()
+    fileReader.close()
   }
 
   def shuffle(): Unit = {
@@ -138,6 +168,8 @@ class LocalDataSet(
   def getData: Array[TDMSample] = dataBuffer
 
   def getEvalData: Array[TDMSample] = evalDataBuffer
+
+  def getUserConsumed: mutable.HashMap[Int, Array[Int]] = userConsumed
 }
 
 object LocalDataSet {

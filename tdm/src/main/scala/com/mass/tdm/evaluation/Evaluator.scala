@@ -27,6 +27,7 @@ object Evaluator extends Serializable with Recommender {
 
     miniBatchIter.map { batch =>
       val allData = dataset.getEvalData
+      val userConsumed = dataset.getUserConsumed
       val miniBatchSize = batch.getLength
       val taskSize = miniBatchSize / subModelNum
       val extraSize = miniBatchSize % subModelNum
@@ -45,9 +46,10 @@ object Evaluator extends Serializable with Recommender {
 
           var j = offset
           while (j < offset + length) {
-            val recItems = recommendItems(allData(j).sequence, localModel,
-              TDMOp.tree, topk, candidateNum, useMask)
+            val consumedItems = Some(userConsumed(allData(j).user))
             val labels = allData(j).labels
+            val recItems = recommendItems(allData(j).sequence, localModel,
+              TDMOp.tree, topk, candidateNum, useMask, consumedItems)
             evalResult += computeMetrics(recItems, labels)
             j += 1
           }
