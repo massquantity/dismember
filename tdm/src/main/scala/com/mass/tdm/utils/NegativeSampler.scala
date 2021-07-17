@@ -3,7 +3,6 @@ package com.mass.tdm.utils
 import java.util.concurrent.ThreadLocalRandom
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 import scala.util.hashing.MurmurHash3
 
 import com.mass.tdm.tree.DistTree.TreeNode
@@ -23,23 +22,9 @@ class NegativeSampler(
   private var negNumPerLayer: Array[Int] = _
   private[tdm] var layerSum: Int = -1
   private var levelProbDistributions: Array[EnumeratedIntegerDistribution] = _
-  // private var validCodes: Array[Array[Int]] = _
-  // private var validProbs: Array[Array[Double]] = _
   private val totalLevel: Int = tree.maxLevel
   private var isParallel: Boolean = false
   private[tdm] var initialized: Boolean = false
-
-  // def init(): Unit = {
-  //  if (withProb) {
-  //    validCodes = new Array(totalLevel)
-  //    validProbs = new Array(totalLevel)
-  //    (0 until totalLevel) foreach { level =>
-  //      val (codes, probs) = levelProbs(level)
-  //      validCodes(level) = codes
-  //      validProbs(level) = probs
-  //    }
-  //  }
-  // }
 
   def init(): Unit = {
     levelProbDistributions = new Array[EnumeratedIntegerDistribution](totalLevel)
@@ -82,21 +67,12 @@ class NegativeSampler(
   }
 
   private def levelProbs(level: Int): (Array[Int], Array[Double]) = {
-    val codes = new ArrayBuffer[Int]()
-    val probs = new ArrayBuffer[Double]()
-    var index = 0
-    (1 to level).foreach(_ => index = index * 2 + 1)
-    val end = index * 2 + 1
-    while (index < end) {
-      if (tree.codeNodeMap.contains(index)) {
-        val node = tree.codeNodeMap(index)
-        codes += index
-        probs += node.probality.toDouble
-      }
-      index += 1
-    }
+    val start = (1 to level).foldLeft(0)((i, _) => i * 2 + 1)
+    val end = start * 2 + 1
+    val codes = (start until end).toArray.filter(tree.codeNodeMap.contains)
+    val probs = codes.map(tree.codeNodeMap(_).probality.toDouble)
     require(probs.nonEmpty, s"no probs in level $level")
-    (codes.toArray, probs.toArray)
+    (codes, probs)
   }
 
   /**
@@ -132,6 +108,7 @@ class NegativeSampler(
       var j = 0
       while (j < ancs.length && level - 1 >= startSampleLayer) {
         level -= 1  // upward sampling, will stop at `startSampleLayer` if possible
+        val positiveCode = ancs(j).code
         val posNode = ancs(j).node
         val positiveId = posNode.id
         outputIds(offset) = positiveId
@@ -141,17 +118,12 @@ class NegativeSampler(
         hasSampled.clear()
         val negNum = negNumPerLayer(level)
         if (withProb) {
-        //  val seed = NegativeSampler.generateSeed()
-        //  val generator = new MersenneTwister(seed)
-        //  val weightedDist = new EnumeratedIntegerDistribution(generator,
-        //    validCodes(level), validProbs(level))
-
           val weightedDist = levelProbDistributions(tid * totalLevel + level)
           var t = 0
           val layerTolerance = negNum + tolerance
           while (hasSampled.size < negNum && t < layerTolerance) {
             val s = weightedDist.sample()
-            if (!hasSampled.contains(s) && s != positiveId && tree.codeNodeMap.contains(s)) {
+            if (!hasSampled.contains(s) && s != positiveCode && tree.codeNodeMap.contains(s)) {
               hasSampled += s
             }
             t += 1
@@ -178,7 +150,7 @@ class NegativeSampler(
           val levelEnd = levelStart * 2 + 1
           while (hasSampled.size < negNum) {
             val s = ThreadLocalRandom.current.nextInt(levelStart, levelEnd)
-            if (!hasSampled.contains(s) && s != positiveId && tree.codeNodeMap.contains(s)) {
+            if (!hasSampled.contains(s) && s != positiveCode && tree.codeNodeMap.contains(s)) {
               hasSampled += s
             }
           }
