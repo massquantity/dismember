@@ -7,10 +7,17 @@ trait TDMSample extends Serializable {
   val target: Int
 
   val labels: Array[Int]
+
+  val user: Int
 }
 
-case class TDMTrainSample(sequence: Array[Int], override val target: Int) extends TDMSample {
+case class TDMTrainSample(
+    override val sequence: Array[Int],
+    override val target: Int) extends TDMSample {
+
   override val labels: Array[Int] = null
+
+  override val user: Int = -1
 
   override def toString: String = {
     s"seq: ${sequence.mkString("Array(", ", ", ")")} | " +
@@ -18,7 +25,11 @@ case class TDMTrainSample(sequence: Array[Int], override val target: Int) extend
   }
 }
 
-case class TDMEvalSample(sequence: Array[Int], override val labels: Array[Int]) extends TDMSample {
+case class TDMEvalSample(
+    override val sequence: Array[Int],
+    override val labels: Array[Int],
+    override val user: Int) extends TDMSample {
+
   override val target: Int = labels.head
 
   override def toString: String = {
