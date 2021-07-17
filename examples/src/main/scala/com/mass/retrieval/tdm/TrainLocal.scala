@@ -82,8 +82,7 @@ object TrainLocal {
       dataPath = dataPath,
       pbFilePath = pbFilePath,
       evalPath = evalPath,
-      userConsumedPath = userConsumedPath
-    )
+      userConsumedPath = userConsumedPath)
 
     val tdmModel = TDM(
       featSeqLen = seqLen,

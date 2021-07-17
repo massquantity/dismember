@@ -76,7 +76,7 @@ class LocalDataSet(
       }
       userConsumedPath match {
         case Some(path: String) => readUserConsumed(path)
-        case _ => throw new IllegalArgumentException("invalid user consumed file path...")
+        case _ => throw new IllegalArgumentException("invalid user consumed path...")
       }
     }
   }

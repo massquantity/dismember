@@ -65,7 +65,7 @@ trait Recommender {
       if (leafNodes.nonEmpty) {
         leafNodes.foreach(i => {
           val itemId = i.node.id
-          if (null != consumedItems && !consumedItems.contains(itemId))
+          if (null == consumedItems || !consumedItems.contains(itemId))
             leafIds += Tuple2(itemId, i.pred)
         })
       }

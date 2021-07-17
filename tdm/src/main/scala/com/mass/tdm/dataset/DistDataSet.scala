@@ -3,8 +3,11 @@ package com.mass.tdm.dataset
 import java.nio.file.{Files, Paths}
 import java.util.concurrent.atomic.AtomicInteger
 
+import scala.collection.mutable
+
 import com.mass.sparkdl.dataset.DataUtil
-import com.mass.sparkdl.utils.Engine
+import com.mass.sparkdl.utils.{Engine, FileReader => DistFileReader}
+import com.mass.tdm.encoding
 import com.mass.tdm.operator.TDMOp
 import org.apache.log4j.Logger
 import org.apache.spark.{SparkContext, SparkFiles}
@@ -37,7 +40,8 @@ class DistDataSet(
   private[tdm] var isCached: Boolean = false
   private[tdm] var isCachedEval: Boolean = false
   private[tdm] val parallelSampling = parallelSample
-  private[tdm] var evaluateDuringTraining = evaluate
+  private[tdm] val evaluateDuringTraining = evaluate
+  private[tdm] var userConsumed: RDD[mutable.HashMap[Int, Array[Int]]] = _
 
   lazy val count: Int = dataBuffer.mapPartitions(iter => {
     require(iter.hasNext)
@@ -60,8 +64,12 @@ class DistDataSet(
 
   lazy val maxCode: Int = miniBatchBuffer.first.maxCode
 
-  def readRDD(sc: SparkContext, dataPath: String, pbFilePath: String,
-      evalPath: Option[String] = None): Unit = {
+  def readRDD(
+      sc: SparkContext,
+      dataPath: String,
+      pbFilePath: String,
+      evalPath: Option[String] = None,
+      userConsumedPath: Option[String] = None): Unit = {
 
   //  require(Files.exists(Paths.get(dataPath)), s"$dataPath doesn't exist")
   //  require(Files.exists(Paths.get(pbFilePath)), s"$pbFilePath doesn't exist")
@@ -109,23 +117,29 @@ class DistDataSet(
     }
 
     if (evaluateDuringTraining) {
-      require(evalPath.isDefined)
       require(evalBatchSizePerNode > 0, "must set evalBatchSize for evaluating")
-      readEvalRDD(sc, evalPath.get)
+      evalPath match {
+        case Some(path: String) => readEvalRDD(sc, path)
+        case _ => throw new IllegalArgumentException("invalid eval data path...")
+      }
+      userConsumedPath match {
+        case Some(path: String) => readUserConsumed(sc, path)
+        case _ => throw new IllegalArgumentException("invalid user consumed path...")
+      }
     }
   }
 
   def readEvalRDD(sc: SparkContext, evalPath: String): Unit = {
-  //  require(Files.exists(Paths.get(evalPath)), s"$evalPath doesn't exist")
     val _partitionNum = partitionNum.getOrElse(Engine.nodeNumber())
     val _delimiter = delimiter
     val _seqLen = seqLen + 1
     evalDataBuffer = sc.textFile(evalPath, _partitionNum)
       .map(data => {
         val line = data.trim.split(_delimiter)
+        val user = line.head.substring(5).toInt
         val seqItems = line.slice(1, _seqLen).map(_.toInt)
         val labels = line.slice(_seqLen, line.length).map(_.toInt)
-        TDMEvalSample(seqItems, labels).asInstanceOf[TDMSample]
+        TDMEvalSample(seqItems, labels, user).asInstanceOf[TDMSample]
       })
       .coalesce(_partitionNum, shuffle = true)
       .mapPartitions(iter => Iterator.single(iter.toArray))
@@ -146,6 +160,30 @@ class DistDataSet(
     }
   }
 
+  def readUserConsumed(sc: SparkContext, userConsumedPath: String): Unit = {
+    val userConsumedLocal = mutable.HashMap.empty[Int, Array[Int]]
+    val fileReader = DistFileReader(userConsumedPath)
+    val input = fileReader.open()
+    val fileInput = scala.io.Source.fromInputStream(input, encoding.name())
+    for {
+      line <- fileInput.getLines
+      arr = line.trim.split(delimiter)
+      user = arr.head.substring(5).toInt
+      items = arr.tail.map(_.toInt)
+    } {
+      userConsumedLocal(user) = items
+    }
+
+    fileInput.close()
+    input.close()
+    fileReader.close()
+
+    val broadcastUserConsumed = sc.broadcast(userConsumedLocal)
+    userConsumed = evalDataBuffer.mapPartitions { _ =>
+      Iterator.single(broadcastUserConsumed.value)
+    }.setName("userConsumed").cache()
+  }
+
   def size(): Int = count
 
   def evalSize(): Int = evalCount
@@ -161,6 +199,8 @@ class DistDataSet(
   def originalRDD(): RDD[Array[TDMSample]] = dataBuffer
 
   def originalEvalRDD(): RDD[Array[TDMSample]] = evalDataBuffer
+
+  def userConsumedRDD(): RDD[mutable.HashMap[Int, Array[Int]]] = userConsumed
 
   def getMaxCode: Int = maxCode
 
@@ -209,6 +249,9 @@ class DistDataSet(
     if (null != evalMiniBatchBuffer) {
       evalMiniBatchBuffer.count()
     }
+    if (null != userConsumed) {
+      userConsumed.count()
+    }
     isCached = true
   }
 
@@ -220,6 +263,9 @@ class DistDataSet(
     }
     if (null != evalMiniBatchBuffer) {
       evalMiniBatchBuffer.unpersist()
+    }
+    if (null != userConsumed) {
+      userConsumed.unpersist()
     }
     isCached = false
   }

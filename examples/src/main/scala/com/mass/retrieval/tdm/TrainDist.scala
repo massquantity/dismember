@@ -60,6 +60,7 @@ object TrainDist {
     val dataPath = getOrStop(modelConf, "train_path")
     val pbFilePath = getOrStop(modelConf, "tree_protobuf_path")
     val evalPath = modelConf.get("eval_path")
+    val userConsumedPath = modelConf.get("user_consumed_path")
 
     val embedSize = getOrStop(modelConf, "embed_size").toInt
     val learningRate = getOrStop(modelConf, "learning_rate").toDouble
@@ -88,7 +89,8 @@ object TrainDist {
       sc = sc,
       dataPath = dataPath,
       pbFilePath = pbFilePath,
-      evalPath = evalPath)
+      evalPath = evalPath,
+      userConsumedPath = userConsumedPath)
 
     val tdmModel = TDM(
       featSeqLen = seqLen,

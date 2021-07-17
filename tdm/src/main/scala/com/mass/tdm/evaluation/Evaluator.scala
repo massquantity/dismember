@@ -1,5 +1,7 @@
 package com.mass.tdm.evaluation
 
+import scala.collection.mutable
+
 import com.mass.sparkdl.{Criterion, Module}
 import com.mass.sparkdl.parameters.AllReduceParameter
 import com.mass.sparkdl.tensor.Tensor
@@ -71,45 +73,49 @@ object Evaluator extends Serializable with Recommender {
     val subModelNum = Engine.coreNumber()
     val evalDataRDD = dataset.originalEvalRDD()
     val miniBatchRDD = dataset.iteratorMiniBatch(train = false, expandBatch = true)
+    val userConsumedRDD = dataset.userConsumedRDD()
 
-    miniBatchRDD.zipPartitions(evalDataRDD, models) { (miniBatchIter, dataIter, modelIter) =>
-      val cachedModel: Cache[Float] = modelIter.next()
-      val data: Array[TDMSample] = dataIter.next()
-      // put updated parameters from server to local model
-      parameters.getWeights(cachedModel.modelWeights.head).waitResult()
+    miniBatchRDD.zipPartitions(evalDataRDD, models, userConsumedRDD) {
+      (miniBatchIter, dataIter, modelIter, userConsumedIter) =>
+        val cachedModel: Cache[Float] = modelIter.next()
+        val data: Array[TDMSample] = dataIter.next()
+        val userConsumed: mutable.HashMap[Int, Array[Int]] = userConsumedIter.next()
+        // put updated parameters from server to local model
+        parameters.getWeights(cachedModel.modelWeights.head).waitResult()
 
-      val evalLocal = miniBatchIter.map { batch =>
-        val miniBatchSize = batch.getLength
-        val taskSize = miniBatchSize / subModelNum
-        val extraSize = miniBatchSize % subModelNum
-        val realParallelism = if (taskSize == 0) extraSize else subModelNum
+        val evalLocal = miniBatchIter.map { batch =>
+          val miniBatchSize = batch.getLength
+          val taskSize = miniBatchSize / subModelNum
+          val extraSize = miniBatchSize % subModelNum
+          val realParallelism = if (taskSize == 0) extraSize else subModelNum
 
-        Engine.default.invokeAndWait(
-          (0 until realParallelism).map(i => () => {
-            val offset = batch.getOffset + i * taskSize + math.min(i, extraSize)
-            val length = taskSize + (if (i < extraSize) 1 else 0)
-            val (inputs, targets) = batch.convert(data, offset, length, i)
-            val localModel = cachedModel.localModels(i)
-            localModel.evaluate()
-            val outputs = localModel.forward(inputs).asInstanceOf[Tensor[Float]]
-            val localCriterion = cachedModel.localCriterions(i)
-            val localLoss = localCriterion.forward(outputs, targets).toDouble
-            val evalResult = new EvalResult(loss = localLoss * length, count = length)
+          Engine.default.invokeAndWait(
+            (0 until realParallelism).map(i => () => {
+              val offset = batch.getOffset + i * taskSize + math.min(i, extraSize)
+              val length = taskSize + (if (i < extraSize) 1 else 0)
+              val (inputs, targets) = batch.convert(data, offset, length, i)
+              val localModel = cachedModel.localModels(i)
+              localModel.evaluate()
+              val outputs = localModel.forward(inputs).asInstanceOf[Tensor[Float]]
+              val localCriterion = cachedModel.localCriterions(i)
+              val localLoss = localCriterion.forward(outputs, targets).toDouble
+              val evalResult = new EvalResult(loss = localLoss * length, count = length)
 
-            var j = offset
-            val end = offset + length
-            while (j < end) {
-              val recItems = recommendItems(data(j).sequence, localModel,
-                TDMOp.tree, topk, candidateNum, useMask)
-              val labels = data(j).labels
-              evalResult += computeMetrics(recItems, labels)
-              j += 1
-            }
-            evalResult
-          })
-        ).reduce(_ + _)  // reduce in one batch
-      }.reduce(_ + _)   // reduce in one partition
-      Iterator.single(evalLocal)
+              var j = offset
+              val end = offset + length
+              while (j < end) {
+                val consumedItems = Some(userConsumed(data(j).user))
+                val recItems = recommendItems(data(j).sequence, localModel,
+                  TDMOp.tree, topk, candidateNum, useMask, consumedItems)
+                val labels = data(j).labels
+                evalResult += computeMetrics(recItems, labels)
+                j += 1
+              }
+              evalResult
+            })
+          ).reduce(_ + _)  // reduce in one batch
+        }.reduce(_ + _)   // reduce in one partition
+        Iterator.single(evalLocal)
     }.reduce(_ + _)    // RDD reduce in all data
   }
 }

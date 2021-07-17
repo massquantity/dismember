@@ -359,7 +359,8 @@ object DistOptimizer {
     if (dataset.evaluateDuringTraining) {
       require(dataset.parallelSampling, "must use parallel sampling in train data when evaluating")
       val evalStart = System.nanoTime()
-      val evalResult = Evaluator.evaluateRDD(models, dataset, parameters, topk, candidateNum, state, useMask)
+      val evalResult = Evaluator.evaluateRDD(models, dataset, parameters, topk,
+        candidateNum, state, useMask)
       val evalEnd = System.nanoTime()
       progressInfo ++= f"\teval time: ${(evalEnd - evalStart) / 1e9d}%.4fs, " +
         f"Metrics: $evalResult\n"
