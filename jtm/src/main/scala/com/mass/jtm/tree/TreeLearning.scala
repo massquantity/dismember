@@ -8,7 +8,7 @@ import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Using}
 
 import com.mass.sparkdl.tensor.Tensor
-import com.mass.sparkdl.utils.{T, Table, FileReader => DistFileReader}
+import com.mass.sparkdl.utils.{Engine, T, Table, Util, FileReader => DistFileReader}
 import com.mass.sparkdl.Module
 import com.mass.tdm.ArrayExtension
 import com.mass.tdm.utils.Serialization
@@ -21,20 +21,21 @@ class TreeLearning(
     seqLen: Int,
     hierarchical: Boolean,
     minLevel: Int,
-    parallel: Boolean,
     numThreads: Int,
+    parallelNodeThreshold: Int,
     delimiter: String = ",") {
-  import TreeLearning.{buildFeatures, ItemInfo}
+  import TreeLearning._
 
   private val itemSequenceMap = new mutable.HashMap[Int, Array[Int]]()
   private var tree: JTMTree = _
   private var maxLevel: Int = -1
-  private var dlModel: Module[Float] = _
+  private var dlModel: Array[Module[Float]] = _
   private val useMask: Boolean = if (modelName.toLowerCase() == "din") true else false
+  private var parallelNode: Boolean = false
 
   def load(dataPath: String, treePath: String, modelPath: String): Unit = {
     readDataFile(dataPath)
-    dlModel = Serialization.loadModel(modelPath)
+    dlModel = duplicateModel(modelPath)
     tree = JTMTree(treePath)
     // levels start from 0, end with (maxLevel - 1)
     maxLevel = tree.maxLevel - 1
@@ -83,13 +84,40 @@ class TreeLearning(
     while (_gap > 0) {
       val oldLevel = level - _gap
       val nodes = tree.getAllNodesAtLevel(oldLevel)
-      val start = System.nanoTime()
-      nodes.foreach { node =>
-        val itemsAssignedToNode = projectionPi.toArray.filter(_._2 == node).map(_._1)
-        updateProjection(projectionPi, oldLevel, level, node, itemsAssignedToNode)
+      if (nodes.length >= parallelNodeThreshold) {
+        parallelNode = true
       }
+
+      val start = System.nanoTime()
+      if (parallelNode) {
+        val taskSize = nodes.length / numThreads
+        val extraSize = nodes.length % numThreads
+        val realParallelism = if (taskSize == 0) extraSize else numThreads
+        val bufferProjections = new Array[mutable.HashMap[Int, Int]](realParallelism)
+        val projectionBuffer = projectionPi.toArray
+        Engine.default.invokeAndWait(
+          (0 until realParallelism).map(i => () => {
+            val subProjection = new mutable.HashMap[Int, Int]()
+            val start = i * taskSize + math.min(i, extraSize)
+            val end = start + taskSize + (if (i < extraSize) 1 else 0)
+            (start until end).foreach { j =>
+              val node = nodes(j)
+              val itemsAssignedToNode = projectionBuffer.filter(_._2 == node).map(_._1)
+              subProjection ++= getChildrenProjection(oldLevel, level, node, itemsAssignedToNode, i)
+            }
+            bufferProjections(i) = subProjection
+          })
+        )
+        bufferProjections.foldLeft(projectionPi)((a, b) => a ++= b)
+      } else {
+        nodes.foreach { node =>
+          val itemsAssignedToNode = projectionPi.toArray.filter(_._2 == node).map(_._1)
+          projectionPi ++= getChildrenProjection(oldLevel, level, node, itemsAssignedToNode, 0)
+        }
+      }
+
       val end = System.nanoTime()
-      println(f"level $level time:  ${(end - start) / 1e9d}%.6fs")
+      println(f"level $level assign time:  ${(end - start) / 1e9d}%.6fs")
 
       _gap = math.min(_gap, maxLevel - level)
       level += _gap
@@ -98,19 +126,19 @@ class TreeLearning(
     tree.writeTree(projectionPi, outputTreePath)
   }
 
-  def updateProjection(
-      projection: mutable.HashMap[Int, Int],
+  def getChildrenProjection(
       oldLevel: Int,
       level: Int,
       node: Int,
-      itemsAssignedToNode: Array[Int]): Unit = {
+      itemsAssignedToNode: Array[Int],
+      modelIdx: Int): mutable.HashMap[Int, Int] = {
 
     val nodeItemMapWithWeights = new mutable.HashMap[Int, ArrayBuffer[ItemInfo]]()
     val oldItemNodeMap = new mutable.HashMap[Int, Int]()
     val maxAssignNum = math.pow(2, maxLevel - level).toInt
     val childrenAtLevel = tree.getChildrenAtLevel(node, oldLevel, level)
     val (candidateNodes, candidateWeights) = computeWeightsForItemsAtLevel(
-      itemsAssignedToNode, node, childrenAtLevel, level)
+      itemsAssignedToNode, node, childrenAtLevel, level, modelIdx)
 
     itemsAssignedToNode.foreach { item =>
       val maxWeightChildNode = candidateNodes(item).head
@@ -127,17 +155,20 @@ class TreeLearning(
     rebalance(nodeItemMapWithWeights, oldItemNodeMap, childrenAtLevel, maxAssignNum,
       candidateNodes, candidateWeights)
 
+    val childrenProjection = new mutable.HashMap[Int, Int]()
     nodeItemMapWithWeights.foreach { case (node, items) =>
       require(items.length <= maxAssignNum)
-      items.foreach(i => projection(i.id) = node)
+      items.foreach(i => childrenProjection(i.id) = node)
     }
+    childrenProjection
   }
 
   def computeWeightsForItemsAtLevel(
       itemsAssignedToNode: Array[Int],
       currentNode: Int,
       childrenNodes: Array[Int],
-      level: Int): (mutable.HashMap[Int, Array[Int]], mutable.HashMap[Int, Array[Float]]) = {
+      level: Int,
+      modelIdx: Int): (mutable.HashMap[Int, Array[Int]], mutable.HashMap[Int, Array[Float]]) = {
 
     val candidateNodesOfItems = mutable.HashMap.empty[Int, Array[Int]]
     val candidateWeightsOfItems = mutable.HashMap.empty[Int, Array[Float]]
@@ -148,7 +179,7 @@ class TreeLearning(
       var i = 0
       while (i < childrenNodes.length) {
         val childNode = childrenNodes(i)
-        val childWeight = aggregateWeights(item, currentNode, childNode, level)
+        val childWeight = aggregateWeights(item, currentNode, childNode, level, modelIdx)
         candidateNode += childNode
         candidateWeight += childWeight
         i += 1
@@ -162,7 +193,12 @@ class TreeLearning(
     (candidateNodesOfItems, candidateWeightsOfItems)
   }
 
-  private def aggregateWeights(item: Int, currentNode: Int, childNode: Int, level: Int): Float = {
+  private def aggregateWeights(
+      item: Int,
+      currentNode: Int,
+      childNode: Int,
+      level: Int,
+      modelIdx: Int): Float = {
     // items that never appeared as target are assigned low weights
     if (!itemSequenceMap.contains(item)) return -1e6f
     var weights = 0.0f
@@ -171,7 +207,8 @@ class TreeLearning(
     while (node > currentNode) {
       val sampleSet = buildFeatures(tree, itemSequenceMap(item), node, seqLen, _level,
         useMask, hierarchical, minLevel)
-      weights += dlModel.forward(sampleSet).asInstanceOf[Tensor[Float]].storage().array().sum
+      // println(sampleSet(0).asInstanceOf[Tensor[Float]].dim())
+      weights += dlModel(modelIdx).forward(sampleSet).asInstanceOf[Tensor[Float]].storage().array().sum
       node = (node - 1) / 2
       _level -= 1
     }
@@ -250,11 +287,23 @@ object TreeLearning {
       seqLen: Int,
       hierarchical: Boolean,
       minLevel: Int,
-      parallel: Boolean = false,
       numThreads: Int = 1,
+      parallelNodeThreshold: Int = 1024,
       delimiter: String = ","): TreeLearning = {
     new TreeLearning(modelName, gap, seqLen, hierarchical, minLevel,
-      parallel, numThreads, delimiter)
+      numThreads, parallelNodeThreshold, delimiter)
+  }
+
+  private def duplicateModel(modelPath: String): Array[Module[Float]] = {
+    val loadedModel = Serialization.loadModel(modelPath)
+    val weights: Array[Tensor[Float]] = Util.getAndClearWeightBias(loadedModel.parameters())
+    val subModelNum = Engine.coreNumber()
+    val models: Array[Module[Float]] = (1 to subModelNum).toArray.map { _ =>
+      val m = loadedModel.cloneModule()
+      Util.putWeightBias(weights, m)
+      m
+    }
+    models
   }
 
   private def buildFeatures(
