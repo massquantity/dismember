@@ -22,11 +22,10 @@ class TreeLearning(
     hierarchical: Boolean,
     minLevel: Int,
     numThreads: Int,
-    parallelNodeThreshold: Int,
     delimiter: String = ",") {
   import TreeLearning._
 
-  private val itemSequenceMap = new mutable.HashMap[Int, Array[Int]]()
+  private val itemSequenceMap = mutable.Map[Int, Array[Int]]()
   private var tree: JTMTree = _
   private var maxLevel: Int = -1
   private var dlModel: Array[Module[Float]] = _
@@ -42,7 +41,7 @@ class TreeLearning(
   }
 
   def readDataFile(dataPath: String): Unit = {
-    val tmpMap = mutable.HashMap.empty[Int, ArrayBuffer[Int]]
+    val tmpMap = mutable.Map.empty[Int, ArrayBuffer[Int]]
     val fileReader = DistFileReader(dataPath)
     val inputStream = fileReader.open()
 
@@ -73,18 +72,23 @@ class TreeLearning(
     }
   }
 
+  // When num of nodes in one level is smaller than numThreads,
+  // parallel computing item weights in ONE node.
+  // Otherwise parallel computing item weights among nodes.
   def run(outputTreePath: String): Unit = {
     var level, _gap = gap
-    val projectionPi = new mutable.HashMap[Int, Int]()
+    val projectionPi = mutable.Map[Int, Int]()
     for (itemCode <- tree.leafCodes) {
       val itemId = tree.codeNodeMap(itemCode).id
       projectionPi(itemId) = 0  // first all assign to root node
     }
 
+    val total_start = System.nanoTime()
+    val bufferProjections = Array.fill[mutable.Map[Int, Int]](numThreads)(mutable.Map.empty)
     while (_gap > 0) {
       val oldLevel = level - _gap
       val nodes = tree.getAllNodesAtLevel(oldLevel)
-      if (nodes.length >= parallelNodeThreshold) {
+      if (nodes.length >= numThreads) {
         parallelNode = true
       }
 
@@ -92,30 +96,29 @@ class TreeLearning(
       if (parallelNode) {
         val taskSize = nodes.length / numThreads
         val extraSize = nodes.length % numThreads
-        val realParallelism = if (taskSize == 0) extraSize else numThreads
-        val bufferProjections = new Array[mutable.HashMap[Int, Int]](realParallelism)
-        val projectionBuffer = projectionPi.toArray
         Engine.default.invokeAndWait(
-          (0 until realParallelism).map(i => () => {
-            val subProjection = new mutable.HashMap[Int, Int]()
+          (0 until numThreads).map(i => () => {
+            val subProjection =
+              if (bufferProjections(i).isEmpty) {
+                projectionPi.toArray
+              } else {
+                bufferProjections(i).toArray
+              }
             val start = i * taskSize + math.min(i, extraSize)
             val end = start + taskSize + (if (i < extraSize) 1 else 0)
-            (start until end).foreach { j =>
-              val node = nodes(j)
-              val itemsAssignedToNode = projectionBuffer.filter(_._2 == node).map(_._1)
-              subProjection ++= getChildrenProjection(oldLevel, level, node, itemsAssignedToNode, i)
+            (start until end).map(nodes(_)).foreach { node =>
+              val itemsAssignedToNode = subProjection.filter(_._2 == node).map(_._1)
+              bufferProjections(i) ++= getChildrenProjection(oldLevel, level, node, itemsAssignedToNode, i)
             }
-            bufferProjections(i) = subProjection
           })
         )
-        bufferProjections.foldLeft(projectionPi)((a, b) => a ++= b)
       } else {
+        val _projection = projectionPi.toArray
         nodes.foreach { node =>
-          val itemsAssignedToNode = projectionPi.toArray.filter(_._2 == node).map(_._1)
+          val itemsAssignedToNode = _projection.filter(_._2 == node).map(_._1)
           projectionPi ++= getChildrenProjection(oldLevel, level, node, itemsAssignedToNode, 0)
         }
       }
-
       val end = System.nanoTime()
       println(f"level $level assign time:  ${(end - start) / 1e9d}%.6fs")
 
@@ -123,6 +126,11 @@ class TreeLearning(
       level += _gap
     }
 
+    if (parallelNode) {
+      bufferProjections.foldLeft(projectionPi)((a, b) => a ++= b)
+    }
+    val total_end = System.nanoTime()
+    println(f"total tree learning time: ${(total_end - total_start) / 1e9d}%.6fs")
     tree.writeTree(projectionPi, outputTreePath)
   }
 
@@ -131,10 +139,10 @@ class TreeLearning(
       level: Int,
       node: Int,
       itemsAssignedToNode: Array[Int],
-      modelIdx: Int): mutable.HashMap[Int, Int] = {
+      modelIdx: Int): mutable.Map[Int, Int] = {
 
-    val nodeItemMapWithWeights = new mutable.HashMap[Int, ArrayBuffer[ItemInfo]]()
-    val oldItemNodeMap = new mutable.HashMap[Int, Int]()
+    val nodeItemMapWithWeights = mutable.Map[Int, ArrayBuffer[ItemInfo]]()
+    val oldItemNodeMap = mutable.Map[Int, Int]()
     val maxAssignNum = math.pow(2, maxLevel - level).toInt
     val childrenAtLevel = tree.getChildrenAtLevel(node, oldLevel, level)
     val (candidateNodes, candidateWeights) = computeWeightsForItemsAtLevel(
@@ -155,7 +163,7 @@ class TreeLearning(
     rebalance(nodeItemMapWithWeights, oldItemNodeMap, childrenAtLevel, maxAssignNum,
       candidateNodes, candidateWeights)
 
-    val childrenProjection = new mutable.HashMap[Int, Int]()
+    val childrenProjection = mutable.Map[Int, Int]()
     nodeItemMapWithWeights.foreach { case (node, items) =>
       require(items.length <= maxAssignNum)
       items.foreach(i => childrenProjection(i.id) = node)
@@ -168,28 +176,46 @@ class TreeLearning(
       currentNode: Int,
       childrenNodes: Array[Int],
       level: Int,
-      modelIdx: Int): (mutable.HashMap[Int, Array[Int]], mutable.HashMap[Int, Array[Float]]) = {
+      modelIdx: Int): (mutable.Map[Int, Array[Int]], mutable.Map[Int, Array[Float]]) = {
 
-    val candidateNodesOfItems = mutable.HashMap.empty[Int, Array[Int]]
-    val candidateWeightsOfItems = mutable.HashMap.empty[Int, Array[Float]]
+    val candidateNodesOfItems = mutable.Map.empty[Int, Array[Int]]
+    val candidateWeightsOfItems = mutable.Map.empty[Int, Array[Float]]
 
-    itemsAssignedToNode.foreach { item =>
-      val candidateNode = ArrayBuffer.empty[Int]
-      val candidateWeight = ArrayBuffer.empty[Float]
-      var i = 0
-      while (i < childrenNodes.length) {
-        val childNode = childrenNodes(i)
-        val childWeight = aggregateWeights(item, currentNode, childNode, level, modelIdx)
-        candidateNode += childNode
-        candidateWeight += childWeight
-        i += 1
+    // if not parallel node, then parallel items in ONE node.
+    if (!parallelNode) {
+      val taskSize = itemsAssignedToNode.length / numThreads
+      val extraSize = itemsAssignedToNode.length % numThreads
+      val realParallelism = if (taskSize == 0) extraSize else numThreads
+      val bufferNodes = Array.fill[mutable.Map[Int, Array[Int]]](realParallelism)(mutable.Map.empty)
+      val bufferWeights = Array.fill[mutable.Map[Int, Array[Float]]](realParallelism)(mutable.Map.empty)
+      Engine.default.invokeAndWait(
+        (0 until realParallelism).map(i => () => {
+          val start = i * taskSize + math.min(i, extraSize)
+          val end = start + taskSize + (if (i < extraSize) 1 else 0)
+          (start until end).map(itemsAssignedToNode(_)).foreach { item =>
+            val childrenWeights = childrenNodes.map { node =>
+              aggregateWeights(item, currentNode, node, level, i)
+            }
+            val index = childrenWeights.argSort(inplace = true).reverse
+            bufferNodes(i)(item) = index.map(childrenNodes(_))
+            bufferWeights(i)(item) = index.map(childrenWeights(_))
+          }
+        })
+      )
+      bufferNodes.foldLeft(candidateNodesOfItems)((a, b) => a ++= b)
+      bufferWeights.foldLeft(candidateWeightsOfItems)((a, b) => a ++= b)
+    } else {
+      itemsAssignedToNode.foreach { item =>
+        val childrenWeights = childrenNodes.map { childNode =>
+          aggregateWeights(item, currentNode, childNode, level, modelIdx)
+        }
+        // sort according to descending weight
+        val index = childrenWeights.argSort(inplace = true).reverse
+        candidateNodesOfItems(item) = index.map(childrenNodes(_))
+        candidateWeightsOfItems(item) = index.map(childrenWeights(_))
       }
-
-      // sort according to descending weight
-      val index = candidateWeight.toArray.argSort(inplace = true).reverse
-      candidateNodesOfItems(item) = index.map(candidateNode(_))
-      candidateWeightsOfItems(item) = index.map(candidateWeight(_))
     }
+
     (candidateNodesOfItems, candidateWeightsOfItems)
   }
 
@@ -207,7 +233,6 @@ class TreeLearning(
     while (node > currentNode) {
       val sampleSet = buildFeatures(tree, itemSequenceMap(item), node, seqLen, _level,
         useMask, hierarchical, minLevel)
-      // println(sampleSet(0).asInstanceOf[Tensor[Float]].dim())
       weights += dlModel(modelIdx).forward(sampleSet).asInstanceOf[Tensor[Float]].storage().array().sum
       node = (node - 1) / 2
       _level -= 1
@@ -216,24 +241,24 @@ class TreeLearning(
   }
 
   private def rebalance(
-      nodeItemMapWithWeights: mutable.HashMap[Int, ArrayBuffer[ItemInfo]],
-      oldItemNodeMap: mutable.HashMap[Int, Int],
+      nodeItemMapWithWeights: mutable.Map[Int, ArrayBuffer[ItemInfo]],
+      oldItemNodeMap: mutable.Map[Int, Int],
       childrenAtLevel: Array[Int],
       maxAssignNum: Int,
-      candidateNodesOfItems: mutable.HashMap[Int, Array[Int]],
-      candidateWeightsOfItems: mutable.HashMap[Int, Array[Float]]): Unit = {
+      candidateNodesOfItems: mutable.Map[Int, Array[Int]],
+      candidateWeightsOfItems: mutable.Map[Int, Array[Float]]): Unit = {
 
     val processedNodes = new mutable.HashSet[Int]()
     var finished = false
     while (!finished) {
-      var maxAssignCount = 0
-      var maxAssignNode = -1
-      childrenAtLevel.foreach { node =>
+      val initValue = (0, -1)
+      val (maxAssignCount, maxAssignNode) = childrenAtLevel.foldLeft(initValue) { (init, node) =>
         if (!processedNodes.contains(node)
             && nodeItemMapWithWeights.contains(node)
-            && nodeItemMapWithWeights(node).length > maxAssignCount) {
-          maxAssignCount = nodeItemMapWithWeights(node).length
-          maxAssignNode = node
+            && nodeItemMapWithWeights(node).length > init._1) {
+          (nodeItemMapWithWeights(node).length, node)
+        } else {
+          init
         }
       }
 
@@ -288,10 +313,8 @@ object TreeLearning {
       hierarchical: Boolean,
       minLevel: Int,
       numThreads: Int = 1,
-      parallelNodeThreshold: Int = 1024,
       delimiter: String = ","): TreeLearning = {
-    new TreeLearning(modelName, gap, seqLen, hierarchical, minLevel,
-      numThreads, parallelNodeThreshold, delimiter)
+    new TreeLearning(modelName, gap, seqLen, hierarchical, minLevel, numThreads, delimiter)
   }
 
   private def duplicateModel(modelPath: String): Array[Module[Float]] = {
@@ -340,7 +363,7 @@ object TreeLearning {
   def sortOnFormerAndWeights(
       items: Array[ItemInfo],
       maxAssignNode: Int,
-      oldItemNodeMap: mutable.HashMap[Int, Int]): ArrayBuffer[ItemInfo] = {
+      oldItemNodeMap: mutable.Map[Int, Int]): ArrayBuffer[ItemInfo] = {
 
     SpireSorting.quickSort(items)(new Order[ItemInfo] {
       override def compare(x: ItemInfo, y: ItemInfo): Int = {
