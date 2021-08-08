@@ -17,8 +17,8 @@ class JTMTree extends DistTree with Serializable {
   import JTMTree._
   val logger: Logger = Logger.getLogger(getClass)
 
-  override protected[jtm] val codeNodeMap = new mutable.HashMap[Int, Node]()
-  override protected val idCodeMap = new mutable.HashMap[Int, Int]()
+  override protected[jtm] val codeNodeMap = mutable.Map.empty[Int, Node]
+  override protected val idCodeMap = mutable.Map.empty[Int, Int]
   override protected[jtm] val leafCodes = new mutable.BitSet()
   override protected[jtm] var initialized: Boolean = false
   override protected[jtm] var maxLevel: Int = 0
@@ -126,7 +126,7 @@ class JTMTree extends DistTree with Serializable {
     (res, mask)
   }
 
-  def flattenLeaves(projectionPi: mutable.HashMap[Int, Int], maxLevel: Int): Unit = {
+  def flattenLeaves(projectionPi: mutable.Map[Int, Int], maxLevel: Int): Unit = {
     val minLeafCode = math.pow(2, maxLevel).toInt - 1
     val projection = projectionPi.toArray
     val projectionLeafCodes = projection.map(_._2).filter(_ >= minLeafCode).toSet
@@ -163,9 +163,9 @@ class JTMTree extends DistTree with Serializable {
     require(unassignedLeafCodes.isEmpty, "still remains unassigned codes")
   }
 
-  def writeTree(projectionPi: mutable.HashMap[Int, Int], pbFilePath: String): Unit = {
-    val leafStat = mutable.HashMap.empty[Int, Float]
-    val pstat = mutable.HashMap.empty[Int, Float]
+  def writeTree(projectionPi: mutable.Map[Int, Int], pbFilePath: String): Unit = {
+    val leafStat = mutable.Map.empty[Int, Float]
+    val pstat = mutable.Map.empty[Int, Float]
     // some original leaf nodes may stay in upper level, so put all of them to leaves
     flattenLeaves(projectionPi, maxLevel - 1)
 

@@ -14,8 +14,8 @@ import com.mass.tdm.protobuf.tree.{IdCodePart, Node, TreeMeta}
 trait DistTree {
   import com.mass.tdm.tree.DistTree.multiPut
 
-  protected val codeNodeMap: mutable.HashMap[Int, Node]
-  protected val idCodeMap: mutable.HashMap[Int, Int]
+  protected val codeNodeMap: mutable.Map[Int, Node]
+  protected val idCodeMap: mutable.Map[Int, Int]
   protected val leafCodes: mutable.BitSet
   protected var initialized: Boolean
   protected var maxLevel: Int
@@ -116,7 +116,7 @@ object DistTree {
   case class TreeNode(code: Int, node: Node)
 
   private def multiPut(
-      map: mutable.HashMap[Int, Node],
+      map: mutable.Map[Int, Node],
       keys: ArrayBuffer[Int],
       values: ArrayBuffer[Node]): Unit = {
 

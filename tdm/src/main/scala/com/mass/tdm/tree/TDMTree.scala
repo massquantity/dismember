@@ -10,8 +10,8 @@ import com.mass.tdm.protobuf.tree.Node
 class TDMTree extends DistTree with Serializable {
   import DistTree.TreeNode
 
-  override protected[tdm] val codeNodeMap = new mutable.HashMap[Int, Node]()
-  override protected val idCodeMap = new mutable.HashMap[Int, Int]()
+  override protected[tdm] val codeNodeMap = mutable.Map.empty[Int, Node]
+  override protected val idCodeMap = mutable.Map.empty[Int, Int]
   override protected val leafCodes = new mutable.BitSet()
   override protected[tdm] var initialized: Boolean = false
   override protected[tdm] var maxLevel: Int = 0
@@ -24,7 +24,7 @@ class TDMTree extends DistTree with Serializable {
 
   def getIds: Array[Int] = idCodeMap.keys.toArray
 
-  def getIdCodeMap: mutable.HashMap[Int, Int] = idCodeMap
+  def getIdCodeMap: mutable.Map[Int, Int] = idCodeMap
 
   def init(path: String): Unit = {
     val (idCodeAllParts, treeMeta) = loadData(path)
