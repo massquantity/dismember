@@ -83,11 +83,12 @@ class JTMTree extends DistTree with Serializable {
       if (id == paddingId) {
         res(i) = -1
       } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
-        res(i) = if (hierarchical && level >= minLevel) {
-          getAncestorAtLevel(id, level)
-        } else {
-          idCodeMap(id)
-        }
+        res(i) =
+          if (hierarchical && level >= minLevel) {
+            getAncestorAtLevel(id, level)
+          } else {
+            idCodeMap(id)
+          }
       } else {
         res(i) = id - nonLeafOffset
         if (res(i) > maxCode) res(i) = -1
@@ -112,11 +113,12 @@ class JTMTree extends DistTree with Serializable {
         res(i) = -1
         mask += i
       } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
-        res(i) = if (hierarchical && level >= minLevel) {
-          getAncestorAtLevel(id, level)
-        } else {
-          idCodeMap(id)
-        }
+        res(i) =
+          if (hierarchical && level >= minLevel) {
+            getAncestorAtLevel(id, level)
+          } else {
+            idCodeMap(id)
+          }
       } else {
         res(i) = id - nonLeafOffset
         if (res(i) > maxCode) res(i) = -1
