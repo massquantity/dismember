@@ -52,10 +52,14 @@ class BCECriterionWithLogits[@specialized(Float, Double) T: ClassTag](
     ev.vLn(batchSize, buffer2, 0, buffer2, 0)
     ev.vAdd(batchSize, buffer, 0, buffer2, 0, buffer, 0)
     // ev.axpy(batchSize, ev.fromType(1.0), buffer2, 0, 1, buffer, 0, 1)
-    output = ev.minus(ev.dot(batchSize, buffer, 0, 1, ones, 0, 1),
-      ev.dot(batchSize, inputData, iOffset, 1, targetData, tOffset, 1))
+    output = ev.minus(
+      ev.dot(batchSize, buffer, 0, 1, ones, 0, 1),
+      ev.dot(batchSize, inputData, iOffset, 1, targetData, tOffset, 1)
+    )
 
-    if (sizeAverage) output = ev.divide(output, ev.fromType(batchSize))
+    if (sizeAverage) {
+      output = ev.divide(output, ev.fromType(batchSize))
+    }
     output
   }
 
