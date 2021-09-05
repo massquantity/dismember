@@ -33,7 +33,6 @@ class LogSoftMax[T: ClassTag](implicit ev: TensorNumeric[T]) extends TensorModul
       }
       Engine.model.sync(results)
     }
-
     output
   }
 
@@ -57,7 +56,7 @@ class LogSoftMax[T: ClassTag](implicit ev: TensorNumeric[T]) extends TensorModul
       updateGradInputOne(output, gradInput)
     } else {
       val batchSize = output.size(0)
-      if (results != null || results.length != batchSize) {
+      if (results == null || results.length != batchSize) {
         results = new Array[Future[Unit]](batchSize)
       }
       var t = 0

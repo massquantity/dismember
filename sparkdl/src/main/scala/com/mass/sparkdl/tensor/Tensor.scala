@@ -189,7 +189,7 @@ object Tensor {
   def apply[@specialized(Float, Double) T: ClassTag](dims: Int*)(
       implicit ev: TensorNumeric[T]): Tensor[T] = {
     new DenseTensor[T](new ArrayStorage[T](new Array[T](dims.product)), 0,
-    dims.toArray, DenseTensor.size2Stride(dims.toArray), dims.length)
+      dims.toArray, DenseTensor.size2Stride(dims.toArray), dims.length)
   }
 
   def apply[@specialized(Float, Double) T: ClassTag](sizes: Array[Int])(
