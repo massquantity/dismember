@@ -27,14 +27,12 @@ class SoftMax[T: ClassTag](implicit ev: TensorNumeric[T]) extends TensorModule[T
     var i = 0
     while (i < n) {
       val offset = i * dim
-
       var inputMax = inputData(offset)
       var d = 1
       while (d < dim) {
         inputMax = ev.max(inputMax, inputData(offset + d))
         d += 1
       }
-
       buffer = Array.fill[T](dim)(inputMax)
       ev.vSub(dim, inputData, offset, buffer, 0, outputData, offset)
       ev.vExp(dim, outputData, offset, outputData, offset)
@@ -57,7 +55,6 @@ class SoftMax[T: ClassTag](implicit ev: TensorNumeric[T]) extends TensorModule[T
     var i = 0
     while (i < n) {
       val offset = i * dim
-
       val sum = ev.dot(dim, gradOutputData, offset, 1, outputData, offset, 1)
       buffer = Array.fill[T](dim)(sum)
       ev.vSub(dim, gradOutputData, offset, buffer, 0, gradInputData, offset)

@@ -9,8 +9,7 @@ class CrossEntropyCriterion[T: ClassTag](val sizeAverage: Boolean = true)(
     implicit ev: TensorNumeric[T]) extends AbstractCriterion[T] {
 
   private val logSoftMax = new LogSoftMax[T]()
-  private val crossEntropy = new ClassNLLCriterion[T](
-    sizeAverage = sizeAverage, logProbAsInput = true)
+  private val crossEntropy = new ClassNLLCriterion[T](sizeAverage, logProbAsInput = true)
 
   override def updateOutput(input: Tensor[T], target: Tensor[T]): T = {
     logSoftMax.updateOutput(input)
@@ -20,10 +19,9 @@ class CrossEntropyCriterion[T: ClassTag](val sizeAverage: Boolean = true)(
   }
 
   override def updateGradInput(input: Tensor[T], target: Tensor[T]): Tensor[T] = {
-    val size = input.size()
     val _gradInput = crossEntropy.updateGradInput(logSoftMax.output, target)
     logSoftMax.updateGradInput(input, _gradInput)
-    gradInput.resizeAs(logSoftMax.gradInput).copy(logSoftMax.gradInput).view(size)
+    gradInput = gradInput.resizeAs(logSoftMax.gradInput).copy(logSoftMax.gradInput)
     gradInput
   }
 }

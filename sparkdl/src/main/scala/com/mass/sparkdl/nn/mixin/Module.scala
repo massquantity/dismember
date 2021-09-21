@@ -41,7 +41,7 @@ object Module {
   def isCompact[@specialized(Float, Double) T: ClassTag](parameters: Array[Tensor[T]])(
     implicit ev: TensorNumeric[T]): Tensor[T] = {
     require(parameters.length > 0,
-      "The length of paramters should >= 0" +
+      "The length of parameters should >= 0" +
         "parameter length" +
         s" ${parameters.length}")
     var i = 1
