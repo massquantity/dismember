@@ -6,30 +6,37 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 
 import com.mass.sparkdl.nn.abstractnn.AbstractCriterion
+import com.mass.sparkdl.nn.mixin.ParameterOptimizer
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
+import com.mass.sparkdl.utils.Table
 
 // https://www.tensorflow.org/api_docs/python/tf/nn/sampled_softmax_loss
-// This implementation is different from sampled_softmax_loss in TensorFlow in that
-// it samples negative items per positive item, whereas sampled_softmax_loss in TensorFlow
-// samples negative items per batch. See SampledSoftmaxLossBatch for an equivalent implementation.
+// This implementation is different from `sampled_softmax_loss` in TensorFlow in that
+// it samples negative items per positive item, whereas `sampled_softmax_loss` in TensorFlow
+// samples negative items per batch. See `SampledSoftmaxLossBatch` for an equivalent implementation.
 // todo: remove_accidental_hits, seed
 class SampledSoftmaxLoss[@specialized(Float, Double) T: ClassTag](
     numSampled: Int,
-    numClasses: Int,
-    embedSize: Int,
+    override val numClasses: Int,
+    override val embedSize: Int,
+    override val learningRate: Double,
     sampledValues: Option[Array[Int]] = None)(
-    implicit ev: TensorNumeric[T]) extends AbstractCriterion[T] {
+    implicit ev: TensorNumeric[T]) extends AbstractCriterion[T] with ParameterOptimizer[T] {
   import SampledSoftmaxLoss.uniformSampler
+  import ParameterOptimizer.{initState, createTensor}
 
   private val crossEntropyLoss = CrossEntropyCriterion[T]()
-  private var sampledItems: Array[Int] = _
-  private var sampledWeightEmbed: Tensor[T] = _
-  private var logitsBuffer: Tensor[T] = _
   private var crossEntropyGrad: Tensor[T] = _
-  val weights: Tensor[T] = Tensor[T](numClasses, embedSize).randn(0.0, 0.05)
-  val biases: Tensor[T] = Tensor[T](numClasses).zero()
-  val gradWeights: Tensor[T] = Tensor[T]()
-  val gradBiases: Tensor[T] = Tensor[T]()
+  override protected var sampledItems: Array[Int] = _
+  override protected var sampledWeightEmbed: Tensor[T] = _
+  private var logitsBuffer: Tensor[T] = _
+  private var labelPosition: Tensor[T] = _
+  override val weights: Tensor[T] = Tensor[T](numClasses, embedSize).randn(0.0, 0.05)
+  override val biases: Tensor[T] = Tensor[T](numClasses).zero()
+  override val gradWeights: Tensor[T] = createTensor(weights.size())
+  override val gradBiases: Tensor[T] = createTensor(biases.size())
+  override val state: Table = initState(weights, biases)
+  override val optimizerBuffer: Tensor[T] = Tensor[T]()
 
   // This target is used as item indices in embeddingLookup
   override def updateOutput(inputVecs: Tensor[T], target: Tensor[T]): T = {
@@ -40,19 +47,19 @@ class SampledSoftmaxLoss[@specialized(Float, Double) T: ClassTag](
       case None => uniformSampler(labels, numSampled, numClasses)
     }
 
-    val labelPosition = Tensor[T](batchSize).zero()  // all labels are in the first place.
     val sampledBiasEmbed = embeddingLookup(biases, sampledItems, batchSize)
     sampledWeightEmbed = embeddingLookup(weights, sampledItems, batchSize, embedSize)
     logitsBuffer = linear(inputVecs, sampledWeightEmbed, sampledBiasEmbed)
+    labelPosition = Tensor[T](batchSize).zero()  // all labels are in the first place.
     output = crossEntropyLoss.updateOutput(logitsBuffer, labelPosition)
     output
   }
 
-  // This target is treated as labelPosition in crossEntropyLoss
-  override def backward(input: Tensor[T], target: Tensor[T]): Tensor[T] = {
-    crossEntropyGrad = crossEntropyLoss.updateGradInput(logitsBuffer, target)
-    updateGradInput(input, target)
-    updateWeightsAndBiases(input, crossEntropyGrad)
+  // This target is useless, the real target is labelPosition.
+  override def backward(inputVecs: Tensor[T], target: Tensor[T]): Tensor[T] = {
+    crossEntropyGrad = crossEntropyLoss.updateGradInput(logitsBuffer, labelPosition)
+    updateGradInput(inputVecs, target)
+    updateParameters(inputVecs, crossEntropyGrad)
     gradInput
   }
 
@@ -67,7 +74,6 @@ class SampledSoftmaxLoss[@specialized(Float, Double) T: ClassTag](
       indices: Array[Int],
       batchSize: Int,
       embedSize: Int = 1): Tensor[T] = {
-
     val numElem = indices.length
     val outputData = new Array[T](numElem * embedSize)
     val weightData = embedWeights.storage().array()
@@ -95,7 +101,6 @@ class SampledSoftmaxLoss[@specialized(Float, Double) T: ClassTag](
       inputVecs: Tensor[T],
       weights: Tensor[T],
       biases: Tensor[T]): Tensor[T] = {
-
     val batchSize = inputVecs.size(0)
     val output = Tensor[T](batchSize, numSampled + 1)
     var i = 0
@@ -104,7 +109,7 @@ class SampledSoftmaxLoss[@specialized(Float, Double) T: ClassTag](
       val w = weights.select(0, i)
       val b = biases.select(0, i)
       val out = output.select(0, i)
-      out.addmv(ev.zero, ev.one, vec, w)
+      out.addmv(ev.zero, ev.one, w, vec)
       out.add(b)
       i += 1
     }
@@ -123,18 +128,21 @@ class SampledSoftmaxLoss[@specialized(Float, Double) T: ClassTag](
     }
   }
 
-  private def updateWeightsAndBiases(inputVecs: Tensor[T], lossGrad: Tensor[T]): Unit = {
-    gradWeights.resizeAs(sampledWeightEmbed).zero()
-    gradBiases.resizeAs(lossGrad).copy(lossGrad)
+  override def computeParameterGradInput(
+      inputVecs: Tensor[T],
+      lossGrad: Tensor[T]): (Array[T], Array[T]) = {
+    val weightsGradInput = Tensor[T]().resizeAs(sampledWeightEmbed).zero()
+    val biasesGradInput = Tensor[T]().resizeAs(lossGrad).copy(lossGrad)
     val batchSize = inputVecs.size(0)
     var i = 0
     while (i < batchSize) {
       val gradOut = lossGrad.select(0, i).view(lossGrad.size(1), 1)
       val vec = inputVecs.select(0, i).view(1, inputVecs.size(1))
-      val gradWeight = gradWeights.select(0, i)
+      val gradWeight = weightsGradInput.select(0, i)
       gradWeight.addmm(ev.zero, ev.one, gradOut, vec)
       i += 1
     }
+    (weightsGradInput.storage().array(), biasesGradInput.storage().array())
   }
 }
 
@@ -143,8 +151,11 @@ object SampledSoftmaxLoss {
   def apply[@specialized(Float, Double) T: ClassTag](
       numSampled: Int,
       numClasses: Int,
-      embedSize: Int)(implicit ev: TensorNumeric[T]): SampledSoftmaxLoss[T] = {
-    new SampledSoftmaxLoss[T](numSampled, numClasses, embedSize)
+      embedSize: Int,
+      learningRate: Double,
+      sampledValues: Option[Array[Int]] = None)(
+      implicit ev: TensorNumeric[T]): SampledSoftmaxLoss[T] = {
+    new SampledSoftmaxLoss[T](numSampled, numClasses, embedSize, learningRate, sampledValues)
   }
 
   private def uniformSampler(labels: Array[Int], numSampled: Int, numClasses: Int): Array[Int] = {
