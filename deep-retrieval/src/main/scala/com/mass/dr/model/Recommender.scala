@@ -1,43 +1,49 @@
 package com.mass.dr.model
 
-import scala.collection.mutable.ArrayBuffer
-
 import com.mass.dr.Path
 import com.mass.sparkdl.Module
 import com.mass.sparkdl.tensor.Tensor
+import com.mass.sparkdl.tensor.TensorNumeric.NumericDouble
 import com.mass.sparkdl.utils.T
 
 trait Recommender {
-  import com.mass.sparkdl.tensor.TensorNumeric.NumericDouble
-  import Recommender.Node
-
-  val pathProbs: (Module[Double], Node, Tensor[Int]) => Array[Node] = (
-    model: Module[Double],
-    node: Node,
-    itemSeqs: Tensor[Int],
-  ) => {
-    val inputPath = Tensor[Int](node.path, Array(1, node.path.length))
-    val modelInput = T(itemSeqs, inputPath)
-    model.forward(modelInput)
-      .toTensor
-      .storage()
-      .array()
-      .zipWithIndex
-      .map(p => Node(node.path ++ IndexedSeq(p._2), p._1 * node.prob))
-  }
+  import Recommender._
 
   def recommend(
       sequence: Array[Int],
-      models: IndexedSeq[Module[Double]],
-      topk: Int,
+      models: Seq[Module[Double]],
       beamSize: Int,
-      // mappingPi: Map[Int, Path],
-      pathItemsMapping: Map[Path, Seq[Int]],   // path -> items on this path
-      consumedItems: Option[Array[Int]] = None): Seq[Int] = {
+      pathItemsMapping: Map[Path, Seq[Int]]): Seq[Int] = {
 
-    implicit val ord: Ordering[Double] = Ordering[Double].reverse
     val itemSeqs = Tensor[Int](sequence, Array(1, sequence.length))
-    val firstLayer = models.head.forward(itemSeqs)
+    val firstLayerNodes = firstLayerProbs(models.head, itemSeqs, beamSize)
+    val probOuts = models.tail.foldLeft(firstLayerNodes) { (nodes, model) =>
+      nodes
+        .flatMap(n => restLayerProbs(model, itemSeqs, n))
+        .sortBy(_.prob)
+        .take(beamSize)
+    }
+
+    for {
+      node <- probOuts
+      item <- pathItemsMapping(node.path)
+      if pathItemsMapping.contains(node.path)
+    } yield item
+  }
+}
+
+object Recommender {
+
+  implicit val ord: Ordering[Double] = Ordering[Double].reverse
+
+  case class Node(path: Path, prob: Double)
+
+  val firstLayerProbs: (Module[Double], Tensor[Int], Int) => Array[Node] = (
+    model: Module[Double],
+    itemSeqs: Tensor[Int],
+    beamSize: Int
+  ) => {
+    model.forward(itemSeqs)
       .toTensor
       .storage()
       .array()
@@ -45,24 +51,20 @@ trait Recommender {
       .sortBy(_._1)
       .take(beamSize)
       .map(i => Node(IndexedSeq(i._2), i._1))
-    val probOutputs = ArrayBuffer[Node](firstLayer: _*)
-
-    var i = 1
-    while (i < models.length) {
-      val candidatePaths = probOutputs.flatMap(node => pathProbs(models(i), node, itemSeqs))
-      probOutputs.clear()
-      probOutputs ++= candidatePaths.sortBy(_.prob).take(beamSize)
-      i += 1
-    }
-
-    probOutputs
-      .flatMap(n => pathItemsMapping.getOrElse(n.path, Seq(-1)))
-      .filterNot(_ == -1)
   }
-}
 
-object Recommender {
-
-  case class Node(path: Path, prob: Double)
-
+  val restLayerProbs: (Module[Double], Tensor[Int], Node) => Array[Node] = (
+    model: Module[Double],
+    itemSeqs: Tensor[Int],
+    node: Node,
+  ) => {
+      val inputPath = Tensor[Int](node.path, Array(1, node.path.length))
+      val modelInput = T(itemSeqs, inputPath)
+      model.forward(modelInput)
+        .toTensor
+        .storage()
+        .array()
+        .zipWithIndex
+        .map(p => Node(node.path ++ Seq(p._2), p._1 * node.prob))
+  }
 }
