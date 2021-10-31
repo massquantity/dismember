@@ -102,7 +102,6 @@ trait Recommender {
         childNodes.clear()
       }
     }
-
     leafIds.toArray
   }
 

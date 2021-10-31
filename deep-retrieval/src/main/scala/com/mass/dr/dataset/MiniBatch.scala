@@ -29,7 +29,7 @@ class MiniBatch(
 
     val totalLen = threadLen * numPathPerItem
     val samples = (threadOffset until threadOffset + threadLen).map(data(_)).toArray
-    val copedItems = samples.flatMap(s => Array.fill(numPathPerItem)(s.sequence).flatten)
+    val copedItems = samples.flatMap(s => Seq.fill(numPathPerItem)(s.sequence).flatten)
     val itemSeqs = Tensor(copedItems, Array(totalLen, seqLen))
 
     val itemPaths = (1 until numLayer).map { i =>

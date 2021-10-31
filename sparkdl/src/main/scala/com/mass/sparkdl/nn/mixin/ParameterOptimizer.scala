@@ -73,7 +73,7 @@ trait ParameterOptimizer[T] {
     while (i < numElem) {
       val index = sampledItems(i)
       ev.axpy(embedSize, ev.one, weightGradInput, i * embedSize, 1, gradWeightsData, index * embedSize, 1)
-      gradBiases(index) = ev.plus(biasGradInput(i), gradBiasesData(index))
+      gradBiasesData(index) = ev.plus(biasGradInput(i), gradBiasesData(index))
       i += 1
     }
   }
@@ -87,8 +87,11 @@ trait ParameterOptimizer[T] {
 
 object ParameterOptimizer {
 
-  def initState[T: ClassTag](weights: Tensor[T], biases: Tensor[T])(
-      implicit ev: TensorNumeric[T]): Table = {
+  def initState[T: ClassTag](
+    weights: Tensor[T],
+    biases: Tensor[T])(
+    implicit ev: TensorNumeric[T]
+  ): Table = {
     val state = T()
     state("weight_v") = Tensor[T]().resizeAs(weights).zero()
     state("weight_h") = Tensor[T]().resizeAs(weights).zero()
@@ -99,7 +102,10 @@ object ParameterOptimizer {
     state
   }
 
-  def createTensor[T: ClassTag](size: Array[Int])(implicit ev: TensorNumeric[T]): Tensor[T] = {
+  def createTensor[T: ClassTag](
+    size: Array[Int])(
+    implicit ev: TensorNumeric[T]
+  ): Tensor[T] = {
     Tensor[T](size).zero()
   }
 }

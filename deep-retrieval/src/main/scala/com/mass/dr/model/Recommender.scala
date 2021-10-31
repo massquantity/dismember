@@ -58,7 +58,7 @@ object Recommender {
     itemSeqs: Tensor[Int],
     node: Node,
   ) => {
-      val inputPath = Tensor[Int](node.path, Array(1, node.path.length))
+      val inputPath = Tensor[Int](node.path.toArray, Array(1, node.path.length))
       val modelInput = T(itemSeqs, inputPath)
       model.forward(modelInput)
         .toTensor

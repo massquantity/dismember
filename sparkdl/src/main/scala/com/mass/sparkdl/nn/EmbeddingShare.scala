@@ -93,8 +93,9 @@ class EmbeddingShare[T: ClassTag](
 
 object EmbeddingShare {
   def apply[@specialized(Float, Double) T: ClassTag](
-      nIndex: Int, nOutput: Int, paddingIdx: Int = -1)(
-      implicit ev: TensorNumeric[T]): EmbeddingShare[T] = {
+      nIndex: Int,
+      nOutput: Int,
+      paddingIdx: Int = -1)(implicit ev: TensorNumeric[T]): EmbeddingShare[T] = {
     new EmbeddingShare[T](nIndex, nOutput, paddingIdx)
   }
 }
