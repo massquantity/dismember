@@ -60,7 +60,8 @@ class MiniBatch(
     if (!useMask) {
       val convertedTable = T(
         Tensor(targetItems, itemShape),
-        Tensor(features.itemSeqs, itemSeqShape))
+        Tensor(features.itemSeqs, itemSeqShape)
+      )
       (convertedTable, Tensor(labels, labelShape))
 
     } else {
@@ -73,7 +74,8 @@ class MiniBatch(
       val convertedTable = T(
         Tensor(targetItems, itemShape),
         Tensor(features.itemSeqs, itemSeqShape),
-        masks)
+        masks
+      )
       (convertedTable, Tensor(labels, labelShape))
     }
   }

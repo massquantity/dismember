@@ -4,7 +4,6 @@ import java.nio.file.{Files, Paths}
 import java.util.concurrent.atomic.AtomicInteger
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 
 import com.mass.sparkdl.utils.{FileReader => DistFileReader}
 import com.mass.sparkdl.dataset.DataUtil
@@ -42,24 +41,22 @@ class LocalDataSet(
       evalPath: Option[String] = None,
       userConsumedPath: Option[String] = None): Unit = {
 
-    val buffer = new ArrayBuffer[TDMSample]()
     val fileReader = DistFileReader(dataPath)
     val input = fileReader.open()
     val fileInput = scala.io.Source.fromInputStream(input, encoding.name())
-    for {
-      line <- fileInput.getLines
-      arr = line.trim.split(delimiter)
-      seqItems = arr.slice(1, arr.length - 1)
-      target = arr.last
-      if seqItems.exists(_.toDouble.toInt != 0)
-    } {
-      buffer += TDMTrainSample(seqItems.map(_.toInt), target.toInt)
-    }
+    dataBuffer = (
+      for {
+        line <- fileInput.getLines
+        arr = line.trim.split(delimiter)
+        seqItems = arr.slice(1, arr.length - 1)
+        target = arr.last
+        if seqItems.exists(_.toDouble.toInt != 0)
+      } yield TDMTrainSample(seqItems.map(_.toInt), target.toInt)
+    ).toArray
 
     fileInput.close()
     input.close()
     fileReader.close()
-    dataBuffer = buffer.toArray
 
     if (null == miniBatchBuffer) {
       TDMOp(pbFilePath, layerNegCounts, withProb, startSampleLayer,
@@ -84,24 +81,22 @@ class LocalDataSet(
   def readEvalFile(evalPath: String): Unit = {
     // item sequence range [1, seqLen + 1), sequence + target
     val _seqLen = seqLen + 1
-    val buffer = new ArrayBuffer[TDMEvalSample]()
     val fileReader = DistFileReader(evalPath)
     val input = fileReader.open()
     val fileInput = scala.io.Source.fromInputStream(input, encoding.name())
-    for {
-      line <- fileInput.getLines
-      arr = line.trim.split(delimiter)
-      user = arr.head.substring(5).toInt
-      seqItems = arr.slice(1, _seqLen).map(_.toInt)
-      labels = arr.slice(_seqLen, arr.length).map(_.toInt)
-    } {
-      buffer += TDMEvalSample(seqItems, labels, user)
-    }
+    evalDataBuffer = (
+      for {
+        line <- fileInput.getLines
+        arr = line.trim.split(delimiter)
+        user = arr.head.substring(5).toInt
+        seqItems = arr.slice(1, _seqLen).map(_.toInt)
+        labels = arr.slice(_seqLen, arr.length).map(_.toInt)
+      } yield TDMEvalSample(seqItems, labels, user)
+    ).toArray
 
     fileInput.close()
     input.close()
     fileReader.close()
-    evalDataBuffer = buffer.toArray
 
     if (null == evalMiniBatchBuffer ) {
       evalMiniBatchBuffer = new MiniBatch(evalBatchSize, seqLen,

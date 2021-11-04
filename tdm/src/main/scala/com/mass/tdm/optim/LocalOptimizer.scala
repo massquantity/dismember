@@ -103,9 +103,7 @@ class LocalOptimizer(
     model
   }
 
-  private def convertBatch(batch: MiniBatch, parallel: Boolean)
-    : Array[(Activity, Tensor[Float])] = {
-
+  private def convertBatch(batch: MiniBatch, parallel: Boolean): Array[(Activity, Tensor[Float])] = {
     val allData = dataset.getData
     val miniBatchSize = if (parallel) batch.getLength else batch.expandedSize()
     val taskSize = miniBatchSize / subModelNum
@@ -131,7 +129,6 @@ class LocalOptimizer(
         i += 1
       }
     }
-
     miniBatchBuffer
   }
 
