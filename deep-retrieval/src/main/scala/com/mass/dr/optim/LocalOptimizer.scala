@@ -70,8 +70,8 @@ class LocalOptimizer(
     dataset.shuffle()
     val miniBatchIter = dataset.iteratorMiniBatch()
     while (!endWhen(state)) {
-      // train layer model
       val batch: MiniBatch = miniBatchIter.next()
+      // train layer model
       val layerBatch = transformLayerBatch(batch)
       val layerLoss = trainLayerBatch(layerBatch)
       syncGradients()
@@ -158,7 +158,7 @@ class LocalOptimizer(
           val offset = tid * syncGradTaskSize + math.min(tid, syncGradExtraSize)
           val length = syncGradTaskSize + (if (tid < syncGradExtraSize) 1 else 0)
           (0 until realParallelism) foreach {
-            case i@1 =>
+            case i@0 =>
               grad.narrow(0, offset, length)
                 .copy(layerCopiedGradients(gradIdx)(i).narrow(0, offset, length))
             case i@_ =>

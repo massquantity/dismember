@@ -42,7 +42,6 @@ class LocalDataSet(
   def size(): Int = dataBuffer.length
 
   def iteratorMiniBatch(): Iterator[MiniBatch] = {
-
     new Iterator[MiniBatch] {
       private val _miniBatch = miniBatch
       private val numTargetsPerBatch = _miniBatch.numTargetsPerBatch
@@ -58,6 +57,8 @@ class LocalDataSet(
       }
     }
   }
+
+  def getData: Array[DRSample] = dataBuffer
 }
 
 object LocalDataSet {
