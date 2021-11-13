@@ -2,8 +2,8 @@ package com.mass.dr.model
 
 import scala.reflect.ClassTag
 
+import com.mass.dr.LayerModule
 import com.mass.sparkdl.tensor.TensorNumeric
-import com.mass.sparkdl.Module
 import com.mass.sparkdl.nn._
 
 object LayerModel {
@@ -14,7 +14,7 @@ object LayerModel {
       numLayer: Int,
       seqLen: Int,
       embedSize: Int,
-      paddingIdx: Int)(implicit ev: TensorNumeric[T]): IndexedSeq[Module[T]] = {
+      paddingIdx: Int)(implicit ev: TensorNumeric[T]): IndexedSeq[LayerModule[T]] = {
     require(numLayer >= 2, "number of layers must be at least 2")
 
     val inputSeq = Input[T]()
@@ -41,7 +41,7 @@ object LayerModel {
           .inputs(concat)
         Graph[T](Array(inputSeq, inputPath(d - 1)), Array(linear))
       }
-      // val softmax = SoftMax[T]()
+      // val softmax = SoftMax[T]() | LogSoftMax[T]()
       //  .inputs(linear)
     }
   }

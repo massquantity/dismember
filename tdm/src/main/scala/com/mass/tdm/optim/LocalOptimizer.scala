@@ -7,6 +7,7 @@ import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.utils.{Engine, T, Table, Util}
 import com.mass.tdm.dataset.{LocalDataSet, MiniBatch}
 import com.mass.tdm.evaluation.Evaluator
+import com.mass.sparkdl.tensor.TensorNumeric.NumericFloat
 import org.apache.log4j.Logger
 
 class LocalOptimizer(
@@ -140,7 +141,7 @@ class LocalOptimizer(
         localModel.training()
         val localCriterion = workingCriterions(i)
         val (inputs, labels) = miniBatch(i)
-        val outputs = localModel.forward(inputs).asInstanceOf[Tensor[Float]]
+        val outputs = localModel.forward(inputs).toTensor
         val localLoss = localCriterion.forward(outputs, labels).toDouble
         val gradients = localCriterion.backward(outputs, labels)
         localModel.backward(inputs, gradients)

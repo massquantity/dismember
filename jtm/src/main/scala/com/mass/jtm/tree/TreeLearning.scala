@@ -244,6 +244,7 @@ class TreeLearning(
       candidateNodesOfItems: mutable.Map[Int, Array[Int]],
       candidateWeightsOfItems: mutable.Map[Int, Array[Float]]): Unit = {
 
+    implicit val ord: Ordering[(Boolean, Float)] = Ordering.Tuple2(Ordering.Boolean, Ordering.Float.reverse)
     val processedNodes = new mutable.HashSet[Int]()
     var finished = false
     while (!finished) {
@@ -263,8 +264,7 @@ class TreeLearning(
       } else {
         processedNodes.add(maxAssignNode)
         val sortedItemsAndWeights = nodeItemMapWithWeights(maxAssignNode)
-          .sortBy(i => (oldItemNodeMap(i.id) != maxAssignNode, i.weight))(
-            Ordering.Tuple2(Ordering.Boolean, Ordering.Float.reverse))
+          .sortBy(i => (oldItemNodeMap(i.id) != maxAssignNode, i.weight))
 
         // start from maxAssignNum, and move the redundant items to other nodes
         var i = maxAssignNum

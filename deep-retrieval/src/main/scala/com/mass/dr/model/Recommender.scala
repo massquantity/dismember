@@ -1,7 +1,6 @@
 package com.mass.dr.model
 
-import com.mass.dr.Path
-import com.mass.sparkdl.Module
+import com.mass.dr.{LayerModule, Path}
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.tensor.TensorNumeric.NumericDouble
 import com.mass.sparkdl.utils.T
@@ -11,24 +10,29 @@ trait Recommender {
 
   def recommend(
       sequence: Array[Int],
-      models: Seq[Module[Double]],
+      models: Seq[LayerModule[Double]],
       beamSize: Int,
       pathItemsMapping: Map[Path, Seq[Int]]): Seq[Int] = {
+    val topNodes = beamSearch(sequence, models, beamSize)
+    for {
+      node <- topNodes
+      item <- pathItemsMapping(node.path)
+      if pathItemsMapping.contains(node.path)
+    } yield item
+  }
 
+  def beamSearch(
+      sequence: Array[Int],
+      models: Seq[LayerModule[Double]],
+      beamSize: Int): Seq[Node] = {
     val itemSeqs = Tensor[Int](sequence, Array(1, sequence.length))
     val firstLayerNodes = firstLayerProbs(models.head, itemSeqs, beamSize)
-    val probOuts = models.tail.foldLeft(firstLayerNodes) { (nodes, model) =>
+    models.tail.foldLeft(firstLayerNodes) { (nodes, model) =>
       nodes
         .flatMap(n => restLayerProbs(model, itemSeqs, n))
         .sortBy(_.prob)
         .take(beamSize)
     }
-
-    for {
-      node <- probOuts
-      item <- pathItemsMapping(node.path)
-      if pathItemsMapping.contains(node.path)
-    } yield item
   }
 }
 
@@ -38,8 +42,8 @@ object Recommender {
 
   case class Node(path: Path, prob: Double)
 
-  val firstLayerProbs: (Module[Double], Tensor[Int], Int) => Array[Node] = (
-    model: Module[Double],
+  val firstLayerProbs: (LayerModule[Double], Tensor[Int], Int) => Array[Node] = (
+    model: LayerModule[Double],
     itemSeqs: Tensor[Int],
     beamSize: Int
   ) => {
@@ -53,8 +57,8 @@ object Recommender {
       .map(i => Node(IndexedSeq(i._2), i._1))
   }
 
-  val restLayerProbs: (Module[Double], Tensor[Int], Node) => Array[Node] = (
-    model: Module[Double],
+  val restLayerProbs: (LayerModule[Double], Tensor[Int], Node) => Array[Node] = (
+    model: LayerModule[Double],
     itemSeqs: Tensor[Int],
     node: Node,
   ) => {

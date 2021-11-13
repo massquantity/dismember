@@ -2,6 +2,7 @@ package com.mass.dr.model
 
 import scala.reflect.ClassTag
 
+import com.mass.dr.RerankModule
 import com.mass.sparkdl.nn.{Embedding, Graph, Input, Linear, Reshape, SoftMax}
 import com.mass.sparkdl.Module
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
@@ -12,7 +13,7 @@ object RerankModel {
       numItems: Int,
       seqLen: Int,
       embedSize: Int,
-      paddingIdx: Int)(implicit ev: TensorNumeric[T]): Module[T] = {
+      paddingIdx: Int)(implicit ev: TensorNumeric[T]): RerankModule[T] = {
     val inputSeq = Input[T]()
     val embedding = Embedding[T](numItems, embedSize, paddingIdx)
       .inputs(inputSeq)
