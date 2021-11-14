@@ -2,6 +2,7 @@ package com.mass.dr.optim
 
 import com.mass.dr.dataset.{LocalDataSet, MiniBatch}
 import com.mass.dr.dataset.MiniBatch.{LayerTransformedBatch, RerankTransformedBatch}
+import com.mass.dr.{LayerModule, RerankModule}
 import com.mass.sparkdl.{Criterion, Module}
 import com.mass.sparkdl.nn.SampledSoftmaxLoss
 import com.mass.sparkdl.optim.{OptimMethod, Trigger}
@@ -12,10 +13,10 @@ import org.apache.log4j.Logger
 
 class LocalOptimizer(
     dataset: LocalDataSet,
-    layerModel: Seq[Module[Double]],
+    layerModel: Seq[LayerModule[Double]],
     layerCriterion: Seq[Criterion[Double]],
     layerOptimizer: Seq[OptimMethod[Double]],
-    reRankModel: Module[Double],
+    reRankModel: RerankModule[Double],
     reRankCriterion: SampledSoftmaxLoss[Double],
     reRankOptimizer: OptimMethod[Double],
     numIteration: Int) {
@@ -56,10 +57,21 @@ class LocalOptimizer(
     val parameters = layerModel.map(_.adjustParameters())
     (parameters.map(_._1), parameters.map(_._2))
   }
-  lazy val layerCopiedGradients: LayerMulti[Tensor[Double]] =
-    layerCopiedModels.map(_.map(_.adjustParameters()._2))
-  lazy val layerCopiedCriterions: LayerMulti[Criterion[Double]] =
-    layerCriterion.map(c => (1 to subModelNum).map(_ => c.cloneCriterion()))
+  lazy val layerCopiedGradients: LayerMulti[Tensor[Double]] = {
+    // layerCopiedModels.map(_.map(_.adjustParameters()._2))
+    for {
+      models <- layerCopiedModels
+      m <- models
+      grad = m.adjustParameters()._2
+    } yield IndexedSeq(grad)
+  }
+  lazy val layerCopiedCriterions: LayerMulti[Criterion[Double]] = {
+    // layerCriterion.map(c => (1 to subModelNum).map(_ => c.cloneCriterion()))
+    for {
+      criterion <- layerCriterion
+      _ <- 1 to subModelNum
+    } yield IndexedSeq(criterion.cloneCriterion())
+  }
 
   def optimize(): Unit = {
     layerOptimizer.foreach(_.clearHistory())
