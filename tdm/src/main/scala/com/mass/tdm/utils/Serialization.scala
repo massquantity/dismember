@@ -95,7 +95,6 @@ object Serialization {
       input.close()
       fileReader.close()
     }
-
     model
   }
 

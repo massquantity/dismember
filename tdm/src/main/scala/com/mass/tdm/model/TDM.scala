@@ -8,17 +8,15 @@ import com.mass.tdm.operator.TDMOp
 import com.mass.tdm.utils.Serialization
 import com.mass.tdm.utils.Serialization.{saveEmbeddings, saveModel => sersaveModel}
 
-class TDM(featSeqLen: Int, val embedSize: Int, deepModel: String, paddingIndex: Int)
-    extends Serializable with Recommender {
+class TDM(
+    featSeqLen: Int,
+    val embedSize: Int,
+    deepModel: String,
+    paddingIndex: Int) extends Serializable with Recommender {
 
   private[this] var dlModel: Module[Float] = _
-  // @transient private[this] var tdmTree: TDMTree = TDMOp.tree
   private val dlModelName = deepModel.toLowerCase
   lazy val useMask: Boolean = if (dlModelName == "din") true else false
-
-  // def loadTree(pbFilePath: String): Unit = {
-  //  tdmTree = TDMTree(pbFilePath)
-  // }
 
   def getModel: Module[Float] = {
     require(dlModel != null, "\nThe deep model hasn't been built, " +
