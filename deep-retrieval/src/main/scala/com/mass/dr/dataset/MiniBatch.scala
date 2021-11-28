@@ -4,7 +4,7 @@ import com.mass.dr.Path
 import com.mass.sparkdl.tensor.Tensor
 
 class MiniBatch(
-    itemPathMapping: Map[Int, Seq[Path]],   // Set[Path]
+    itemPathMapping: Map[Int, Seq[Path]],
     numLayer: Int,
     numPathPerItem: Int,
     seqLen: Int,
@@ -24,7 +24,7 @@ class MiniBatch(
 
   def transformLayerData(data: Array[DRSample], offset: Int, length: Int): LayerTransformedBatch = {
     val totalLen = length * numPathPerItem
-    val samples = (offset until offset + length).map(data(_)).toArray
+    val samples = Array.range(offset, offset + length).map(data(_))
     val copiedItems = samples.flatMap(s => Seq.fill(numPathPerItem)(s.sequence).flatten)
     val itemSeqs = Tensor(copiedItems, Array(totalLen, seqLen))
 

@@ -2,9 +2,9 @@ package com.mass.dr.optim
 
 import scala.collection.mutable
 
-import com.mass.dr.dataset.{DRSample, LocalDataSet}
+import com.mass.dr.dataset.{DRTrainSample, LocalDataSet}
 import com.mass.dr.model.Recommender
-import com.mass.dr.model.Recommender.Node
+import com.mass.dr.model.Recommender.PathScore
 import com.mass.dr.{LayerModule, Path}
 
 class CoordinateDescent(
@@ -70,10 +70,10 @@ object CoordinateDescent extends Recommender {
       dataset: LocalDataSet,
       models: Seq[LayerModule[Double]],
       numCandidatePath: Int,
-      decayFactor: Double = 0.999): mutable.Map[Int, Seq[Node]] = {
-    val itemPathScores = mutable.Map.empty[Int, Seq[Node]]
+      decayFactor: Double = 0.999): mutable.Map[Int, Seq[PathScore]] = {
+    val itemPathScores = mutable.Map.empty[Int, Seq[PathScore]]
     val data = dataset.getData
-    data.foreach { case DRSample(sequence, item) =>
+    data.foreach { case DRTrainSample(sequence, item) =>
       val candidatePath = beamSearch(sequence, models, numCandidatePath)
       if (!itemPathScores.contains(item)) {
         itemPathScores(item) = candidatePath
@@ -92,7 +92,7 @@ object CoordinateDescent extends Recommender {
             } else {
               decayFactor * originalPathScore(p)
             }
-          Node(p, newScore)
+          PathScore(p, newScore)
         }
         itemPathScores(item) = newPath.sortBy(_.prob)(Ordering[Double].reverse).take(numCandidatePath)
       }

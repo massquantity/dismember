@@ -13,18 +13,18 @@ trait Recommender {
       models: Seq[LayerModule[Double]],
       beamSize: Int,
       pathItemsMapping: Map[Path, Seq[Int]]): Seq[Int] = {
-    val topNodes = beamSearch(sequence, models, beamSize)
+    val topPaths = beamSearch(sequence, models, beamSize).map(_.path)
     for {
-      node <- topNodes
-      item <- pathItemsMapping(node.path)
-      if pathItemsMapping.contains(node.path)
+      path <- topPaths
+      item <- pathItemsMapping(path)
+      if pathItemsMapping.contains(path)
     } yield item
   }
 
   def beamSearch(
       sequence: Array[Int],
       models: Seq[LayerModule[Double]],
-      beamSize: Int): Seq[Node] = {
+      beamSize: Int): Seq[PathScore] = {
     val itemSeqs = Tensor[Int](sequence, Array(1, sequence.length))
     val firstLayerNodes = firstLayerProbs(models.head, itemSeqs, beamSize)
     models.tail.foldLeft(firstLayerNodes) { (nodes, model) =>
@@ -40,9 +40,9 @@ object Recommender {
 
   implicit val ord: Ordering[Double] = Ordering[Double].reverse
 
-  case class Node(path: Path, prob: Double)
+  case class PathScore(path: Path, prob: Double)
 
-  val firstLayerProbs: (LayerModule[Double], Tensor[Int], Int) => Array[Node] = (
+  val firstLayerProbs: (LayerModule[Double], Tensor[Int], Int) => Array[PathScore] = (
     model: LayerModule[Double],
     itemSeqs: Tensor[Int],
     beamSize: Int
@@ -54,13 +54,13 @@ object Recommender {
       .zipWithIndex
       .sortBy(_._1)
       .take(beamSize)
-      .map(i => Node(IndexedSeq(i._2), i._1))
+      .map(i => PathScore(IndexedSeq(i._2), i._1))
   }
 
-  val restLayerProbs: (LayerModule[Double], Tensor[Int], Node) => Array[Node] = (
+  val restLayerProbs: (LayerModule[Double], Tensor[Int], PathScore) => Array[PathScore] = (
     model: LayerModule[Double],
     itemSeqs: Tensor[Int],
-    node: Node,
+    node: PathScore,
   ) => {
       val inputPath = Tensor[Int](node.path.toArray, Array(1, node.path.length))
       val modelInput = T(itemSeqs, inputPath)
@@ -69,6 +69,6 @@ object Recommender {
         .storage()
         .array()
         .zipWithIndex
-        .map(p => Node(node.path ++ Seq(p._2), p._1 * node.prob))
+        .map(p => PathScore(node.path ++ Seq(p._2), p._1 * node.prob))
   }
 }
