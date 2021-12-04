@@ -5,15 +5,15 @@ import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.tensor.TensorNumeric.NumericDouble
 import com.mass.sparkdl.utils.T
 
-trait Recommender {
-  import Recommender._
+trait CandidateSearcher {
+  import CandidateSearcher._
 
-  def recommend(
-      sequence: Array[Int],
+  def searchCandidate(
+      inputSeq: Seq[Int],
       models: Seq[LayerModule[Double]],
       beamSize: Int,
       pathItemsMapping: Map[Path, Seq[Int]]): Seq[Int] = {
-    val topPaths = beamSearch(sequence, models, beamSize).map(_.path)
+    val topPaths = beamSearch(inputSeq, models, beamSize).map(_.path)
     for {
       path <- topPaths
       item <- pathItemsMapping(path)
@@ -22,7 +22,7 @@ trait Recommender {
   }
 
   def beamSearch(
-      sequence: Array[Int],
+      sequence: Seq[Int],
       models: Seq[LayerModule[Double]],
       beamSize: Int): Seq[PathScore] = {
     val itemSeqs = Tensor[Int](sequence, Array(1, sequence.length))
@@ -36,7 +36,7 @@ trait Recommender {
   }
 }
 
-object Recommender {
+object CandidateSearcher {
 
   implicit val ord: Ordering[Double] = Ordering[Double].reverse
 
