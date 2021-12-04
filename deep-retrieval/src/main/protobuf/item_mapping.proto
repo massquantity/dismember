@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package com.mass.dr.protobuf;
+
+message ItemSet {
+    repeated Item items = 1;
+}
+
+message Item {
+    int32 item = 1;
+    int32 id = 2;
+    repeated Path paths = 3;
+}
+
+message Path {
+    repeated int32 index = 1;
+}
