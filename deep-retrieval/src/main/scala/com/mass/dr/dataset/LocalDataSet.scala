@@ -1,49 +1,68 @@
 package com.mass.dr.dataset
 
+import java.io.{BufferedInputStream, DataInputStream}
 import java.util.concurrent.atomic.AtomicInteger
 
-import com.mass.dr.{encoding, Path}
+import scala.collection.mutable
+import scala.util.{Failure, Random, Success, Using}
+
+import com.mass.dr.{encoding, Path => DRPath}
+import com.mass.dr.protobuf.item_mapping.{ItemSet, Path => ProtoPath}
 import com.mass.sparkdl.dataset.DataUtil
 import com.mass.sparkdl.utils.{FileReader => DistFileReader}
 import org.apache.commons.lang3.math.NumberUtils
 
 class LocalDataSet(
-    itemPathMapping: Map[Int, Seq[Path]],
     numLayer: Int,
+    numNode: Int,
     numPathPerItem: Int,
     batchSize: Int,
+    evalBatchSize: Int,
     seqLen : Int,
     minSeqLen: Int,
-    numThreads: Int,
     dataPath: String,
-    delimiter: String = ",") {
+    mappingPath: Option[String],
+    splitRatio: Double = 0.8,
+    delimiter: String = ",",
+    paddingIdx: Int = -1) {
   import LocalDataSet._
   require(seqLen > 0 && minSeqLen > 0 && seqLen >= minSeqLen)
 
-  private val dataBuffer: Array[DRSample] = generateData(
-    dataPath,
-    seqLen,
-    minSeqLen,
-    delimiter
-  )
-  private val miniBatch: MiniBatch = new MiniBatch(
+  private val initData: Array[InitSample] = readFile(dataPath, delimiter)
+
+  lazy val (itemIdMapping, itemPathMapping) = mappingPath match {
+    case Some(path) => loadMapping(path)
+    case None =>
+      val uniqueItems = initData.map(_.item).distinct
+      val idMapping = uniqueItems.zipWithIndex.toMap
+      val pathMapping = initializeMapping(uniqueItems.length, numLayer, numNode, numPathPerItem)
+      (idMapping, pathMapping)
+  }
+
+  lazy val idItemMapping: Map[Int, Int] = itemIdMapping.map(i => i._2 -> i._1)
+
+  lazy val (userConsumed, trainData, evalData) = generateData()
+
+  lazy val trainMiniBatch: MiniBatch = new MiniBatch(
     itemPathMapping,
     numLayer,
     numPathPerItem,
     batchSize,
     seqLen,
-    dataBuffer.length
+    trainData.length
+  )
+  lazy val evalMiniBatch: MiniBatch = new MiniBatch(
+    itemPathMapping,
+    numLayer,
+    numPathPerItem,
+    evalBatchSize,
+    seqLen,
+    evalData.length
   )
 
-  def shuffle(): Unit = {
-    DataUtil.shuffle(dataBuffer)
-  }
-
-  def size(): Int = dataBuffer.length
-
-  def iteratorMiniBatch(): Iterator[MiniBatch] = {
+  private[dr] def iteratorMiniBatch(train: Boolean): Iterator[MiniBatch] = {
     new Iterator[MiniBatch] {
-      private val _miniBatch = miniBatch
+      private val _miniBatch = if (train) trainMiniBatch else evalMiniBatch
       private val numTargetsPerBatch = _miniBatch.numTargetsPerBatch
       private val index = new AtomicInteger(0)
 
@@ -58,29 +77,78 @@ class LocalDataSet(
     }
   }
 
-  def getData: Array[DRSample] = dataBuffer
+  private def generateData(): (Map[Int, Array[Int]], Array[DRSample], Array[DRSample]) = {
+    val groupedSamples = initData.groupBy(_.user).toArray.map { case (user, samples) =>
+      (user, samples.sortBy(_.timestamp).map(_.item).distinct.map(itemIdMapping(_)))
+    }
+    // find splitAt takeWhile
+    val (userConsumed, trainSamples, evalSamples) = groupedSamples.map { case (user, items) =>
+      if (items.length <= minSeqLen) {
+        (user -> items, Array.empty[DRTrainSample], Array.empty[DREvalSample])
+      } else if (items.length == minSeqLen + 1) {
+        (user -> items, Array(DRTrainSample(items.init, items.last)), Array.empty[DREvalSample])
+      } else {
+        val fullSeq = Array.fill[Int](seqLen - minSeqLen)(paddingIdx) ++ items
+        val splitPoint = math.ceil((items.length - minSeqLen) * splitRatio).toInt
+        val _trainSamples = fullSeq
+          .slice(0, splitPoint + seqLen)
+          .sliding(seqLen + 1)
+          .map(s => DRTrainSample(s.init, s.last))
+          .toArray
+
+        val consumed = items.slice(0, splitPoint + minSeqLen)
+        val consumedSet = consumed.toSet
+        val (_evalSeq, _labels) = fullSeq.splitAt(splitPoint + seqLen)
+        val labels = _labels.filterNot(consumedSet)  // remove items appeared in train data
+        val _evalSamples =
+          if (labels.nonEmpty) {
+            val evalSeq = _evalSeq.takeRight(seqLen)
+            Array(DREvalSample(evalSeq, labels, user))
+          } else {
+            Array.empty[DREvalSample]
+          }
+        (user -> consumed, _trainSamples, _evalSamples)
+      }
+    }.unzip3
+
+    (userConsumed.toMap,
+     trainSamples.filter(_.nonEmpty).flatten,
+     evalSamples.filter(_.nonEmpty).flatten)
+  }
+
+  def shuffle(): Unit = DataUtil.shuffle(trainData)
+
+  def trainSize: Int = trainData.length
+
+  def getTrainData: Array[DRSample] = trainData
+
+  def getEvalData: Array[DRSample] = evalData
+
+  def numItem: Int = itemIdMapping.size
+
 }
 
 object LocalDataSet {
 
   case class InitSample(user: Int, item: Int, timestamp: Long)
 
-  def generateData(
+  def buildTrainData(
       dataPath: String,
       seqLen : Int,
       minSeqLen: Int,
-      delimiter: String): Array[DRSample] = {
-    val groupedSamples = readFile(dataPath, delimiter).toArray.groupBy(_.user)
+      delimiter: String,
+      paddingIdx: Int): Array[DRSample] = {
+    val groupedSamples = readFile(dataPath, delimiter).groupBy(_.user)
     groupedSamples
       .map(s => s._2.sortBy(_.timestamp).map(_.item).distinct)
       .withFilter(_.length > minSeqLen)
       .flatMap(ss => {
-        val items = if (seqLen > minSeqLen) Array.fill[Int](seqLen - minSeqLen)(0) ++ ss else ss
-        items.sliding(seqLen + 1).map(sss => DRSample(sequence = sss.init, target = sss.last))
+        val items = if (seqLen > minSeqLen) Array.fill[Int](seqLen - minSeqLen)(paddingIdx) ++ ss else ss
+        items.sliding(seqLen + 1).map(sss => DRTrainSample(sequence = sss.init, target = sss.last))
       }).toArray
   }
 
-  def readFile(dataPath: String, delimiter: String): Iterator[InitSample] = {
+  private def readFile(dataPath: String, delimiter: String): Array[InitSample] = {
     val fileReader = DistFileReader(dataPath)
     val input = fileReader.open()
     val fileInput = scala.io.Source.fromInputStream(input, encoding.name)
@@ -94,6 +162,44 @@ object LocalDataSet {
     fileInput.close()
     input.close()
     fileReader.close()
-    samples
+    samples.toArray
+  }
+
+  private def initializeMapping(
+      numItem: Int,
+      numLayer: Int,
+      numNode: Int,
+      numPathPerItem: Int): Map[Int, IndexedSeq[DRPath]] = {
+    (0 until numItem).map(_ -> {
+      val m = for {
+        _ <- 1 to numPathPerItem
+        _ <- 1 to numLayer
+      } yield Random.nextInt(numNode)
+      m.sliding(numLayer, numLayer).toIndexedSeq
+    }).toMap
+  }
+
+  private[dr] def loadMapping(path: String): (Map[Int, Int], Map[Int, Seq[DRPath]]) = {
+    val idMapping = mutable.Map.empty[Int, Int]
+    val pathMapping = mutable.Map.empty[Int, Seq[DRPath]]
+    val fileReader = DistFileReader(path)
+    val input = fileReader.open()
+    Using(new DataInputStream(new BufferedInputStream(input))) { input =>
+      val size = input.readInt()
+      val buf = new Array[Byte](size)
+      input.readFully(buf)
+      val allItems = ItemSet.parseFrom(buf).items
+      allItems.foreach { i =>
+        idMapping(i.item) = i.id
+        pathMapping(i.id) = i.paths.map(_.index.toIndexedSeq)
+      }
+    } match {
+      case Success(_) =>
+        input.close()
+        fileReader.close()
+      case Failure(t: Throwable) =>
+        throw t
+    }
+    (Map.empty ++ idMapping, Map.empty ++ pathMapping)
   }
 }
