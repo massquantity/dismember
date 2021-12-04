@@ -27,14 +27,13 @@ object RerankModel {
 
   def inference[@specialized(Float, Double) T: ClassTag](
       candidateItems: Seq[Int],
-      numItems: Int,
       inputSeq: Seq[Int],
       inputModel: RerankModule[T],
       weights: Tensor[T],
       biases: Tensor[T],
       seqLen: Int,
       embedSize: Int)(implicit ev: TensorNumeric[T]): Tensor[T] = {
-    val output = Tensor[T](numItems)
+    val output = Tensor[T](candidateItems.length)
     val input = Tensor[Int](inputSeq, Array(1, inputSeq.length))
     val userVector = inputModel.forward(input).toTensor.squeeze()
     val candidateWeights = extractCandidates(candidateItems, weights, seqLen * embedSize)
