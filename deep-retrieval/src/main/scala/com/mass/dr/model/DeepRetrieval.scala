@@ -64,6 +64,7 @@ class DeepRetrieval(
       seqLen,
       embedSize
     ).storage().array()
+
     candidateItems
       .zip(reRankScores)
       .sortBy(_._2)(Ordering[Double].reverse)

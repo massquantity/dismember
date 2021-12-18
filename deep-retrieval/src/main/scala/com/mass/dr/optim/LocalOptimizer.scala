@@ -2,29 +2,40 @@ package com.mass.dr.optim
 
 import com.mass.dr.dataset.{LocalDataSet, MiniBatch}
 import com.mass.dr.dataset.MiniBatch.{LayerTransformedBatch, RerankTransformedBatch}
-import com.mass.dr.{LayerModule, RerankModule}
+import com.mass.dr.model.DeepRetrieval
 import com.mass.sparkdl.{Criterion, Module}
-import com.mass.sparkdl.nn.SampledSoftmaxLoss
-import com.mass.sparkdl.optim.{OptimMethod, Trigger}
+import com.mass.sparkdl.nn.{CrossEntropyCriterion, SampledSoftmaxLoss}
+import com.mass.sparkdl.optim.{Adam, OptimMethod}
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.tensor.TensorNumeric.NumericDouble
-import com.mass.sparkdl.utils.{Engine, T, Table, Util}
+import com.mass.sparkdl.utils.{Engine, T, Util}
 import org.apache.log4j.Logger
 
 class LocalOptimizer(
     dataset: LocalDataSet,
-    layerModel: Seq[LayerModule[Double]],
-    layerCriterion: Seq[Criterion[Double]],
-    layerOptimizer: Seq[OptimMethod[Double]],
-    reRankModel: RerankModule[Double],
-    reRankCriterion: SampledSoftmaxLoss[Double],
-    reRankOptimizer: OptimMethod[Double],
-    numIteration: Int) {
+    drModel: DeepRetrieval,
+    numIteration: Int,
+    numLayer: Int,
+    learningRate: Double,
+    numSampled: Int,
+    embedSize: Int) {
   type LayerMulti[+T] = Seq[IndexedSeq[T]]
   val logger: Logger = Logger.getLogger(getClass)
 
-  private val state: Table = T()
-  private val endWhen: Trigger = Trigger.maxIteration(numIteration, "trainIter")
+  val (layerModel, reRankModel) = (drModel.layerModel, drModel.reRankModel)
+  val (layerCriterion, layerOptimizer) = (1 to numLayer).map { _ =>
+    (CrossEntropyCriterion(), Adam[Double](learningRate))
+  }.unzip
+  val reRankCriterion: SampledSoftmaxLoss[Double] = SampledSoftmaxLoss[Double](
+    numSampled,
+    dataset.numItem,
+    embedSize,
+    learningRate,
+    drModel.reRankWeights,
+    drModel.reRankBias
+  )
+  val reRankOptimizer: OptimMethod[Double] = Adam[Double](learningRate)
+
   private val subModelNum = Engine.coreNumber()
   private var realParallelism: Int = _
 
@@ -36,7 +47,6 @@ class LocalOptimizer(
     }
 
     // all models share same weight
-    val subModelNum = Engine.coreNumber()
     val models: LayerMulti[Module[Double]] = layerModel.zip(weights) map { case (model, w) =>
       (1 to subModelNum).map { _ =>
         val m = model.cloneModule()
@@ -59,35 +69,35 @@ class LocalOptimizer(
   }
   lazy val layerCopiedGradients: LayerMulti[Tensor[Double]] = {
     // layerCopiedModels.map(_.map(_.adjustParameters()._2))
-    for {
+    val grads = for {
       models <- layerCopiedModels
       m <- models
       grad = m.adjustParameters()._2
-    } yield IndexedSeq(grad)
+    } yield grad
+    grads.toIndexedSeq.sliding(subModelNum, subModelNum).toSeq
   }
   lazy val layerCopiedCriterions: LayerMulti[Criterion[Double]] = {
     // layerCriterion.map(c => (1 to subModelNum).map(_ => c.cloneCriterion()))
-    for {
+    val criterions = for {
       criterion <- layerCriterion
       _ <- 1 to subModelNum
-    } yield IndexedSeq(criterion.cloneCriterion())
+    } yield criterion.cloneCriterion()
+    criterions.toIndexedSeq.sliding(subModelNum, subModelNum).toSeq
   }
 
   def optimize(): Unit = {
     layerOptimizer.foreach(_.clearHistory())
     reRankOptimizer.clearHistory()
-    state("epoch") = state.get[Int]("epoch").getOrElse(0)
-    state("trainIter") = state.get[Int]("trainIter").getOrElse(0)
 
     dataset.shuffle()
-    val miniBatchIter = dataset.iteratorMiniBatch()
-    while (!endWhen(state)) {
+    val miniBatchIter = dataset.iteratorMiniBatch(train = true)
+    (0 until numIteration) foreach { iter =>
       val batch: MiniBatch = miniBatchIter.next()
       // train layer model
       val layerBatch = transformLayerBatch(batch)
       val layerLoss = trainLayerBatch(layerBatch)
       syncGradients()
-      layerOptimizer.indices.foreach { i =>
+      (0 until numLayer) foreach { i =>
         layerOptimizer(i).optimize(_ => (layerLoss(i), totalLayerGradients(i)), totalLayerWeights(i))
       }
 
@@ -95,15 +105,14 @@ class LocalOptimizer(
       val reRankLoss = trainRerank(batch)
       val (reRankWeights, reRankGradients) = reRankModel.adjustParameters()
       reRankOptimizer.optimize(_ => (reRankLoss, reRankGradients), reRankWeights)
-      state("trainIter") = state[Int]("trainIter") + 1
-      logger.info(s"Iteration ${state[Int]("trainIter")}, layer loss: $layerLoss, rerank loss: $reRankLoss")
+      logger.info(s"Iteration $iter, layer loss: $layerLoss, rerank loss: $reRankLoss")
     }
     shutdown()
   }
 
   private def trainRerank(batch: MiniBatch): Double = {
     val reRankBatch: RerankTransformedBatch = batch.transformRerankData(
-      dataset.getData, batch.getOffset, batch.getLength
+      dataset.getTrainData, batch.getOffset, batch.getLength
     )
     val inputs = reRankBatch.itemSeqs
     val labels = reRankBatch.target.toTensor[Double]  // asInstanceOf[Tensor[Double]]
@@ -115,7 +124,7 @@ class LocalOptimizer(
   }
 
   private def transformLayerBatch(batch: MiniBatch): Seq[LayerTransformedBatch] = {
-    val allData = dataset.getData
+    val allData = dataset.getTrainData
     val miniBatchOffset = batch.getOffset
     val miniBatchSize = batch.getLength
     val taskSize = miniBatchSize / subModelNum
