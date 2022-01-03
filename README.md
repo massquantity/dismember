@@ -18,9 +18,12 @@ More advanced retrieval algorithms published in recent years, such as [JTM](http
 
 ## Requirements
 
-+ JDK 1.8
-+ Spark 2.4 with Scala 2.12. Note that using scala 2.11 will not work.
++ JDK 8 or 11
++ Spark 3.2.0+ with Scala 2.13
 + Maven \>= 3.3
+
+Since version 3.2.0, Spark finally starts to [support Scala 2.13](https://spark.apache.org/downloads.html), so the code may not work under Scala 2.11 or 2.12. Refer to  
+[https://docs.scala-lang.org/overviews/core/collections-migration-213.html](https://docs.scala-lang.org/overviews/core/collections-migration-213.html) for some main changes.
 
 ## Data
 
@@ -43,7 +46,7 @@ $ mvn clean package -DskipTests
 
 All of the modules will generate jar files, but we will only use the jar file in `examples` module.
 
-`Spark-Retrieval` can run locally or on a cluster. To run locally, you need to install Java 8 or Scala 2.12 and set up the parameters in `Spark-Retrieval/configs/tdm_local.conf` file. To run on a cluster, you need a Hadoop and Spark cluster and set up the parameters  in `Spark-Retrieval/configs/tdm_dist.conf` file.
+`Spark-Retrieval` can run locally or on a cluster. To run locally, you need to install Java 8 or 11 or Scala 2.13 and set up the parameters in `Spark-Retrieval/configs/tdm_local.conf` file. To run on a cluster, you need a Hadoop and Spark cluster and set up the parameters  in `Spark-Retrieval/configs/tdm_dist.conf` file.
 
 Then we can begin to train the TDM model. The various generated files during these steps will be located in the paths specified in `conf` files.
 
@@ -135,13 +138,10 @@ public class JavaRecommend {
 }
 ```
 
-
-
-
-
 ## Configuration
 
 The descriptions of parameters in `conf` file are listed in [Configuration doc](https://github.com/massquantity/Spark-Retrieval/blob/main/doc/configuration.md).
 
+## License
 
-
+#### BSD-3-Clause
