@@ -220,7 +220,7 @@ object DistOptimizer {
           val (miniBatchBuffer, miniBatchLen, parallelism) = convertBatch(data, batch,
             parallelConvert, subModelNum, tasks)
 
-          Engine.default.sync(tasks)
+          Engine.default.sync(tasks.toSeq)
           weightResults.waitResult()
           tasks.clear()
 

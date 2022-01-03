@@ -168,22 +168,6 @@ object RecursiveCluster {
   }
 
   def balanceTree(distance: Array[Double], index: Array[Int]): (Array[Int], Array[Int]) = {
-  //  val mid = distance.length / 2
-  //  val leftIndex = new Array[Int](mid)
-  //  val rightIndex = new Array[Int](distance.length - mid)
-  //  val indirectIdx = distance.argPartition(inplace = true, position = mid)
-  //  var i = 0
-  //  val len = distance.length
-  //  while (i < len) {
-  //    if (i < mid) {
-  //      leftIndex(i) = index(indirectIdx(i))
-  //    } else {
-  //      rightIndex(i - mid) = index(indirectIdx(i))
-  //    }
-  //    i += 1
-  //  }
-  //  (leftIndex, rightIndex)
-
     val mid = distance.length / 2
     val indirectIdx = distance.argPartition(inplace = true, position = mid).splitAt(mid)
     (indirectIdx._1.map(index(_)), indirectIdx._2.map(index(_)))

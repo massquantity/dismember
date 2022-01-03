@@ -86,7 +86,7 @@ class TreeBuilder(outputTreePath: String, embedPath: Option[String] = None) {
         tmpItems += IdCodePair(id, code)
         if (i == ids.length - 1 || tmpItems.length == 512) {
           val partId = "Part_" + (parts.length + 1)
-          parts += IdCodePart(toByteString(partId), tmpItems.clone())
+          parts += IdCodePart(toByteString(partId), tmpItems.clone().toSeq)
           tmpItems.clear()
         }
 

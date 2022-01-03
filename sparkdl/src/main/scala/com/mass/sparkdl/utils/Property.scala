@@ -2,8 +2,6 @@ package com.mass.sparkdl.utils
 
 import java.nio.file.{Files, Paths}
 
-import scala.jdk.CollectionConverters.asScalaBufferConverter
-
 import com.mass.sparkdl.{getScalaVersion, getSparkVersion}
 import org.apache.log4j.Logger
 import org.apache.spark.{SparkConf, SparkContext, SparkException}

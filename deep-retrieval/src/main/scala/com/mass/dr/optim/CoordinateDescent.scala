@@ -71,7 +71,7 @@ object CoordinateDescent extends CandidateSearcher {
 
   def computeItemOccurrence(dataset: LocalDataSet): Map[Int, Int] = {
     val data = dataset.getTrainData.map(_.target)
-    data.groupBy(identity).mapValues(_.length)
+    data.groupBy(identity).view.mapValues(_.length).toMap
   }
 
   def computePathScore(

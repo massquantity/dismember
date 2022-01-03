@@ -20,8 +20,8 @@
 
         <dependency>
             <groupId>com.github.scopt</groupId>
-            <artifactId>scopt_2.12</artifactId>
-            <version>3.5.0</version>
+            <artifactId>scopt_2.13</artifactId>
+            <version>4.0.1</version>
         </dependency>
 
         <dependency>

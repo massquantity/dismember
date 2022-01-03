@@ -19,7 +19,7 @@
     <dependencies>
         <dependency>
             <groupId>org.scalaz</groupId>
-            <artifactId>scalaz-core_2.12</artifactId>
+            <artifactId>scalaz-core_2.13</artifactId>
             <version>7.3.2</version>
         </dependency>
 

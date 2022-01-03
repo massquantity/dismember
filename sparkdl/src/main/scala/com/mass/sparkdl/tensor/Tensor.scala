@@ -205,7 +205,8 @@ object Tensor {
 
   def apply[@specialized(Float, Double) T: ClassTag](data: Array[T], shape: Array[Int])(
       implicit ev: TensorNumeric[T]): Tensor[T] = {
-    require(shape.product == data.length, "shape total size doesn't match data length")
+    require(shape.product == data.length,
+      s"shape total size ${shape.product} doesn't match data length ${data.length}")
     new DenseTensor[T]().set(Storage[T](data), storageOffset = 0, sizes = shape)
   }
 
@@ -220,7 +221,7 @@ object Tensor {
   def apply[@specialized(Float, Double) T: ClassTag](other: Tensor[T])(
     implicit ev: TensorNumeric[T]): Tensor[T] = new DenseTensor(other)
 
-  def arange[@specialized(Float, Double) T: ClassTag](xmin: Double, xmax: Double, step: Int = 1)(
+  def arange[@specialized(Float, Double) T: ClassTag](xmin: Int, xmax: Int, step: Int = 1)(
       implicit ev: TensorNumeric[T]): Tensor[T] = {
     val size = math.floor((xmax - xmin) / step).toInt.abs
     Tensor((xmin until xmax by step).map(ev.fromType(_)).toArray, Array(size))

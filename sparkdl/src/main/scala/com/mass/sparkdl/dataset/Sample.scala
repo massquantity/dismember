@@ -78,11 +78,11 @@ private[sparkdl] class ArraySample[T: ClassTag](
 
   override def equals(other: Any): Boolean = other match {
     case that: ArraySample[T] =>
-      if (!that.canEqual(this) || data.deep != that.data.deep ||
-        featureSize.deep != that.featureSize.deep)
+      if (!that.canEqual(this) || !(data sameElements that.data) ||
+        !(featureSize sameElements that.featureSize))
         return false
       if (null != labelSize && null != that.labelSize) {
-        labelSize.deep == that.labelSize.deep
+        labelSize sameElements that.labelSize
       } else {
         null == labelSize && null == that.labelSize
       }

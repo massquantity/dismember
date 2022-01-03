@@ -132,17 +132,17 @@ private[sparkdl] class Node[T](var element: T) extends Serializable { self =>
     }
   }
 
-  def nextNodes: Seq[Node[T]] = nexts.map(_._1)
+  def nextNodes: Seq[Node[T]] = nexts.map(_._1).toSeq
 
-  def nextEdges: Seq[Edge] = nexts.map(_._2)
+  def nextEdges: Seq[Edge] = nexts.map(_._2).toSeq
 
-  def nextNodesAndEdges: Seq[(Node[T], Edge)] = nexts
+  def nextNodesAndEdges: Seq[(Node[T], Edge)] = nexts.toSeq
 
-  def prevNodes: Seq[Node[T]] = prevs.map(_._1)
+  def prevNodes: Seq[Node[T]] = prevs.map(_._1).toSeq
 
-  def prevEdges: Seq[Edge] = prevs.map(_._2)
+  def prevEdges: Seq[Edge] = prevs.map(_._2).toSeq
 
-  def prevNodesAndEdges: Seq[(Node[T], Edge)] = prevs
+  def prevNodesAndEdges: Seq[(Node[T], Edge)] = prevs.toSeq
 
   def ->(node: Node[T]): Node[T] = {
     this.add(node)
