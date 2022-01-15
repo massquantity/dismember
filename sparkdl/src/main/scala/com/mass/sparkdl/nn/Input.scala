@@ -3,12 +3,11 @@ package com.mass.sparkdl.nn
 import scala.reflect.ClassTag
 
 import com.mass.sparkdl.nn.abstractnn.{AbstractModule, Activity}
-import com.mass.sparkdl.nn.Graph.ModuleNode
+import com.mass.sparkdl.nn.graphnn.Graph.ModuleNode
+import com.mass.sparkdl.nn.graphnn.Node
 import com.mass.sparkdl.tensor.TensorNumeric
-import com.mass.sparkdl.utils.Node
 
-class Input[T: ClassTag]()(implicit ev: TensorNumeric[T])
-    extends AbstractModule[Activity, Activity, T] {
+class Input[T: ClassTag]()(implicit ev: TensorNumeric[T]) extends AbstractModule[Activity, Activity, T] {
 
   override def updateOutput(input: Activity): Activity = {
     output = input

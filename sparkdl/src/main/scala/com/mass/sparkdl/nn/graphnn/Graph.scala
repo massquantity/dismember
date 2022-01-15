@@ -1,12 +1,13 @@
-package com.mass.sparkdl.nn
+package com.mass.sparkdl.nn.graphnn
 
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
+import com.mass.sparkdl.nn.Identity
 import com.mass.sparkdl.nn.abstractnn.{AbstractModule, Activity}
-import com.mass.sparkdl.nn.Graph.ModuleNode
+import com.mass.sparkdl.nn.graphnn.Graph.ModuleNode
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
-import com.mass.sparkdl.utils.{DirectedGraph, Node, T}
+import com.mass.sparkdl.utils.T
 
 abstract class Graph[T: ClassTag](
     val inputs: Seq[ModuleNode[T]],
@@ -16,7 +17,7 @@ abstract class Graph[T: ClassTag](
 
   protected val modules = new ArrayBuffer[AbstractModule[Activity, Activity, T]]()
 
-  protected val dummyOutput: ModuleNode[T] = new ModuleNode[T](new Identity[T]())
+  protected val dummyOutput: ModuleNode[T] = new ModuleNode[T](Identity[T]())
 
   outputs.foreach(_ -> dummyOutput)
 
@@ -34,14 +35,12 @@ abstract class Graph[T: ClassTag](
 
   def populateModules(): Unit
 
-  /*
-  override def parameters(): (Array[Tensor[T]], Array[Tensor[T]]) = {
-    variables match {
-      case None => super.parameters()
-      case Some((weights, gradients)) => (weights, gradients)
-    }
-  }
-  */
+  // override def parameters(): (Array[Tensor[T]], Array[Tensor[T]]) = {
+  //  variables match {
+  //    case None => super.parameters()
+  //    case Some((weights, gradients)) => (weights, gradients)
+  //  }
+  // }
 
   override def parameters(): (Array[Tensor[T]], Array[Tensor[T]]) = {
     val weights = new ArrayBuffer[Tensor[T]]()
@@ -58,6 +57,7 @@ abstract class Graph[T: ClassTag](
 
   def findFirstInput(node: ModuleNode[T], input: Activity): Activity = {
     if (inputs.length == 1) {
+      println(s"node name: ${node.getName}, input name: ${inputs.head.getName}")
       require(inputs.head.eq(node), "input node is not in the input list")
       input
     } else {
@@ -80,7 +80,6 @@ abstract class Graph[T: ClassTag](
           node.element.output
       }
     }
-
     if (preActivities.length == 1) {
       preActivities.head
     } else {
@@ -90,7 +89,6 @@ abstract class Graph[T: ClassTag](
 
   protected def findGradOutput(curNode: ModuleNode[T], gradOutput: Activity): Activity = {
     var curGradOutput: Activity = if (curNode.eq(dummyOutputGrad)) gradOutput else null
-
     curNode.prevNodesAndEdges.foreach { case (node, edge) =>
       val otherActivity = {
         if (node.element.gradInput.isTensor || node.nextEdges.length == 1) {
@@ -154,7 +152,6 @@ abstract class Graph[T: ClassTag](
     val gradGraph = forwardGraph.cloneGraph(reverseEdge = true)
     dummyOutputGrad = gradGraph.source
     backwardNodes = gradGraph.DFS().filterNot(_.eq(dummyOutputGrad)).toArray
-
     val inputNames = inputs.map(_.element.getName).toSet
     val dummyBackwardEnd = Identity().inputs()
     val backwardTargets = backwardNodes.filter(n =>

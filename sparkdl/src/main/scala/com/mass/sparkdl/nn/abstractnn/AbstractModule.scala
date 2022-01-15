@@ -2,15 +2,13 @@ package com.mass.sparkdl.nn.abstractnn
 
 import scala.reflect.ClassTag
 
-import com.mass.sparkdl.nn.Graph.ModuleNode
+import com.mass.sparkdl.nn.graphnn.Graph.ModuleNode
+import com.mass.sparkdl.nn.graphnn.Edge
 import com.mass.sparkdl.nn.mixin.Module
 import com.mass.sparkdl.optim.OptimMethod
 import com.mass.sparkdl.tensor.{Tensor, TensorDataType, TensorNumeric}
-import com.mass.sparkdl.utils.{DistriParameterSynchronizer, Edge}
+import com.mass.sparkdl.utils.DistriParameterSynchronizer
 import org.apache.commons.lang3.SerializationUtils
-
-abstract class TensorModule[T: ClassTag](
-  implicit ev: TensorNumeric[T]) extends AbstractModule[Tensor[T], Tensor[T], T]
 
 abstract class AbstractModule[A <: Activity: ClassTag, B <: Activity: ClassTag, T: ClassTag](
     implicit ev: TensorNumeric[T]) extends Serializable {
@@ -22,7 +20,7 @@ abstract class AbstractModule[A <: Activity: ClassTag, B <: Activity: ClassTag, 
     try {
       updateParameter()
       updateOutput(input)
-    } catch  {
+    } catch {
       case e: Throwable =>
         throw e
     }
@@ -74,8 +72,8 @@ abstract class AbstractModule[A <: Activity: ClassTag, B <: Activity: ClassTag, 
   def zeroGradParameters(): Unit = {
     val params = parameters()
     if (params != null) {
-      params._1 zip params._2 foreach {
-        case (weight, grad) => grad.resizeAs(weight).zero()
+      params._1 zip params._2 foreach { case (weight, grad) =>
+        grad.resizeAs(weight).zero()
       }
     }
   }
@@ -91,7 +89,6 @@ abstract class AbstractModule[A <: Activity: ClassTag, B <: Activity: ClassTag, 
         node.add(curNode, Edge(index))
       }
     }
-
     if (nodes != null) {
       nodes.foreach(node => node.add(curNode, Edge()))
     }
@@ -227,7 +224,9 @@ abstract class AbstractModule[A <: Activity: ClassTag, B <: Activity: ClassTag, 
     // If some gradParameters did not allocated storage, allocate it
     require(weightParameters.length == gradParameters.length,
       "weights and gradient number are not match")
-    weightParameters.zip(gradParameters).foreach{ case(w, g) => g.resizeAs(w)}
+    weightParameters.zip(gradParameters).foreach { case(w, g) =>
+      g.resizeAs(w)
+    }
     (Module.flatten[T](weightParameters), Module.flatten[T](gradParameters))
   }
 }

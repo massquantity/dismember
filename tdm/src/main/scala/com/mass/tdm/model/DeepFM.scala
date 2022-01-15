@@ -1,7 +1,8 @@
 package com.mass.tdm.model
 
 import com.mass.sparkdl.Module
-import com.mass.sparkdl.nn.{Add, Concat, EmbeddingShare, FM, Graph, Input, Linear, ReLU, Reshape}
+import com.mass.sparkdl.nn.{Add, Concat, EmbeddingShare, FM, Input, Linear, ReLU, Reshape}
+import com.mass.sparkdl.nn.graphnn.Graph
 import com.mass.tdm.operator.TDMOp
 
 object DeepFM {

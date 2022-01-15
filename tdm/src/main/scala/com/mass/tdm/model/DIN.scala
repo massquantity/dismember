@@ -5,6 +5,7 @@ import scala.reflect.ClassTag
 import com.mass.sparkdl.tensor.TensorNumeric
 import com.mass.sparkdl.Module
 import com.mass.sparkdl.nn._
+import com.mass.sparkdl.nn.graphnn.Graph
 import com.mass.tdm.operator.TDMOp
 
 object DIN {

@@ -6,6 +6,7 @@ import com.mass.sparkdl.nn.abstractnn.AbstractModule
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
 import com.mass.sparkdl.utils.{T, Table}
 import com.mass.sparkdl.Module
+import com.mass.sparkdl.nn.graphnn.Graph
 
 class Attention[T: ClassTag](
     embedSize: Int,
