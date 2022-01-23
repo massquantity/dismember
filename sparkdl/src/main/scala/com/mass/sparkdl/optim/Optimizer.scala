@@ -1,11 +1,11 @@
 package com.mass.sparkdl.optim
 
-import scala.reflect.{classTag, ClassTag}
+import scala.reflect.ClassTag
 
 import com.mass.sparkdl.tensor.TensorNumeric
 import com.mass.sparkdl.{Criterion, DataSet, Module}
 import com.mass.sparkdl.dataset._
-import com.mass.sparkdl.utils.{T, Table}
+import com.mass.sparkdl.utils.Table
 import org.apache.spark.rdd.RDD
 
 abstract class Optimizer[T: ClassTag, D](
@@ -13,7 +13,7 @@ abstract class Optimizer[T: ClassTag, D](
     protected var dataset: DataSet[D],
     protected var criterion: Criterion[T])(implicit ev: TensorNumeric[T]) {
 
-  protected var state: Table = T()
+  protected var state: Table = Table()
   protected var optimMethods: Map[String, OptimMethod[T]] = Map(model.getName -> new Adam())
   protected var endWhen: Trigger = Trigger.maxIteration(100, "trainIter")
 
@@ -23,8 +23,6 @@ abstract class Optimizer[T: ClassTag, D](
   protected var warmupIterationNum: Int = 200
 
   def optimize(): Module[T]
-
-
 
   private[optim] def shutdown(): Unit = { }
 

@@ -5,18 +5,22 @@ import scala.reflect.ClassTag
 import com.mass.sparkdl.nn.abstractnn.AbstractModule
 import com.mass.sparkdl.nn.mixin.LookupTable
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
-import com.mass.sparkdl.utils.{T, Table}
+import com.mass.sparkdl.utils.Table
 
 class EmbeddingShare[T: ClassTag](
     val nIndex: Int,
     val embedSize: Int,
-    val paddingIdx: Int = -1)(
+    val paddingIdx: Int = -1,
+    val embedWeight: Option[Tensor[T]] = None)(
     implicit ev: TensorNumeric[T]) extends AbstractModule[Table, Table, T] with LookupTable[T] {
 
-  var weight: Tensor[T] = Tensor[T](nIndex, embedSize).randn(0.0, 0.05)
-  var gradWeight: Tensor[T] = Tensor[T](nIndex, embedSize).zero()
+  val weight: Tensor[T] = embedWeight match {
+    case Some(embed) => embed
+    case None => Tensor[T](nIndex, embedSize).randn(0.0, 0.05)
+  }
+  val gradWeight: Tensor[T] = Tensor[T](nIndex, embedSize).zero()
 
-  private val inputBuffer = T()
+  private val inputBuffer = Table()
   override val zeroArray: Array[T] = Array.fill[T](embedSize)(ev.zero)
 
   padWeight(weight, paddingIdx)
@@ -95,7 +99,9 @@ object EmbeddingShare {
   def apply[@specialized(Float, Double) T: ClassTag](
       nIndex: Int,
       nOutput: Int,
-      paddingIdx: Int = -1)(implicit ev: TensorNumeric[T]): EmbeddingShare[T] = {
+      paddingIdx: Int = -1,
+      embedWeight: Option[Tensor[T]] = None)(
+      implicit ev: TensorNumeric[T]): EmbeddingShare[T] = {
     new EmbeddingShare[T](nIndex, nOutput, paddingIdx)
   }
 }

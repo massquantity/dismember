@@ -2,7 +2,7 @@ package com.mass.tdm.dataset
 
 import com.mass.sparkdl.nn.abstractnn.Activity
 import com.mass.sparkdl.tensor.Tensor
-import com.mass.sparkdl.utils.T
+import com.mass.sparkdl.utils.Table
 import com.mass.tdm.operator.TDMOp
 
 class MiniBatch(
@@ -58,7 +58,7 @@ class MiniBatch(
     val labelShape = Array(threadLen * sampledNodesNumPerTarget)
 
     if (!useMask) {
-      val convertedTable = T(
+      val convertedTable = Table(
         Tensor(targetItems, itemShape),
         Tensor(features.itemSeqs, itemSeqShape)
       )
@@ -71,7 +71,7 @@ class MiniBatch(
         val maskShape = Array(features.masks.length)
         Tensor(features.masks, maskShape)
       }
-      val convertedTable = T(
+      val convertedTable = Table(
         Tensor(targetItems, itemShape),
         Tensor(features.itemSeqs, itemSeqShape),
         masks

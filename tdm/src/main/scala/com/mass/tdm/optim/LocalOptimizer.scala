@@ -4,7 +4,7 @@ import com.mass.sparkdl.{Criterion, Module}
 import com.mass.sparkdl.nn.abstractnn.Activity
 import com.mass.sparkdl.optim.{OptimMethod, Trigger}
 import com.mass.sparkdl.tensor.Tensor
-import com.mass.sparkdl.utils.{Engine, T, Table, Util}
+import com.mass.sparkdl.utils.{Engine, Table, Util}
 import com.mass.tdm.dataset.{LocalDataSet, MiniBatch}
 import com.mass.tdm.evaluation.Evaluator
 import com.mass.sparkdl.tensor.TensorNumeric.NumericFloat
@@ -42,7 +42,7 @@ class LocalOptimizer(
     models
   }
 
-  private val state: Table = T()
+  private val state: Table = Table()
   private val endWhen: Trigger = Trigger.maxIteration(numIteration, "trainIter")
   private val subModelNum = Engine.coreNumber()
   private var realParallelism: Int = -1

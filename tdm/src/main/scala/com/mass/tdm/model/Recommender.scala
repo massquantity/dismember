@@ -5,7 +5,7 @@ import scala.math.Ordering
 
 import com.mass.sparkdl.Module
 import com.mass.sparkdl.tensor.Tensor
-import com.mass.sparkdl.utils.{T, Table}
+import com.mass.sparkdl.utils.{Table, Table}
 import com.mass.tdm.protobuf.tree.Node
 import com.mass.tdm.tree.TDMTree
 import com.mass.tdm.tree.DistTree.TreeNode
@@ -144,9 +144,9 @@ object Recommender {
       if (useMask) {
         // masks is one-dimensional tensor
         val mask = if (masks.isEmpty) masks else masks.narrow(0, 0, num * maskLen)
-        T(item, seq, mask)
+        Table(item, seq, mask)
       } else {
-        T(item, seq)
+        Table(item, seq)
       }
     }
   }

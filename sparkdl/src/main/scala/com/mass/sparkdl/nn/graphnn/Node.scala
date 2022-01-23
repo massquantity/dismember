@@ -2,7 +2,7 @@ package com.mass.sparkdl.nn.graphnn
 
 import scala.collection.mutable.ArrayBuffer
 
-private[sparkdl] class Node[T](var element: T) extends Serializable { self =>
+private[sparkdl] class Node[T](val element: T) extends Serializable { self =>
 
   private val nexts = new ArrayBuffer[(Node[T], Edge)]()
   private val prevs = new ArrayBuffer[(Node[T], Edge)]()
@@ -112,11 +112,6 @@ private[sparkdl] class Node[T](var element: T) extends Serializable { self =>
     } n_prevs -= pn
 
     nexts.clear()
-    this
-  }
-
-  def setElement(e: T): this.type = {
-    element = e
     this
   }
 

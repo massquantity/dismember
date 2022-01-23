@@ -78,7 +78,7 @@ object DistriOptimizer extends AbstractOptimizer {
     }
 
     val _subModelNumber = coresPerNode
-    val driverState = T(
+    val driverState = Table(
       "epoch" -> optimMethods.values.head.state("epoch"),
       "neval" -> optimMethods.values.head.state("neval"),
       "Loss" -> optimMethods.values.head.state("Loss"),

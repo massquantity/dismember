@@ -4,12 +4,12 @@ import scala.reflect.ClassTag
 
 import com.mass.sparkdl.nn.abstractnn.AbstractModule
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
-import com.mass.sparkdl.utils.{T, Table}
+import com.mass.sparkdl.utils.Table
 
 class MatMul[T: ClassTag](transB: Boolean = false)(implicit ev: TensorNumeric[T])
     extends AbstractModule[Table, Tensor[T], T] {
 
-  gradInput = T(Tensor[T](), Tensor[T]())
+  gradInput = Table(Tensor[T](), Tensor[T]())
 
   override def updateOutput(input: Table): Tensor[T] = {
     var (ma, mb) = (input[Tensor[T]](0), input[Tensor[T]](1))

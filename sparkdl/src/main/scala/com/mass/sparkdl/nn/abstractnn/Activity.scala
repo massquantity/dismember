@@ -3,7 +3,7 @@ package com.mass.sparkdl.nn.abstractnn
 import scala.reflect.{classTag, ClassTag}
 
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
-import com.mass.sparkdl.utils.{T, Table}
+import com.mass.sparkdl.utils.Table
 
 trait Activity {
 
@@ -20,7 +20,7 @@ object Activity {
 
   def allocate[D <: Activity: ClassTag, T: ClassTag](): D = {
     val buffer = if (classTag[D] == classTag[Table]) {
-      T()
+      Table()
     } else if (classTag[D] == classTag[Tensor[_]]) {
        if (classTag[Int] == classTag[T]) {
          import com.mass.sparkdl.tensor.TensorNumeric.NumericInt

@@ -9,11 +9,15 @@ import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
 class Embedding[T: ClassTag](
     val nIndex: Int,
     val embedSize: Int,
-    val paddingIdx: Int = -1)(
+    val paddingIdx: Int = -1,
+    val embedWeight: Option[Tensor[T]] = None)(
     implicit ev: TensorNumeric[T]) extends TensorModule[T] with LookupTable[T] {
 
-  var weight: Tensor[T] = Tensor[T](nIndex, embedSize).randn(0.0, 0.05)
-  var gradWeight: Tensor[T] = Tensor[T](nIndex, embedSize).zero()
+  val weight: Tensor[T] = embedWeight match {
+    case Some(embed) => embed
+    case None => Tensor[T](nIndex, embedSize).randn(0.0, 0.05)
+  }
+  val gradWeight: Tensor[T] = Tensor[T](nIndex, embedSize).zero()
 
   private var inputBuffer = Tensor[Int]()
   override val zeroArray: Array[T] = Array.fill[T](embedSize)(ev.zero)
@@ -80,8 +84,11 @@ class Embedding[T: ClassTag](
 
 object Embedding {
   def apply[@specialized(Float, Double) T: ClassTag](
-      nIndex: Int, nOutput: Int, paddingIdx: Int = -1)(
+      nIndex: Int,
+      nOutput: Int,
+      paddingIdx: Int = -1,
+      embedWeight: Option[Tensor[T]] = None)(
       implicit ev: TensorNumeric[T]): Embedding[T] = {
-    new Embedding[T](nIndex, nOutput, paddingIdx)
+    new Embedding[T](nIndex, nOutput, paddingIdx, embedWeight)
   }
 }

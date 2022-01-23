@@ -3,11 +3,12 @@ package com.mass.sparkdl.nn.graphnn
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
+import com.mass.sparkdl.Module
 import com.mass.sparkdl.nn.Identity
 import com.mass.sparkdl.nn.abstractnn.{AbstractModule, Activity}
 import com.mass.sparkdl.nn.graphnn.Graph.ModuleNode
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
-import com.mass.sparkdl.utils.T
+import com.mass.sparkdl.utils.Table
 
 abstract class Graph[T: ClassTag](
     val inputs: Seq[ModuleNode[T]],
@@ -57,7 +58,6 @@ abstract class Graph[T: ClassTag](
 
   def findFirstInput(node: ModuleNode[T], input: Activity): Activity = {
     if (inputs.length == 1) {
-      println(s"node name: ${node.getName}, input name: ${inputs.head.getName}")
       require(inputs.head.eq(node), "input node is not in the input list")
       input
     } else {
@@ -83,7 +83,7 @@ abstract class Graph[T: ClassTag](
     if (preActivities.length == 1) {
       preActivities.head
     } else {
-      T.seq(preActivities)
+      Table.seq(preActivities)
     }
   }
 
@@ -105,7 +105,7 @@ abstract class Graph[T: ClassTag](
             curGradOutput = accActivity(curGradOutput, otherActivity)
           } else {
             if (curNode.element.output.isTable && curGradOutput == null) {
-              curGradOutput = T()
+              curGradOutput = Table()
             }
             val curActivity = curGradOutput.toTable.getOrElse[Activity](i, null)
             curGradOutput.toTable(i) = accActivity(curActivity, otherActivity)
@@ -144,7 +144,7 @@ abstract class Graph[T: ClassTag](
     if (inputs.length == 1) {
       inputs.head.element.gradInput
     } else {
-      T.seq(inputs.map(node => node.element.gradInput))
+      Table.seq(inputs.map(node => node.element.gradInput))
     }
   }
 
@@ -165,11 +165,20 @@ abstract class Graph[T: ClassTag](
     this
   }
 
-  def node(name: String): ModuleNode[T] = {
-    val matchNodes = forwardNodes.find(_.element.getName == name)
-    matchNodes match {
+  def findModule(name: String): Module[T] = {
+    val matchedNode = modules.find(_.getName == name)
+    matchedNode match {
       case Some(m) => m
       case None => throw new NoSuchElementException(s"Can not find node with name $name")
+    }
+  }
+
+  def fetchModuleParameters(name: String, parameters: Seq[String]): Seq[Tensor[T]] = {
+    val node = findModule(name)
+    parameters.map { param =>
+      val field = node.getClass.getDeclaredField(param)
+      field.setAccessible(true)
+      field.get(node).asInstanceOf[Tensor[T]]
     }
   }
 

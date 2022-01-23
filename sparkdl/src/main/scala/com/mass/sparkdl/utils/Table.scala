@@ -108,7 +108,7 @@ class Table(
   override def toTable: Table = this
 }
 
-object T {
+object Table {
   def apply(): Table = new Table()
 
   def apply(first: Any, rest: Any*): Table = {

@@ -3,12 +3,12 @@ package com.mass.sparkdl.optim
 import scala.reflect.ClassTag
 
 import com.mass.sparkdl.tensor.Tensor
-import com.mass.sparkdl.utils.{File, T, Table}
+import com.mass.sparkdl.utils.{File, Table}
 import org.apache.commons.lang3.SerializationUtils
 
 trait OptimMethod[@specialized(Float, Double) T] extends Serializable {
 
-  var state: Table = T(
+  var state: Table = Table(
     "epoch" -> 0,
     "trainIter" -> 0)
 

@@ -481,7 +481,7 @@ private[tensor] class DenseTensor[@specialized T: ClassTag](
 
   override def set(storage: Storage[T], storageOffset: Int = 0, sizes: Array[Int] = null,
       strides: Array[Int] = null): Tensor[T] = {
-    if (sizes != null && strides != null) {
+    if (sizes != null && sizes.nonEmpty && strides != null && strides.nonEmpty) {
       require(sizes.length == strides.length)
     }
     require(storage.isInstanceOf[ArrayStorage[_]], "Only support array storage in this operation")

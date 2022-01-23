@@ -4,7 +4,7 @@ import scala.reflect.ClassTag
 
 import com.mass.sparkdl.nn.abstractnn.AbstractModule
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
-import com.mass.sparkdl.utils.{T, Table}
+import com.mass.sparkdl.utils.Table
 import com.mass.sparkdl.Module
 import com.mass.sparkdl.nn.graphnn.Graph
 

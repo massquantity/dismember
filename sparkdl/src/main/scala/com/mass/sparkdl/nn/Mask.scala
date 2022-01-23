@@ -4,7 +4,7 @@ import scala.reflect.ClassTag
 
 import com.mass.sparkdl.nn.abstractnn.AbstractModule
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
-import com.mass.sparkdl.utils.{T, Table}
+import com.mass.sparkdl.utils.Table
 
 class Mask[T: ClassTag](useScale: Boolean = false, factor: Int = -1)(
     implicit ev: TensorNumeric[T]) extends AbstractModule[Table, Tensor[T], T] {
@@ -12,7 +12,7 @@ class Mask[T: ClassTag](useScale: Boolean = false, factor: Int = -1)(
   private val scaleFactor = if (useScale) 1.0 / math.sqrt(factor) else 1.0
   private val maskValue = Float.MinValue
 
-  gradInput = T(Tensor[T](), Tensor[Int]())
+  gradInput = Table(Tensor[T](), Tensor[Int]())
 
   override def updateOutput(input: Table): Tensor[T] = {
     output.resizeAs(input(0)).copy(input(0))
