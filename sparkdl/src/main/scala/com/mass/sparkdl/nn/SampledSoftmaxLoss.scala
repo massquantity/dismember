@@ -2,7 +2,7 @@ package com.mass.sparkdl.nn
 
 import java.util.concurrent.ThreadLocalRandom
 
-import scala.collection.mutable
+import scala.collection.{immutable, mutable}
 import scala.reflect.ClassTag
 
 import com.mass.sparkdl.nn.abstractnn.AbstractCriterion
@@ -11,9 +11,9 @@ import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
 import com.mass.sparkdl.utils.Table
 
 // https://www.tensorflow.org/api_docs/python/tf/nn/sampled_softmax_loss
-// This implementation is different from `sampled_softmax_loss` in TensorFlow in that
-// it samples negative items per positive item, whereas `sampled_softmax_loss` in TensorFlow
-// samples negative items per batch. See `SampledSoftmaxLossBatch` for an equivalent implementation.
+// The `sampled_softmax_loss` in TensorFlow samples negative items per batch.
+// With `batchMode = true`, the implementation is ROUGHLY equivalent to that in TensorFlow.
+// With `batchMode = false`, it will sample negative items per positive item.
 class SampledSoftmaxLoss[@specialized(Float, Double) T: ClassTag](
     numSampled: Int,
     override val numClasses: Int,
@@ -21,11 +21,12 @@ class SampledSoftmaxLoss[@specialized(Float, Double) T: ClassTag](
     override val learningRate: Double,
     override val weights: Tensor[T],
     override val biases: Tensor[T],
+    batchMode: Boolean = false,
     sampledValues: Option[Array[Int]] = None)(
     implicit ev: TensorNumeric[T]) extends AbstractCriterion[T] with ParameterOptimizer[T] {
   require(numSampled < numClasses,
     s"numSampled $numSampled < numClasses $numClasses, try using Softmax directly.")
-  import SampledSoftmaxLoss.uniformSampler
+  import SampledSoftmaxLoss.{uniformSampler, uniformSamplerBatch}
   import ParameterOptimizer.{initState, createTensor}
 
   private val crossEntropyLoss = CrossEntropyCriterion[T]()
@@ -44,10 +45,15 @@ class SampledSoftmaxLoss[@specialized(Float, Double) T: ClassTag](
     val batchSize = inputVecs.size(0)
     val labels = target.toTensor[Int].storage().array()
     sampledItems = sampledValues match {
-      case Some(s) => s
-      case None => uniformSampler(labels, numSampled, numClasses)  // positive + negative items
-    }
-
+        case Some(s) => s
+        case None =>
+          // positive + negative items
+          if (batchMode) {
+            uniformSamplerBatch(labels, numSampled, numClasses)
+          } else {
+            uniformSampler(labels, numSampled, numClasses)
+          }
+      }
     val sampledBiasEmbed = embeddingLookup(biases, sampledItems, batchSize)
     sampledWeightEmbed = embeddingLookup(weights, sampledItems, batchSize, embedSize)
     logitsBuffer = linear(inputVecs, sampledWeightEmbed, sampledBiasEmbed)
@@ -133,6 +139,15 @@ class SampledSoftmaxLoss[@specialized(Float, Double) T: ClassTag](
     }
     (weightsGradInput.storage().array(), biasesGradInput.storage().array())
   }
+
+  def fullEvaluate(inputVecs: Tensor[T], target: Tensor[T]): T = {
+    val batchSize = inputVecs.size(0)
+    val addBuffer = Tensor[T]().resize(Array(batchSize)).fill(ev.one)
+    val logits = Tensor[T](batchSize, numClasses)
+    logits.addmm(ev.zero, ev.one, inputVecs, weights.t())
+    logits.addr(ev.one, addBuffer, biases)
+    CrossEntropyCriterion[T]().forward(logits, target)
+  }
 }
 
 object SampledSoftmaxLoss {
@@ -144,6 +159,7 @@ object SampledSoftmaxLoss {
       learningRate: Double,
       weights: Tensor[T],
       biases: Tensor[T],
+      batchMode: Boolean,
       sampledValues: Option[Array[Int]] = None)(
       implicit ev: TensorNumeric[T]): SampledSoftmaxLoss[T] = {
     new SampledSoftmaxLoss[T](
@@ -153,6 +169,7 @@ object SampledSoftmaxLoss {
       learningRate,
       weights,
       biases,
+      batchMode,
       sampledValues
     )
   }
@@ -177,5 +194,18 @@ object SampledSoftmaxLoss {
       }
     }
     sampledResult
+  }
+
+  private def uniformSamplerBatch(labels: Array[Int], numSampled: Int, numClasses: Int): Array[Int] = {
+    val labelSet = labels.to(immutable.BitSet)
+    val hasSampled = new mutable.BitSet()
+    while (hasSampled.size < numSampled) {
+      val s = ThreadLocalRandom.current().nextInt(numClasses)
+      if (!hasSampled.contains(s) && !labelSet.contains(s)) {
+        hasSampled += s
+      }
+    }
+    val sampledValues = hasSampled.toList
+    labels.flatMap(_ :: sampledValues)
   }
 }

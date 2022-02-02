@@ -7,7 +7,7 @@ import com.mass.sparkdl.{Criterion, Module}
 import com.mass.sparkdl.optim.{OptimMethod, Trigger}
 import com.mass.sparkdl.parameters.AllReduceParameter
 import com.mass.sparkdl.tensor.Tensor
-import com.mass.sparkdl.utils.{CachedModels, Engine, ModelBroadcast, T, Table}
+import com.mass.sparkdl.utils.{CachedModels, Engine, ModelBroadcast, Table}
 import com.mass.tdm.dataset.{DistDataSet, MiniBatch, TDMSample}
 import com.mass.tdm.evaluation.Evaluator
 import com.mass.tdm.optim.OptimUtil._
@@ -26,7 +26,7 @@ class DistOptimizer(
     candidateNum: Int,
     useMask: Boolean) {
 
-  private val state: Table = T()
+  private val state: Table = Table()
   private val endWhen: Trigger = Trigger.maxIteration(numIteration, "trainIter")
   private var cachedModelsRDD: RDD[Cache[Float]] = _
   private var modelBroadcast: ModelBroadcast[Float] = _
@@ -287,7 +287,7 @@ object DistOptimizer {
       optimMethod.state.update("recordsProcessedThisEpoch", 0L)
     }
 
-    T("epoch" -> optimMethod.state("epoch"),
+    Table("epoch" -> optimMethod.state("epoch"),
       "trainIter" -> optimMethod.state("trainIter"),
       "loss" -> optimMethod.state("loss"),
       //  "score" -> optimMethods.values.head.state("score"),

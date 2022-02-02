@@ -173,6 +173,10 @@ abstract class Graph[T: ClassTag](
     }
   }
 
+  def fetchModuleParameters(name: String, parameters: String): Tensor[T] = {
+    fetchModuleParameters(name, Seq(parameters)).head
+  }
+
   def fetchModuleParameters(name: String, parameters: Seq[String]): Seq[Tensor[T]] = {
     val node = findModule(name)
     parameters.map { param =>

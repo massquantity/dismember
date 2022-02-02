@@ -13,18 +13,16 @@ class SampledSoftmaxLossTest extends AnyFlatSpec {
   val weights: Tensor[Double] = Tensor[Double](numClasses, embedSize).randn(0.0, 0.01, seed = 2022)
   val biases: Tensor[Double] = Tensor[Double](numClasses).zero()
   val positiveItems: Array[Int] = Array(0, 1, 3, 2, 77, 101)
-  val negativeItems: Array[Array[Int]] = Array(
-    Array(19, 3, 66, 190),
-    Array(33, 4, 88, 111),
-    Array(2, 48, 92, 129),
-    Array(1, 66, 34, 167),
-    Array(53, 11, 0, 123),
-    Array(8, 99, 100, 12)
+  val negativeItems: Array[List[Int]] = Array(
+    List(19, 3, 66, 190),
+    List(33, 4, 88, 111),
+    List(2, 48, 92, 129),
+    List(1, 66, 34, 167),
+    List(53, 11, 0, 123),
+    List(8, 99, 100, 12)
   )
   // positive + negative items
-  val sampledItems: Array[Int] = positiveItems.zip(negativeItems).flatMap { case (pos, neg) =>
-    Array(pos) ++ neg
-  }
+  val sampledItems: Array[Int] = positiveItems zip negativeItems flatMap { case (pos, negs) => pos :: negs }
   val targetTensor: Tensor[Double] = Tensor[Int](positiveItems, Array(batchSize)).asInstanceOf[Tensor[Double]]
   val sampledSoftmax: SampledSoftmaxLoss[Double] = SampledSoftmaxLoss[Double](
     numSampled = numSampled,
@@ -33,6 +31,7 @@ class SampledSoftmaxLossTest extends AnyFlatSpec {
     learningRate = learningRate,
     weights = weights,
     biases = biases,
+    batchMode = false,
     sampledValues = Some(sampledItems)
   )
 

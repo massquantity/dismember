@@ -3,7 +3,7 @@ package com.mass.sparkdl.nn.mixin
 import scala.reflect.ClassTag
 
 import com.mass.sparkdl.tensor.{Tensor, TensorNumeric}
-import com.mass.sparkdl.utils.{T, Table}
+import com.mass.sparkdl.utils.Table
 
 // use Adam optimizer to update weights and biases in SampledSoftmaxLoss
 trait ParameterOptimizer[T] {
@@ -92,7 +92,7 @@ object ParameterOptimizer {
     biases: Tensor[T])(
     implicit ev: TensorNumeric[T]
   ): Table = {
-    val state = T()
+    val state = Table()
     state("weight_v") = Tensor[T]().resizeAs(weights).zero()
     state("weight_h") = Tensor[T]().resizeAs(weights).zero()
     state("weight_denom") = Tensor[T]().resizeAs(weights).zero()
