@@ -5,16 +5,15 @@ import com.mass.sparkdl.tensor.Tensor
 
 class MiniBatch(
     itemPathMapping: Map[Int, Seq[Path]],
+    numItem: Int,
+    numNode: Int,
     numLayer: Int,
     numPathPerItem: Int,
-    seqLen: Int,
-    val batchSize: Int,
-    val originalDataSize: Int) {
+    seqLen: Int) {
   import MiniBatch._
 
   private var offset: Int = -1
   private var length: Int = -1
-  val numTargetsPerBatch: Int = math.max(1, batchSize / numPathPerItem)
 
   def updatePosition(offset: Int, length: Int): this.type = {
     this.offset = offset
@@ -25,18 +24,18 @@ class MiniBatch(
   def transformLayerData(data: Array[DRSample], offset: Int, length: Int): LayerTransformedBatch = {
     val totalLen = length * numPathPerItem
     val samples = Array.range(offset, offset + length).map(data(_))
-    val copiedItems = samples.flatMap(s => Seq.fill(numPathPerItem)(s.sequence).flatten)
-    val itemSeqs = Tensor(copiedItems, Array(totalLen, seqLen))
-
-    // An item may contain multiple paths.
-    val itemPaths = (1 until numLayer).map { i =>
-      // val paths = samples.flatMap(s => itemPathMapping(s.target).flatMap(_.slice(0, i)))
-      val _p =
-        for {
-          s <- samples
-          path <- itemPathMapping(s.target)
-        } yield path.slice(0, i)
-      Tensor(_p.flatten, Array(totalLen, i))
+    val concatInputs = (0 until numLayer).map { layer =>
+      val layerData = samples.flatMap { s =>
+        itemPathMapping(s.target).flatMap { singlePath =>
+          if (layer == 0) {
+            s.sequence
+          } else {
+            val nodeIndices = (0 until layer).map(i => singlePath(i) + numItem + i * numNode)
+            s.sequence ++ nodeIndices
+          }
+        }
+      }
+      Tensor(layerData, Array(totalLen, seqLen + layer))
     }
 
     val targets = (0 until numLayer).map { i =>
@@ -44,10 +43,11 @@ class MiniBatch(
         for {
           s <- samples
           path <- itemPathMapping(s.target)
-        } yield path(i)
+        } yield path(i).toDouble
       Tensor(_t, Array(totalLen, 1))
     }
-    LayerTransformedBatch(itemSeqs, itemPaths, targets)
+
+    LayerTransformedBatch(concatInputs, targets)
   }
 
   def transformRerankData(data: Array[DRSample], offset: Int, length: Int): RerankTransformedBatch = {
@@ -67,9 +67,8 @@ object MiniBatch {
   sealed trait TransformedBatch
 
   case class LayerTransformedBatch(
-    itemSeqs: Tensor[Int],
-    paths: IndexedSeq[Tensor[Int]],
-    targets: IndexedSeq[Tensor[Int]]) extends TransformedBatch
+    concatInputs: IndexedSeq[Tensor[Int]],  // itemSeqs + paths
+    targets: IndexedSeq[Tensor[Double]]) extends TransformedBatch
 
   case class RerankTransformedBatch(
     itemSeqs: Tensor[Int],

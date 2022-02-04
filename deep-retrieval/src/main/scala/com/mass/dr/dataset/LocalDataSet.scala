@@ -16,7 +16,7 @@ class LocalDataSet(
     numLayer: Int,
     numNode: Int,
     numPathPerItem: Int,
-    batchSize: Int,
+    trainBatchSize: Int,
     evalBatchSize: Int,
     seqLen : Int,
     minSeqLen: Int,
@@ -45,34 +45,41 @@ class LocalDataSet(
 
   lazy val trainMiniBatch: MiniBatch = new MiniBatch(
     itemPathMapping,
+    numItem,
+    numNode,
     numLayer,
     numPathPerItem,
-    batchSize,
-    seqLen,
-    trainData.length
+    seqLen
   )
   lazy val evalMiniBatch: MiniBatch = new MiniBatch(
     itemPathMapping,
+    numItem,
+    numNode,
     numLayer,
     numPathPerItem,
-    evalBatchSize,
-    seqLen,
-    evalData.length
+    seqLen
   )
 
   private[dr] def iteratorMiniBatch(train: Boolean): Iterator[MiniBatch] = {
     new Iterator[MiniBatch] {
-      private val _miniBatch = if (train) trainMiniBatch else evalMiniBatch
-      private val numTargetsPerBatch = _miniBatch.numTargetsPerBatch
+      private val (miniBatch, batchSize, originalDataSize) =
+        if (train) {
+          (trainMiniBatch, trainBatchSize, trainData.length)
+        } else {
+          (evalMiniBatch, evalBatchSize, evalData.length)
+        }
+      private val numTargetsPerBatch = math.max(1, batchSize / numPathPerItem)
       private val index = new AtomicInteger(0)
 
-      override def hasNext: Boolean = true
+      override def hasNext: Boolean = {
+        if (train) true else index.get() < originalDataSize
+      }
 
       override def next(): MiniBatch = {
         val curIndex = index.getAndAdd(numTargetsPerBatch)
-        val offset = curIndex % _miniBatch.originalDataSize
-        val length = math.min(numTargetsPerBatch, _miniBatch.originalDataSize - offset)
-        _miniBatch.updatePosition(offset, length)
+        val offset = curIndex % originalDataSize
+        val length = math.min(numTargetsPerBatch, originalDataSize - offset)
+        miniBatch.updatePosition(offset, length)
       }
     }
   }
@@ -81,7 +88,6 @@ class LocalDataSet(
     val groupedSamples = initData.groupBy(_.user).toArray.map { case (user, samples) =>
       (user, samples.sortBy(_.timestamp).map(_.item).distinct.map(itemIdMapping(_)))
     }
-    // find splitAt takeWhile
     val (userConsumed, trainSamples, evalSamples) = groupedSamples.map { case (user, items) =>
       if (items.length <= minSeqLen) {
         (user -> items, Array.empty[DRTrainSample], Array.empty[DREvalSample])
@@ -124,6 +130,8 @@ class LocalDataSet(
 
   def getEvalData: Array[DRSample] = evalData
 
+  def getUserConsumed: Map[Int, Array[Int]] = userConsumed
+
   def numItem: Int = itemIdMapping.size
 
 }
@@ -152,17 +160,17 @@ object LocalDataSet {
     val fileReader = DistFileReader(dataPath)
     val input = fileReader.open()
     val fileInput = scala.io.Source.fromInputStream(input, encoding.name)
-    val samples =
+    val samples = {
       for {
         line <- fileInput.getLines
         arr = line.trim.split(delimiter)
         if arr.length == 5 && NumberUtils.isCreatable(arr(0))
       } yield InitSample(arr(0).toInt, arr(1).toInt, arr(3).toLong)
-
+    }.toArray
     fileInput.close()
     input.close()
     fileReader.close()
-    samples.toArray
+    samples
   }
 
   private def initializeMapping(
