@@ -8,15 +8,15 @@ import scala.util.{Failure, Success, Using}
 
 import com.mass.sparkdl.utils.{FileWriter => DistFileWriter}
 import com.mass.dr.dataset.{DRTrainSample, LocalDataSet}
-import com.mass.dr.model.CandidateSearcher
+import com.mass.dr.model.{CandidateSearcher, LayerModel}
 import com.mass.dr.model.CandidateSearcher.PathScore
-import com.mass.dr.{LayerModule, Path => DRPath}
-import com.mass.dr.protobuf.item_mapping.{Item => ProtoItem, ItemSet, Path => ProtoPath}
+import com.mass.dr.{Path => DRPath}
+import com.mass.dr.protobuf.item_mapping.{ItemSet, Item => ProtoItem, Path => ProtoPath}
 
 class CoordinateDescent(
     numIteration: Int,
     dataset: LocalDataSet,
-    models: Seq[LayerModule[Double]],
+    model: LayerModel,
     numCandidatePath: Int,
     numPathPerItem: Int,
     decayFactor: Double = 0.999,
@@ -28,7 +28,7 @@ class CoordinateDescent(
   def optimize(): Unit = {
     // val allItems = dataset.getTrainData.map(_.target).distinct  // change to itemId
     val itemOccurrence = computeItemOccurrence(dataset)
-    val itemPathScore = computePathScore(dataset, models, numCandidatePath, decayFactor)
+    val itemPathScore = computePathScore(dataset, model, numCandidatePath, decayFactor)
     val pathSize = mutable.Map.empty[DRPath, Int]
     for {
       t <- 1 to numIteration
@@ -76,13 +76,13 @@ object CoordinateDescent extends CandidateSearcher {
 
   def computePathScore(
       dataset: LocalDataSet,
-      models: Seq[LayerModule[Double]],
+      model: LayerModel,
       numCandidatePath: Int,
       decayFactor: Double = 0.999): mutable.Map[Int, Seq[PathScore]] = {
     val itemPathScores = mutable.Map.empty[Int, Seq[PathScore]]
     val data = dataset.getTrainData
     data.foreach { case DRTrainSample(sequence, item) =>
-      val candidatePath = beamSearch(sequence, models, numCandidatePath)
+      val candidatePath = beamSearch(sequence, model, numCandidatePath)
       if (!itemPathScores.contains(item)) {
         itemPathScores(item) = candidatePath
       } else {
