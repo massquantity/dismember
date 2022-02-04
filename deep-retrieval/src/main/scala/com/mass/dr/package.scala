@@ -8,6 +8,8 @@ package object dr {
 
   type Path = IndexedSeq[Int]
 
+  type LayerMulti[+T] = Seq[IndexedSeq[T]]
+
   type LayerModule[T] = com.mass.sparkdl.nn.abstractnn.AbstractModule[Activity, Activity, T]
 
   type RerankModule[T] = com.mass.sparkdl.nn.abstractnn.AbstractModule[Activity, Activity, T]
