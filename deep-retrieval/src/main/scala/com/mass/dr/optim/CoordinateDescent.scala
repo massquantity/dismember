@@ -7,7 +7,8 @@ import scala.collection.mutable
 import scala.util.{Failure, Success, Using}
 
 import com.mass.sparkdl.utils.{FileWriter => DistFileWriter}
-import com.mass.dr.dataset.{DRTrainSample, LocalDataSet}
+import com.mass.dr.dataset.DRSample.DRTrainSample
+import com.mass.dr.dataset.LocalDataSet
 import com.mass.dr.model.{CandidateSearcher, LayerModel}
 import com.mass.dr.model.CandidateSearcher.PathScore
 import com.mass.dr.{Path => DRPath}

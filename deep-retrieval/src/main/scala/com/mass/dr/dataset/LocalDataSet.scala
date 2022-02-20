@@ -7,6 +7,7 @@ import scala.collection.mutable
 import scala.util.{Failure, Random, Success, Using}
 
 import com.mass.dr.{encoding, Path => DRPath}
+import com.mass.dr.dataset.DRSample.{DREvalSample, DRTrainSample}
 import com.mass.dr.protobuf.item_mapping.{ItemSet, Path => ProtoPath}
 import com.mass.sparkdl.dataset.DataUtil
 import com.mass.sparkdl.utils.{FileReader => DistFileReader}

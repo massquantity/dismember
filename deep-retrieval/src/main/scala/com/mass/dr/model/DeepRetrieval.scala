@@ -3,8 +3,7 @@ package com.mass.dr.model
 import java.io.{BufferedInputStream, ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
 
 import com.mass.dr.dataset.LocalDataSet.loadMapping
-import com.mass.dr.{LayerModule, Path, RerankModule}
-import com.mass.dr.model.RerankModel.{inference => rerankCandidates}
+import com.mass.dr.Path
 import com.mass.dr.dataset.LocalDataSet
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.tensor.TensorNumeric.NumericDouble
@@ -30,7 +29,7 @@ class DeepRetrieval(
       .map(i => i._1 -> i._2.values.toSeq)
   }
 
-  val layerModel: Seq[LayerModule[Double]] = LayerModel.buildModel(
+  val layerModel: LayerModel = LayerModel(
     numItem,
     numNode,
     numLayer,
@@ -38,13 +37,13 @@ class DeepRetrieval(
     embedSize,
     paddingIdx
   )
-  val reRankModel: RerankModule[Double] = RerankModel.trainModel(
+  val reRankModel: RerankModel = RerankModel(
     numItem,
     seqLen,
     embedSize,
     paddingIdx
   )
-  val reRankWeights: Tensor[Double] = Tensor[Double](numItem, seqLen * embedSize).randn(0.0, 0.05)
+  val reRankWeights: Tensor[Double] = Tensor[Double](numItem, embedSize).randn(0.0, 0.05)
   val reRankBias: Tensor[Double] = Tensor[Double](numItem).zero()
 
   def recommend(sequence: Seq[Int], topk: Int, beamSize: Int): Seq[(Int, Double)] = {
@@ -55,15 +54,13 @@ class DeepRetrieval(
       beamSize,
       pathItemsMapping
     )
-    val reRankScores = rerankCandidates(
+    val reRankScores = reRankModel.inference(
       candidateItems,
       sequenceIds,
-      reRankModel,
       reRankWeights,
       reRankBias,
-      seqLen,
       embedSize
-    ).storage().array()
+    )
 
     candidateItems
       .zip(reRankScores)
