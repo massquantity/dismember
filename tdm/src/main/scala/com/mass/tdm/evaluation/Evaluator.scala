@@ -1,12 +1,11 @@
 package com.mass.tdm.evaluation
 
-import scala.collection.mutable
-
 import com.mass.sparkdl.{Criterion, Module}
 import com.mass.sparkdl.parameters.AllReduceParameter
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.utils.{Engine, Table}
 import com.mass.tdm.dataset.{DistDataSet, LocalDataSet, TDMSample}
+import com.mass.tdm.dataset.MiniBatch.{MaskTransformedBatch, SeqTransformedBatch}
 import com.mass.tdm.evaluation.Metrics.computeMetrics
 import com.mass.tdm.model.Recommender
 import com.mass.tdm.operator.TDMOp
@@ -39,7 +38,13 @@ object Evaluator extends Serializable with Recommender {
         (0 until realParallelism).map(i => () => {
           val offset = batch.getOffset + i * taskSize + math.min(i, extraSize)
           val length = taskSize + (if (i < extraSize) 1 else 0)
-          val (inputs, targets) = batch.convert(allData, offset, length, i)
+          val transformedBatch = batch.convert(allData, offset, length, i)
+          val (inputs, targets) = transformedBatch match {
+            case m: SeqTransformedBatch =>
+              (Table(m.items, m.sequence), m.labels)
+            case m: MaskTransformedBatch =>
+              (Table(m.items, m.sequence, m.masks), m.labels)
+          }
           val localModel = models(i)
           localModel.evaluate()
           val outputs = localModel.forward(inputs).asInstanceOf[Tensor[Float]]
@@ -79,7 +84,7 @@ object Evaluator extends Serializable with Recommender {
       (miniBatchIter, dataIter, modelIter, userConsumedIter) =>
         val cachedModel: Cache[Float] = modelIter.next()
         val data: Array[TDMSample] = dataIter.next()
-        val userConsumed: mutable.HashMap[Int, Array[Int]] = userConsumedIter.next()
+        val userConsumed: Map[Int, Seq[Int]] = userConsumedIter.next()
         // put updated parameters from server to local model
         parameters.getWeights(cachedModel.modelWeights.head).waitResult()
 
@@ -93,7 +98,13 @@ object Evaluator extends Serializable with Recommender {
             (0 until realParallelism).map(i => () => {
               val offset = batch.getOffset + i * taskSize + math.min(i, extraSize)
               val length = taskSize + (if (i < extraSize) 1 else 0)
-              val (inputs, targets) = batch.convert(data, offset, length, i)
+              val transformedBatch = batch.convert(data, offset, length, i)
+              val (inputs, targets) = transformedBatch match {
+                case m: SeqTransformedBatch =>
+                  (Table(m.items, m.sequence), m.labels)
+                case m: MaskTransformedBatch =>
+                  (Table(m.items, m.sequence, m.masks), m.labels)
+              }
               val localModel = cachedModel.localModels(i)
               localModel.evaluate()
               val outputs = localModel.forward(inputs).asInstanceOf[Tensor[Float]]

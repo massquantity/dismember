@@ -42,16 +42,17 @@ class TDM(
   }
 
   def predict(sequence: Array[Int], target: Int): Double = {
-    val tensor = Tensor(TDMOp.tree.idToCode(sequence ++ Seq(target)),
-      Array(1, sequence.length + 1))
+    val (innerId, _) = TDMOp.tree.idToCode(sequence ++ Seq(target))
+    val tensor = Tensor(innerId.toArray, Array(1, sequence.length + 1))
     val logit = dlModel.forward(tensor).toTensor[Float].value()
-    sigmoid(logit)
+    TDM.sigmoid(logit)
   }
 
   def recommend(sequence: Array[Int], topk: Int, candidateNum: Int = 20): Array[(Int, Double)] = {
-    val recs = _recommend(sequence, dlModel, TDMOp.tree, candidateNum, useMask)
+    val dummyConsumed = Set.empty[Int]
+    val recs = _recommend(sequence, dlModel, TDMOp.tree, candidateNum, useMask, dummyConsumed)
     // recs.sorted(Ordering.by[TreeNodePred, Float](_.pred)(Ordering[Float].reverse))
-    recs.sortBy(_._2)(Ordering[Float].reverse).take(topk).map(i => (i._1, sigmoid(i._2)))
+    recs.sortBy(_._2)(Ordering[Float].reverse).take(topk).map(i => (i._1, TDM.sigmoid(i._2)))
   }
 
   private def clearState(): Unit = {
@@ -80,5 +81,10 @@ object TDM {
 
   def loadTree(treePbPath: String): Unit = {
     TDMOp.initTree(treePbPath)
+  }
+
+  @inline
+  def sigmoid(logit: Float): Double = {
+    1.0 / (1 + java.lang.Math.exp(-logit))
   }
 }

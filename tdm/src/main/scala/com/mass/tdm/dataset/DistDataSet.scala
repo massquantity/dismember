@@ -7,6 +7,7 @@ import scala.collection.mutable
 
 import com.mass.sparkdl.dataset.DataUtil
 import com.mass.sparkdl.utils.{Engine, FileReader => DistFileReader}
+import com.mass.tdm.dataset.TDMSample.{TDMEvalSample, TDMTrainSample}
 import com.mass.tdm.encoding
 import com.mass.tdm.operator.TDMOp
 import org.apache.log4j.Logger
@@ -20,7 +21,7 @@ class DistDataSet(
     seqLen: Int,
     layerNegCounts: String,
     withProb: Boolean = true,
-    startSampleLayer: Int = -1,
+    startSampleLevel: Int = 1,
     tolerance: Int = 20,
     numThreadsPerNode: Int,
     parallelSample: Boolean,
@@ -41,7 +42,7 @@ class DistDataSet(
   private[tdm] var isCachedEval: Boolean = false
   private[tdm] val parallelSampling = parallelSample
   private[tdm] val evaluateDuringTraining = evaluate
-  private[tdm] var userConsumed: RDD[mutable.HashMap[Int, Array[Int]]] = _
+  private[tdm] var userConsumed: RDD[Map[Int, Seq[Int]]] = _
 
   lazy val count: Int = dataBuffer.mapPartitions(iter => {
     require(iter.hasNext)
@@ -96,9 +97,10 @@ class DistDataSet(
       val _batchSize = batchSizePerNode
       val _seqLen = seqLen
       val _layerNegCounts = layerNegCounts
+      val _startSampleLevel = startSampleLevel
       val _useMask = useMask
-      val localParams = (layerNegCounts, withProb, startSampleLayer,
-        tolerance, numThreadsPerNode, parallelSample)
+      val localParams = (layerNegCounts, withProb, startSampleLevel,
+        tolerance, numThreadsPerNode)
       // initialize tree on driver
       val pbPath = SparkFiles.get(pbFilePath.split("/").last)
       logger.info("pbFilePath: " + pbPath)
@@ -111,7 +113,7 @@ class DistDataSet(
         TDMOp.partialApply(pbPath) _ tupled localParams
         // val localTDM = TDMOp.apply _ tupled localParams
         val localMiniBatch = new MiniBatch(_batchSize, _seqLen,
-          localData.length, _layerNegCounts, _useMask)
+          localData.length, _layerNegCounts, _startSampleLevel, _useMask)
         Iterator.single(localMiniBatch)
       }).setName("miniBatchBuffer").cache()
     }
@@ -150,29 +152,29 @@ class DistDataSet(
       val _batchSize = evalBatchSizePerNode
       val _seqLen = seqLen
       val _layerNegCounts = layerNegCounts
+      val _startSampleLevel = startSampleLevel
       val _useMask = useMask
       evalMiniBatchBuffer = evalDataBuffer.mapPartitions(dataIter => {
         val localData = dataIter.next()
         val localMiniBatch = new MiniBatch(_batchSize, _seqLen,
-          localData.length, _layerNegCounts, _useMask)
+          localData.length, _layerNegCounts, _startSampleLevel, _useMask)
         Iterator.single(localMiniBatch)
       }).setName("eval miniBatchBuffer").cache()
     }
   }
 
   def readUserConsumed(sc: SparkContext, userConsumedPath: String): Unit = {
-    val userConsumedLocal = mutable.HashMap.empty[Int, Array[Int]]
+    // val userConsumedLocal = mutable.HashMap.empty[Int, Array[Int]]
     val fileReader = DistFileReader(userConsumedPath)
     val input = fileReader.open()
     val fileInput = scala.io.Source.fromInputStream(input, encoding.name())
-    for {
+    val mapping = for {
       line <- fileInput.getLines
       arr = line.trim.split(delimiter)
       user = arr.head.substring(5).toInt
       items = arr.tail.map(_.toInt)
-    } {
-      userConsumedLocal(user) = items
-    }
+    } yield user -> items.toSeq
+    val userConsumedLocal = mapping.toMap
 
     fileInput.close()
     input.close()
@@ -200,7 +202,7 @@ class DistDataSet(
 
   def originalEvalRDD(): RDD[Array[TDMSample]] = evalDataBuffer
 
-  def userConsumedRDD(): RDD[mutable.HashMap[Int, Array[Int]]] = userConsumed
+  def userConsumedRDD(): RDD[Map[Int, Seq[Int]]] = userConsumed
 
   def getMaxCode: Int = maxCode
 

@@ -8,10 +8,10 @@ import scala.concurrent.Future
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.utils.{Engine, Table}
 import com.mass.sparkdl.{Criterion, Module}
-import com.mass.sparkdl.nn.abstractnn.Activity
 import com.mass.sparkdl.optim.OptimMethod
 import com.mass.sparkdl.parameters.AllReduceParameter
 import com.mass.tdm.dataset.{MiniBatch, TDMSample}
+import com.mass.tdm.dataset.MiniBatch.{MaskTransformedBatch, SeqTransformedBatch, TransformedBatch}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.util.{DoubleAccumulator, LongAccumulator}
@@ -32,44 +32,29 @@ object OptimUtil {
       parallel: Boolean,
       subModelNum: Int,
       tasks: ArrayBuffer[Future[_]])
-    : (Array[(Activity, Tensor[Float])], Array[Int], Int) = {
+    : (Array[TransformedBatch], Array[Int], Int) = {
 
     val miniBatchSize = if (parallel) batch.getLength else batch.expandedSize()
     val taskSize = miniBatchSize / subModelNum
     val extraSize = miniBatchSize % subModelNum
     val parallelism =  if (taskSize == 0) extraSize else subModelNum
     // miniBatch element in one thread: Tuple(feature, label)
-    val miniBatchBuffer = new Array[(Activity, Tensor[Float])](parallelism)
+    val miniBatchBuffer = new Array[TransformedBatch](parallelism)
     val miniBatchLen = new Array[Int](parallelism)
 
-    if (parallel) {
-      tasks ++= Engine.default.invoke {
-        (0 until parallelism).map(i => () => {
-          val offset = batch.getOffset + i * taskSize + math.min(i, extraSize)
-          val length = taskSize + (if (i < extraSize) 1 else 0)
-          miniBatchBuffer(i) = batch.convert(data, offset, length, i)
-          miniBatchLen(i) = length
-        })
-      }
-    } else {
-      tasks += Engine.default.invoke( () => {
-        batch.convertAll(data)
-        var i = 0
-        while (i < parallelism) {
-          val offset = i * taskSize + math.min(i, extraSize)
-          val length = taskSize + (if (i < extraSize) 1 else 0)
-          miniBatchBuffer(i) = batch.slice(offset, length)
-          miniBatchLen(i) = length
-          i += 1
-        }
+    tasks ++= Engine.default.invoke {
+      (0 until parallelism).map(i => () => {
+        val offset = batch.getOffset + i * taskSize + math.min(i, extraSize)
+        val length = taskSize + (if (i < extraSize) 1 else 0)
+        miniBatchBuffer(i) = batch.convert(data, offset, length, i)
+        miniBatchLen(i) = length
       })
     }
-
     (miniBatchBuffer, miniBatchLen, parallelism)
   }
 
   private[optim]  def trainBatch(
-      miniBatchBuffer: Array[(Activity, Tensor[Float])],
+      miniBatchBuffer: Array[TransformedBatch],
       miniBatchLen: Array[Int],
       cachedModel: Cache[Float],
       lossSum: DoubleAccumulator,
@@ -82,8 +67,12 @@ object OptimUtil {
         val localModel: Module[Float] = cachedModel.localModels(i)
         localModel.training()
         val localCriterion = cachedModel.localCriterions(i)
-        val inputs = miniBatchBuffer(i)._1
-        val labels = miniBatchBuffer(i)._2
+        val (inputs, labels) = miniBatchBuffer(i) match {
+          case m: SeqTransformedBatch =>
+            (Table(m.items, m.sequence), m.labels)
+          case m: MaskTransformedBatch =>
+            (Table(m.items, m.sequence, m.masks), m.labels)
+        }
         val output = localModel.forward(inputs).asInstanceOf[Tensor[Float]]
         lossArray(i) = localCriterion.forward(output, labels).toDouble
         val lastGrads = localCriterion.backward(output, labels)

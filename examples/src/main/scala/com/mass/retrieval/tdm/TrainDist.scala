@@ -79,7 +79,7 @@ object TrainDist {
       seqLen = seqLen,
       layerNegCounts = layerNegCounts,
       withProb = withProb,
-      startSampleLayer = startSampleLayer,
+      startSampleLevel = startSampleLayer,
       tolerance = tolerance,
       numThreadsPerNode = numThreadsPerNode,
       parallelSample = parallelSample,

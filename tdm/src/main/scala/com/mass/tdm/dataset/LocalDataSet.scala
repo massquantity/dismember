@@ -3,141 +3,68 @@ package com.mass.tdm.dataset
 import java.nio.file.{Files, Paths}
 import java.util.concurrent.atomic.AtomicInteger
 
-import scala.collection.mutable
-
 import com.mass.sparkdl.utils.{FileReader => DistFileReader}
 import com.mass.sparkdl.dataset.DataUtil
+import com.mass.tdm.dataset.TDMSample.{TDMTrainSample, TDMEvalSample}
 import com.mass.tdm.encoding
 import com.mass.tdm.operator.TDMOp
 
 class LocalDataSet(
-    totalBatchSize: Int,
-    totalEvalBatchSize: Int = -1,
-    evaluate: Boolean,
+    trainPath: String,
+    evalPath: String,
+    pbFilePath: String,
+    userConsumedPath: String,
+    totalTrainBatchSize: Int,
+    totalEvalBatchSize: Int,
     seqLen: Int,
     layerNegCounts: String,
     withProb: Boolean = true,
-    startSampleLayer: Int = -1,
+    startSampleLevel: Int = 1,
     tolerance: Int = 20,
     numThreads: Int = 1,
-    parallelSample: Boolean = false,
-    miniBatch: Option[MiniBatch] = None,
-    delimiter: String = ",",
     useMask: Boolean = true) {
+  import LocalDataSet._
+  require(startSampleLevel > 0, s"start sample level should be at least 1, got $startSampleLevel")
 
-  private val batchSize = totalBatchSize
+  private val trainBatchSize = totalTrainBatchSize
   private val evalBatchSize = totalEvalBatchSize
-  private var dataBuffer: Array[TDMSample] = _
-  private var evalDataBuffer: Array[TDMSample] = _
-  private var miniBatchBuffer: MiniBatch = miniBatch.orNull
-  private var evalMiniBatchBuffer: MiniBatch = _
-  private[tdm] val parallelSampling = parallelSample
-  private[tdm] val evaluateDuringTraining = evaluate
-  private[tdm] val userConsumed = new mutable.HashMap[Int, Array[Int]]()
-
-  def readFile(
-      dataPath: String,
-      pbFilePath: String,
-      evalPath: Option[String] = None,
-      userConsumedPath: Option[String] = None): Unit = {
-
-    val fileReader = DistFileReader(dataPath)
-    val input = fileReader.open()
-    val fileInput = scala.io.Source.fromInputStream(input, encoding.name())
-    dataBuffer = (
-      for {
-        line <- fileInput.getLines
-        arr = line.trim.split(delimiter)
-        seqItems = arr.slice(1, arr.length - 1)
-        target = arr.last
-        if seqItems.exists(_.toDouble.toInt != 0)
-      } yield TDMTrainSample(seqItems.map(_.toInt), target.toInt)
-    ).toArray
-
-    fileInput.close()
-    input.close()
-    fileReader.close()
-
-    if (null == miniBatchBuffer) {
-      TDMOp(pbFilePath, layerNegCounts, withProb, startSampleLayer,
-        tolerance, numThreads, parallelSample)
-      miniBatchBuffer = new MiniBatch(batchSize, seqLen,
-        dataBuffer.length, layerNegCounts, useMask)
-    }
-
-    if (evaluateDuringTraining) {
-      require(evalBatchSize > 0, "must set evalBatchSize for evaluating")
-      evalPath match {
-        case Some(path: String) => readEvalFile(path)
-        case _ => throw new IllegalArgumentException("invalid evaluate data path...")
-      }
-      userConsumedPath match {
-        case Some(path: String) => readUserConsumed(path)
-        case _ => throw new IllegalArgumentException("invalid user consumed path...")
-      }
-    }
-  }
-
-  def readEvalFile(evalPath: String): Unit = {
-    // item sequence range [1, seqLen + 1), sequence + target
-    val _seqLen = seqLen + 1
-    val fileReader = DistFileReader(evalPath)
-    val input = fileReader.open()
-    val fileInput = scala.io.Source.fromInputStream(input, encoding.name())
-    evalDataBuffer = (
-      for {
-        line <- fileInput.getLines
-        arr = line.trim.split(delimiter)
-        user = arr.head.substring(5).toInt
-        seqItems = arr.slice(1, _seqLen).map(_.toInt)
-        labels = arr.slice(_seqLen, arr.length).map(_.toInt)
-      } yield TDMEvalSample(seqItems, labels, user)
-    ).toArray
-
-    fileInput.close()
-    input.close()
-    fileReader.close()
-
-    if (null == evalMiniBatchBuffer ) {
-      evalMiniBatchBuffer = new MiniBatch(evalBatchSize, seqLen,
-        evalDataBuffer.length, layerNegCounts, useMask)
-    }
-  }
-
-  def readUserConsumed(userConsumedPath: String): Unit = {
-    val fileReader = DistFileReader(userConsumedPath)
-    val input = fileReader.open()
-    val fileInput = scala.io.Source.fromInputStream(input, encoding.name())
-    for {
-      line <- fileInput.getLines
-      arr = line.trim.split(delimiter)
-      user = arr.head.substring(5).toInt
-      items = arr.tail.map(_.toInt)
-    } {
-      userConsumed(user) = items
-    }
-
-    fileInput.close()
-    input.close()
-    fileReader.close()
-  }
-
-  def shuffle(): Unit = {
-    DataUtil.shuffle(dataBuffer)
-  }
-
-  def size(): Int = dataBuffer.length
-
-  def evalSize(): Int = evalDataBuffer.length
+  private val trainData: Array[TDMSample] = readFile(trainPath, seqLen, readTrainData)
+  private val evalData: Array[TDMSample] = readFile(evalPath, seqLen, readEvalData)
+  val userConsumed: Map[Int, Seq[Int]] = readFile(userConsumedPath, seqLen, readUserConsumed)
+  lazy val trainMiniBatch: MiniBatch = new MiniBatch(
+    trainBatchSize,
+    seqLen,
+    trainData.length,
+    layerNegCounts,
+    startSampleLevel,
+    useMask
+  )
+  lazy val evalMiniBatch: MiniBatch = new MiniBatch(
+    evalBatchSize,
+    seqLen,
+    evalData.length,
+    layerNegCounts,
+    startSampleLevel,
+    useMask
+  )
+  // initialize TDMOp
+  TDMOp(
+    pbFilePath,
+    layerNegCounts,
+    withProb,
+    startSampleLevel,
+    tolerance,
+    numThreads
+  )
 
   def iteratorMiniBatch(train: Boolean, expandBatch: Boolean): Iterator[MiniBatch] = {
     if (!train) {
-      require(evalDataBuffer != null, "can't evaluate without eval data...")
+      require(evalData != null, "can't evaluate without eval data...")
     }
 
     new Iterator[MiniBatch] {
-      private val _miniBatch = if (train) miniBatchBuffer else evalMiniBatchBuffer
-      private val _batchSize =  if (train) batchSize else evalBatchSize
+      private val _miniBatch = if (train) trainMiniBatch else evalMiniBatch
+      private val _batchSize =  if (train) trainBatchSize else evalBatchSize
       private val numTargetsPerBatch = if (expandBatch) _miniBatch.numTargetsPerBatch else _batchSize
       private val index = new AtomicInteger(0)
 
@@ -158,17 +85,98 @@ class LocalDataSet(
     }
   }
 
-  def getMaxCode: Int = miniBatchBuffer.maxCode
+  def getMaxCode: Int = trainMiniBatch.maxCode
 
-  def getData: Array[TDMSample] = dataBuffer
+  def shuffle(): Unit = DataUtil.shuffle(trainData)
 
-  def getEvalData: Array[TDMSample] = evalDataBuffer
+  def trainSize: Int = trainData.length
 
-  def getUserConsumed: mutable.HashMap[Int, Array[Int]] = userConsumed
+  def evalSize: Int = evalData.length
+
+  def getData: Array[TDMSample] = trainData
+
+  def getEvalData: Array[TDMSample] = evalData
+
+  def getUserConsumed: Map[Int, Seq[Int]] = userConsumed
 }
 
 object LocalDataSet {
-  def apply(): LocalDataSet = {
-    ???
+
+  def apply(
+      trainPath: String,
+      evalPath: String,
+      pbFilePath: String,
+      userConsumedPath: String,
+      totalTrainBatchSize: Int,
+      totalEvalBatchSize: Int,
+      seqLen: Int,
+      layerNegCounts: String,
+      withProb: Boolean = true,
+      startSampleLevel: Int = 1,
+      tolerance: Int = 20,
+      numThreads: Int = 1,
+      useMask: Boolean = true
+  ): LocalDataSet = {
+    new LocalDataSet(
+      trainPath,
+      evalPath,
+      pbFilePath,
+      userConsumedPath,
+      totalTrainBatchSize,
+      totalEvalBatchSize,
+      seqLen,
+      layerNegCounts,
+      withProb,
+      startSampleLevel,
+      tolerance,
+      numThreads,
+      useMask)
+  }
+
+  def readFile[T](path: String, seqLen: Int, f: (scala.io.Source, Int) => T): T = {
+    val fileReader = DistFileReader(path)
+    val input = fileReader.open()
+    val fileInput = scala.io.Source.fromInputStream(input, encoding.name())
+    val output = f(fileInput, seqLen)
+    fileInput.close()
+    input.close()
+    fileReader.close()
+    output
+  }
+
+  val readTrainData: (scala.io.Source, Int) => Array[TDMSample] = (source, _) => {
+    val samples =
+      for {
+        line <- source.getLines
+        arr = line.trim.split(",")
+        seqItems = arr.slice(1, arr.length - 1)
+        target = arr.last
+        if seqItems.exists(_.toDouble.toInt != 0)
+      } yield TDMTrainSample(seqItems.map(_.toInt), target.toInt)
+    samples.toArray
+  }
+
+  val readEvalData: (scala.io.Source, Int) => Array[TDMSample] = (source, seqLen) => {
+    // item sequence range [1, seqLen + 1), sequence + target
+    val samples =
+      for {
+        line <- source.getLines
+        arr = line.trim.split(",")
+        user = arr.head.substring(5).toInt
+        seqItems = arr.slice(1, seqLen + 1).map(_.toInt)
+        labels = arr.slice(seqLen + 1, arr.length).map(_.toInt)
+      } yield TDMEvalSample(seqItems, labels, user)
+    samples.toArray
+  }
+
+  val readUserConsumed: (scala.io.Source, Int) => Map[Int, Seq[Int]] = (source, _) => {
+    val mapping =
+      for {
+        line <- source.getLines
+        arr = line.trim.split(",")
+        user = arr.head.substring(5).toInt
+        items = arr.tail.map(_.toInt).toSeq
+      } yield user -> items
+    mapping.toMap
   }
 }

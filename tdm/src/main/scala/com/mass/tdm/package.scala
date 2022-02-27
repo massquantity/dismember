@@ -10,8 +10,6 @@ package object tdm {
 
   val encoding: Charset = Charset.defaultCharset()
 
-  case class Feature(itemSeqs: Array[Int], masks: Array[Int] = null)
-
   implicit class ArrayExtension[@specialized(Int, Long, Float, Double) T](array: Array[T])(
       implicit order: T => Ordered[T]) {
 

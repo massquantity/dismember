@@ -1,6 +1,6 @@
 package com.mass.tdm.dataset
 
-trait TDMSample extends Serializable {
+sealed trait TDMSample extends Product with Serializable {
 
   val sequence: Array[Int]
 
@@ -11,30 +11,35 @@ trait TDMSample extends Serializable {
   val user: Int
 }
 
-case class TDMTrainSample(
+object TDMSample {
+
+  case class TDMTrainSample(
     override val sequence: Array[Int],
-    override val target: Int) extends TDMSample {
+    override val target: Int
+  ) extends TDMSample {
 
-  override val labels: Array[Int] = null
+    override val labels: Array[Int] = null
 
-  override val user: Int = -1
+    override val user: Int = -1
 
-  override def toString: String = {
-    s"seq: ${sequence.mkString("Array(", ", ", ")")} | " +
-      s"target: $target"
+    override def toString: String = {
+      s"seq: ${sequence.mkString("Array(", ", ", ")")} | " +
+        s"target: $target"
+    }
   }
-}
 
-case class TDMEvalSample(
+  case class TDMEvalSample(
     override val sequence: Array[Int],
     override val labels: Array[Int],
-    override val user: Int) extends TDMSample {
+    override val user: Int
+  ) extends TDMSample {
 
-  override val target: Int = labels.head
+    override val target: Int = labels.head
 
-  override def toString: String = {
-    s"seq: ${sequence.mkString("Array(", ", ", ")")} | " +
-      s"target: $target | " +
-      s"labels: ${if (labels == null) "null" else labels.mkString("Array(", ", ", ")")}"
+    override def toString: String = {
+      s"seq: ${sequence.mkString("Array(", ", ", ")")} | " +
+        s"target: $target | " +
+        s"labels: ${if (labels == null) "null" else labels.mkString("Array(", ", ", ")")}"
+    }
   }
 }

@@ -2,6 +2,7 @@ package com.mass.tdm.tree
 
 import java.io._
 
+import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
@@ -33,49 +34,53 @@ class TDMTree extends DistTree with Serializable {
   }
 
   // paddingIndex = -1, paddingId = 0
-  def idToCode(itemIds: Array[Int]): Array[Int] = {
-    require(initialized, "tree hasn't been initialized...")
-    val res = new Array[Int](itemIds.length)
-    var i = 0
-    while (i < itemIds.length) {
-      val id = itemIds(i)
+  def idToCode(itemIds: Array[Int]): (Seq[Int], Array[Int]) = {
+    val masks = new ArrayBuffer[Int]()
+    val codes = itemIds.zipWithIndex.map { case (id, i) =>
       if (id == paddingId) {
-        res(i) = -1
+        masks += i
+        -1
       } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
         // leaves
-        res(i) = idCodeMap(id)
+        idCodeMap(id)
       } else {
         // ancestors
-        res(i) = id - nonLeafOffset
-        if (res(i) > maxCode) res(i) = -1
+        val tmp = id - nonLeafOffset
+        if (tmp > maxCode) {
+          masks += i
+          -1
+        } else {
+          tmp
+        }
       }
-      i += 1
     }
-    res
+    (codes.toSeq, masks.toArray)
   }
 
-  def idToCodeWithMask(itemIds: Array[Int]): (Array[Int], ArrayBuffer[Int]) = {
-    val mask = new ArrayBuffer[Int]()
-    val res = new Array[Int](itemIds.length)
-    var i = 0
-    while (i < itemIds.length) {
-      val id = itemIds(i)
-      if (id == paddingId) {
-        res(i) = -1
-        mask += i
-      } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
-        res(i) = idCodeMap(id)
+  // get current node and its ancestors, but exclude root node
+  def pathNodes(itemCodes: Seq[Int]): Seq[List[TreeNode]] = {
+    @tailrec
+    def upTrace(code: Int, res: List[TreeNode]): List[TreeNode] = {
+      if (code == 0) {
+        res
       } else {
-        res(i) = id - nonLeafOffset
-        if (res(i) > maxCode) res(i) = -1
+        val parent = (code - 1) >> 1
+        val node = TreeNode(code, codeNodeMap(code))
+        upTrace(parent, node :: res)
       }
-      i += 1
     }
-    (res, mask)
+
+    itemCodes map { code =>
+      if (code <= 0 || !codeNodeMap.contains(code)) {
+        Nil
+      } else {
+        upTrace(code, Nil)
+      }
+    }
   }
 
   def getAncestorNodes(itemCodes: Array[Int]): Array[Array[TreeNode]] = {
-    itemCodes.map(code => {
+    itemCodes.map { code =>
       if (code <= 0 || !codeNodeMap.contains(code)) {
         Array.empty[TreeNode]
       } else {
@@ -87,20 +92,7 @@ class TDMTree extends DistTree with Serializable {
         }
         res.toArray
       }
-    })
-  }
-
-  def getChildNodes(itemCode: Int): List[TreeNode] = {
-    var res = List.empty[TreeNode]
-    val childLeft = 2 * itemCode + 1
-    if (codeNodeMap.contains(childLeft)) {
-      res = TreeNode(childLeft, codeNodeMap(childLeft)) :: res
     }
-    val childRight = 2 * itemCode + 2
-    if (codeNodeMap.contains(childRight)) {
-      res = TreeNode(childRight, codeNodeMap(childRight)) :: res
-    }
-    res
   }
 }
 

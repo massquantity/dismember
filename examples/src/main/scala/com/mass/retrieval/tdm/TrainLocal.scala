@@ -42,18 +42,18 @@ object TrainLocal {
 
     val totalBatchSize = getOrStop(conf, "total_batch_size").toInt
     val totalEvalBatchSize = conf.getOrElse("total_eval_batch_size", "-1").toInt
-    val evaluate = conf.getOrElse("evaluate_during_training", "false").toBoolean
+    // val evaluate = conf.getOrElse("evaluate_during_training", "false").toBoolean
     val layerNegCounts = getOrStop(conf, "layer_negative_counts")
     val withProb = conf.getOrElse("sample_with_probability", "true").toBoolean
-    val startSampleLayer = conf.getOrElse("start_sample_layer", "-1").toInt
+    val startSampleLevel = conf.getOrElse("start_sample_level", "1").toInt
     val tolerance = conf.getOrElse("sample_tolerance", "20").toInt
     val numThreads = Engine.coreNumber()
-    val parallelSample = conf.getOrElse("parallel_sample", "true").toBoolean
+    // val parallelSample = conf.getOrElse("parallel_sample", "true").toBoolean
 
     val dataPath = getOrStop(conf, "train_path")
     val pbFilePath = getOrStop(conf, "tree_protobuf_path")
-    val evalPath = conf.get("eval_path")
-    val userConsumedPath = conf.get("user_consumed_path")
+    val evalPath = getOrStop(conf, "eval_path")
+    val userConsumedPath = getOrStop(conf, "user_consumed_path")
 
     val embedSize = getOrStop(conf, "embed_size").toInt
     val learningRate = getOrStop(conf, "learning_rate").toDouble
@@ -65,24 +65,20 @@ object TrainLocal {
     val modelPath = getOrStop(conf, "model_path")
     val embedPath = getOrStop(conf, "embed_path")
 
-    val dataset = new LocalDataSet(
-      totalBatchSize = totalBatchSize,
+    val dataset = LocalDataSet(
+      trainPath = dataPath,
+      evalPath = evalPath,
+      pbFilePath = pbFilePath,
+      userConsumedPath = userConsumedPath,
+      totalTrainBatchSize = totalBatchSize,
       totalEvalBatchSize = totalEvalBatchSize,
-      evaluate = evaluate,
       seqLen = seqLen,
       layerNegCounts = layerNegCounts,
       withProb = withProb,
-      startSampleLayer = startSampleLayer,
+      startSampleLevel = startSampleLevel,
       tolerance = tolerance,
       numThreads = numThreads,
-      parallelSample = parallelSample,
       useMask = useMask)
-
-    dataset.readFile(
-      dataPath = dataPath,
-      pbFilePath = pbFilePath,
-      evalPath = evalPath,
-      userConsumedPath = userConsumedPath)
 
     val tdmModel = TDM(
       featSeqLen = seqLen,

@@ -108,7 +108,6 @@ trait DistTree {
 
     (idCodeAllParts, treeMeta)
   }
-
 }
 
 object DistTree {

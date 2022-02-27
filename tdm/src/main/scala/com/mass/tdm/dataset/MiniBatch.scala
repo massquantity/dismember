@@ -1,21 +1,17 @@
 package com.mass.tdm.dataset
 
-import com.mass.sparkdl.nn.abstractnn.Activity
 import com.mass.sparkdl.tensor.Tensor
-import com.mass.sparkdl.utils.Table
 import com.mass.tdm.operator.TDMOp
 
 class MiniBatch(
-  //  @transient val tdmConverter: TDMOp,
     batchSize: Int,
     val seqLen: Int,
     val originalDataSize: Int,
     layerNegCounts: String,
+    startSampleLevel: Int,
     useMask: Boolean) extends Serializable {
+  import MiniBatch._
 
-  @transient private var features: Tensor[Int] = _
-  // @transient private var featuresGroup: Seq[Tensor[Int]] = _
-  @transient private var labels: Tensor[Float] = _
   private var offset: Int = -1
   private var length: Int = -1
   val sampledNodesNumPerTarget: Int = computeSampleUnit()
@@ -29,8 +25,8 @@ class MiniBatch(
       num.toInt < math.pow(2, i).toInt
     }, "Num of negative samples must not exceed max numbers in current layer")
 
-    val negNumPerLayer = _layerNegCounts.slice(0, TDMOp.tree.maxLevel).map(_.toDouble.toInt)
-    // positive(one per layer) + negative nums
+    // positive(one per layer) + negative nums, exclude root node
+    val negNumPerLayer = _layerNegCounts.slice(startSampleLevel, TDMOp.tree.maxLevel).map(_.toDouble.toInt)
     negNumPerLayer.length + negNumPerLayer.sum
   }
 
@@ -46,61 +42,103 @@ class MiniBatch(
   }
 
   def convert(
-      data: Array[TDMSample],
-      threadOffset: Int,
-      threadLen: Int,
-      threadId: Int): (Activity, Tensor[Float]) = {
-
-    val (targetItems, features, labels) = TDMOp.convert(data, threadOffset, threadLen,
-      threadId, sampledNodesNumPerTarget, seqLen, useMask)
+    data: Array[TDMSample],
+    threadOffset: Int,
+    threadLen: Int,
+    threadId: Int,
+  ): TransformedBatch = {
+    val targetItems = Seq.range(threadOffset, threadOffset + threadLen).map(data(_).target)
+    val (itemCodes, labels) = sampleNegative(targetItems, threadId)
+    val (itemSeqs, seqMasks) =
+      if (!useMask) {
+        transform(data, threadOffset, threadLen, sampledNodesNumPerTarget)
+      } else {
+        transformWithMask(data, threadOffset, threadLen, sampledNodesNumPerTarget, seqLen)
+      }
     val itemShape = Array(threadLen * sampledNodesNumPerTarget, 1)
     val itemSeqShape = Array(threadLen * sampledNodesNumPerTarget, seqLen)
     val labelShape = Array(threadLen * sampledNodesNumPerTarget)
 
     if (!useMask) {
-      val convertedTable = Table(
-        Tensor(targetItems, itemShape),
-        Tensor(features.itemSeqs, itemSeqShape)
+      SeqTransformedBatch(
+        Tensor(itemCodes.toArray, itemShape),
+        Tensor(itemSeqs.toArray, itemSeqShape),
+        Tensor(labels.toArray, labelShape),
       )
-      (convertedTable, Tensor(labels, labelShape))
-
     } else {
-      val masks = if (features.masks.isEmpty) {
-        Tensor[Int]()
-      } else {
-        val maskShape = Array(features.masks.length)
-        Tensor(features.masks, maskShape)
-      }
-      val convertedTable = Table(
-        Tensor(targetItems, itemShape),
-        Tensor(features.itemSeqs, itemSeqShape),
-        masks
+      val masks =
+        if (seqMasks.isEmpty) {
+          Tensor[Int]()
+        } else {
+          val maskShape = Array(seqMasks.length)
+          Tensor(seqMasks, maskShape)
+        }
+      MaskTransformedBatch(
+        Tensor(itemCodes.toArray, itemShape),
+        Tensor(itemSeqs.toArray, itemSeqShape),
+        Tensor(labels.toArray, labelShape),
+        masks,
       )
-      (convertedTable, Tensor(labels, labelShape))
     }
-  }
-
-  def convertAll(data: Array[TDMSample]): this.type = {
-    require(useMask, "Attention mode only support parallel sampling")
-    val (targetItems, _features, _labels) = TDMOp.convert(data, offset, length, 0,
-      sampledNodesNumPerTarget, seqLen, useMask)
-    val itemSeqShape = Array(length * sampledNodesNumPerTarget, seqLen)
-    val labelShape = Array(length * sampledNodesNumPerTarget)
-    this.features = Tensor(_features.itemSeqs, itemSeqShape)
-    this.labels = Tensor(_labels, labelShape)
-    this
-  }
-
-  def slice(offset: Int, length: Int): (Tensor[Int], Tensor[Float]) = {
-    (features.narrow(0, offset, length), labels.narrow(0, offset, length))
   }
 
   def getOffset: Int = offset
 
   def getLength: Int = length
 
-  def getFeatures: Tensor[Int] = features
+}
 
-  def getLabels: Tensor[Float] = labels
+object MiniBatch {
 
+  sealed trait TransformedBatch extends Product with Serializable
+
+  case class SeqTransformedBatch(
+    items: Tensor[Int],
+    sequence: Tensor[Int],
+    labels: Tensor[Float]) extends TransformedBatch
+
+  case class MaskTransformedBatch(
+    items: Tensor[Int],
+    sequence: Tensor[Int],
+    labels: Tensor[Float],
+    masks: Tensor[Int]) extends TransformedBatch
+
+  def sampleNegative(targetItemIds: Seq[Int], threadId: Int): (Seq[Int], Seq[Float]) = {
+    val (itemCodes, labels) = TDMOp.sampler.sample(targetItemIds, threadId)
+    // val (itemCodes, _) = TDMOp.tree.idToCode(itemIds)
+    (itemCodes, labels)
+  }
+
+  def transform(
+    data: Array[TDMSample],
+    offset: Int,
+    length: Int,
+    sampledNodesNumPerTarget: Int,
+  ): (Seq[Int], Array[Int]) = {
+    val copiedSeqs = Seq.range(offset, offset + length) flatMap { i =>
+      val (featItems, _) = TDMOp.tree.idToCode(data(i).sequence)
+      Seq.fill(sampledNodesNumPerTarget)(featItems).flatten
+    }
+    (copiedSeqs, Array.empty[Int])
+  }
+
+  def transformWithMask(
+    data: Array[TDMSample],
+    offset: Int,
+    length: Int,
+    sampledNodesNumPerTarget: Int,
+    seqLen: Int,
+  ): (Seq[Int], Array[Int]) = {
+    val (copiedSeqs, masks) = (
+      for {
+        i <- 0 until length
+        itemIds = data(offset + i).sequence
+        (featItems, mask) = TDMOp.tree.idToCode(itemIds)
+        dataOffset = i * (sampledNodesNumPerTarget * seqLen)
+        j <- 0 until sampledNodesNumPerTarget
+        offsetMask = mask.map(_ + dataOffset + j * seqLen)
+      } yield (featItems, offsetMask)
+    ).unzip
+    (copiedSeqs.flatten, masks.toArray.flatten)
+  }
 }
