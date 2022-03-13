@@ -34,10 +34,11 @@ object ClusterTree {
     Property.configLocal(conf)
 
     val model = new RecursiveCluster(
+      embedPath = getOrStop(conf, "embed_path"),
+      outputTreePath = getOrStop(conf, "tree_protobuf_path"),
       parallel = conf.getOrElse("parallel", "true").toBoolean,
       numThreads = Engine.coreNumber())
 
-    time(model.run(getOrStop(conf, "embed_path"), getOrStop(conf, "tree_protobuf_path")), "cluster")
-
+    time(model.run(), "cluster")
   }
 }

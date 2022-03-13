@@ -4,105 +4,48 @@ import java.io._
 import java.util.concurrent.ForkJoinPool
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
-import scala.util.{Failure, Success, Try, Using}
+import scala.util.Using
 
+import com.mass.clustering.SpectralClustering
 import com.mass.sparkdl.utils.{FileReader => DistFileReader}
-import com.mass.tdm.ArrayExtension
+import com.mass.tdm.{encoding, ArrayExtension}
 import com.mass.tdm.tree.TreeBuilder
 import org.apache.log4j.{Level, Logger}
 import smile.clustering.{KMeans, PartitionClustering}
 
-// todo: first spectral clustering, then Kmeans
 class RecursiveCluster(
-    parallel: Boolean = false,
-    numThreads: Int = 1,
+    embedPath: String,
+    outputTreePath: String,
+    parallel: Boolean,
+    numThreads: Int,
     delimiter: String = ",",
     threshold: Int = 256,
-    clusterIterNum: Int = 10) {
-
+    clusterIterNum: Int = 10,
+    clusterType: String = "kmeans") {
   import RecursiveCluster._
   Logger.getLogger("smile").setLevel(Level.ERROR)
-
-  private var ids: Array[Int] = _
-  private var codes: Array[Int] = _
-  private var embeddings: Array[Array[Double]] = _
-  private var stat: Option[mutable.Map[Int, Int]] = None
   require(threshold >= 4, "threshold should be no less than 4")
+  require(clusterType == "kmeans" || clusterType == "spectral",
+    s"clusterType must be one of ('kmeans', 'spectral')")
 
-  def getCodes: Array[Int] = codes
+  val (ids, embeddings): (Array[Int], Array[Array[Double]]) = readFile(embedPath, delimiter)
+  val codes: Array[Int] = Array.fill[Int](ids.length)(0)
 
-  def getIds: Array[Int] = ids
-
-  def run(
-      embedPath: String,
-      outputTreePath: String,
-      statPath: Option[String] = None): Unit = {
-
-    readFile(embedPath, statPath)
-
+  def run(): Unit = {
     if (parallel) {
       trainParallel(0, ids.indices.toArray)
     } else {
       train(0, ids.indices.toArray)
     }
-
     val builder = new TreeBuilder(outputTreePath)
-    builder.build(treeIds = ids, treeCodes = codes, stat = stat)
-  }
-
-  def readFile(embedPath: String, statPath: Option[String]): Unit = {
-    val _ids = new ArrayBuffer[Int]()
-    val _embeddings = new ArrayBuffer[Array[Double]]()
-
-    val fileReader = DistFileReader(embedPath)
-    val inputStream = fileReader.open()
-    Using(new BufferedReader(new InputStreamReader(inputStream))) { input =>
-      Iterator.continually(input.readLine()).takeWhile(_ != null).foreach { line =>
-        val arr = line.trim.split(delimiter)
-        _ids += arr.head.trim.toDouble.toInt
-        _embeddings += arr.tail.map(_.trim.toDouble)
-      }
-    } match {
-      case Success(_) =>
-        inputStream.close()
-        fileReader.close()
-      case Failure(e: FileNotFoundException) =>
-        println(s"""file "$embedPath" not found""")
-        throw e
-      case Failure(t: Throwable) =>
-        throw t
-    }
-
-    ids = _ids.toArray
-    codes = Array.fill[Int](ids.length)(0)
-    embeddings = _embeddings.toArray
-
-    statPath match {
-      case Some(sf) =>
-        val _stat = mutable.HashMap.empty[Int, Int]
-        val fileReader = DistFileReader(sf)
-        val inputStream = fileReader.open()
-        Using(new BufferedReader(new InputStreamReader(inputStream))) { sfInput =>
-          sfInput.lines.forEach { line =>
-            val arr = line.split(delimiter)
-            _stat(arr(0).toDouble.toInt) = arr(1).toDouble.toInt
-          }
-        } match {
-          case Success(_) =>
-          case Failure(e: Throwable) =>
-            throw e
-        }
-        stat = Some(_stat)
-      case None =>
-    }
+    builder.build(treeIds = ids, treeCodes = codes)
   }
 
   def train(pcode: Int, index: Array[Int]): Unit = {
     if (index.length <= threshold) {
-      minibatch(pcode, index, codes, embeddings, clusterIterNum)
+      miniBatch(pcode, index, codes, embeddings, clusterIterNum, clusterType)
     } else {
-      val (leftIndex, rightIndex) = cluster(index, embeddings, clusterIterNum)
+      val (leftIndex, rightIndex) = cluster(index, embeddings, clusterIterNum, clusterType)
       train(2 * pcode + 1, leftIndex)
       train(2 * pcode + 2, rightIndex)
     }
@@ -112,23 +55,41 @@ class RecursiveCluster(
     // val pool = ForkJoinPool.commonPool()
     val pool = new ForkJoinPool(numThreads)
     // println("parallelism: " + pool.getParallelism + " " + pool.getPoolSize)
-    val task = new ForkJoinProcess(pcode, index, codes, embeddings, threshold, clusterIterNum)
+    val task = new ForkJoinProcess(
+      pcode,
+      index,
+      codes,
+      embeddings,
+      threshold,
+      clusterIterNum,
+      clusterType
+    )
     pool.invoke(task)
   }
 }
 
 object RecursiveCluster {
 
-  def minibatch(
-      pcode: Int,
-      index: Array[Int],
-      codes: Array[Int],
-      embeddings: Array[Array[Double]],
-      ClusterIterNum: Int): Unit = {
+  def readFile(embedPath: String, delimiter: String): (Array[Int], Array[Array[Double]]) = {
+    val fileReader = DistFileReader(embedPath)
+    val inputStream = fileReader.open()
+    val lines = Using.resource(new BufferedReader(new InputStreamReader(inputStream))) { reader =>
+      Iterator.continually(reader.readLine()).takeWhile(_ != null).toArray
+    }.map(_.split(delimiter))
+    val ids = lines.map(_.head.trim.toInt)
+    val embeds = lines.map(_.tail.map(_.trim.toDouble))
+    (ids, embeds)
+  }
 
-    val queue = mutable.Queue.empty[(Int, Array[Int])]
-    queue += Tuple2(pcode, index)
-
+  def miniBatch(
+    pcode: Int,
+    index: Array[Int],
+    codes: Array[Int],
+    embeddings: Array[Array[Double]],
+    clusterIterNum: Int,
+    clusterType: String
+  ): Unit = {
+    val queue = mutable.Queue[(Int, Array[Int])](Tuple2(pcode, index))
     while (queue.nonEmpty) {
       val (code, idx) = queue.dequeue()
       val (leftCode, rightCode) = (2 * code + 1, 2 * code + 2)
@@ -136,13 +97,12 @@ object RecursiveCluster {
         codes(idx(0)) = leftCode
         codes(idx(1)) = rightCode
       } else {
-        val (leftIndex, rightIndex) = cluster(idx, embeddings, ClusterIterNum)
+        val (leftIndex, rightIndex) = cluster(idx, embeddings, clusterIterNum, clusterType)
         if (leftIndex.length == 1) {
           codes(leftIndex.head) = leftCode
         } else {
           queue += Tuple2(leftCode, leftIndex)
         }
-
         if (rightIndex.length == 1) {
           codes(rightIndex.head) = rightCode
         } else {
@@ -152,25 +112,32 @@ object RecursiveCluster {
     }
   }
 
+  // choose one centroid to compute and sort according to distance,
+  // then split into two subsets.
   def cluster(
-      index: Array[Int],
-      embeddings: Array[Array[Double]],
-      ClusterIterNum: Int): (Array[Int], Array[Int]) = {
-
-    val embedPartial = index.map(i => embeddings(i))
-    val kmeansModel: KMeans = PartitionClustering.run(
-      ClusterIterNum, () => KMeans.fit(embedPartial, 2))
-    // choose one centroid to compute and sort according to distance,
-    // then split into two subsets
-    val centroid = kmeansModel.centroids.head
-    val distance = embedPartial.map(emb => squaredDistance(emb, centroid))
+    index: Array[Int],
+    embeddings: Array[Array[Double]],
+    clusterIterNum: Int,
+    clusterType: String
+  ): (Array[Int], Array[Int]) = {
+    val embedPartial = index.map(embeddings(_))
+    val (centroid, matrix) = clusterType match {
+      case "kmeans" =>
+        val kmeansModel: KMeans = PartitionClustering.run(
+          clusterIterNum, () => KMeans.fit(embedPartial, 2))
+        (kmeansModel.centroids.head, embedPartial)
+      case "spectral" =>
+        val clusterResult = SpectralClustering.fit(embedPartial, 2, 1.0, clusterIterNum)
+        (clusterResult.getLeft, clusterResult.getRight)
+    }
+    val distance = matrix.map(emb => squaredDistance(emb, centroid))
     balanceTree(distance, index)
   }
 
   def balanceTree(distance: Array[Double], index: Array[Int]): (Array[Int], Array[Int]) = {
     val mid = distance.length / 2
-    val indirectIdx = distance.argPartition(inplace = true, position = mid).splitAt(mid)
-    (indirectIdx._1.map(index(_)), indirectIdx._2.map(index(_)))
+    val (leftPart, rightPart) = distance.argPartition(inplace = true, position = mid).splitAt(mid)
+    (leftPart.map(index(_)), rightPart.map(index(_)))
   }
 
   @inline
