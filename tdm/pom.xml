@@ -24,6 +24,24 @@
         </dependency>
 
         <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>javacpp</artifactId>
+            <version>1.5.6</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>openblas</artifactId>
+            <version>0.3.17-1.5.6</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>arpack-ng</artifactId>
+            <version>3.8.0-1.5.6</version>
+        </dependency>
+
+        <dependency>
             <groupId>com.mass</groupId>
             <artifactId>sparkdl</artifactId>
             <version>1.0</version>
