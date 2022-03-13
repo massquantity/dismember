@@ -52,7 +52,7 @@ object TrainDist {
     val evaluate = modelConf.getOrElse("evaluate_during_training", "false").toBoolean
     val layerNegCounts = getOrStop(modelConf, "layer_negative_counts")
     val withProb = modelConf.getOrElse("sample_with_probability", "true").toBoolean
-    val startSampleLayer = modelConf.getOrElse("start_sample_layer", "-1").toInt
+    val startSampleLevel = modelConf.getOrElse("start_sample_level", "1").toInt
     val tolerance = modelConf.getOrElse("sample_tolerance", "20").toInt
     val numThreadsPerNode = Engine.coreNumber()
     val parallelSample = modelConf.getOrElse("parallel_sample", "true").toBoolean
@@ -79,7 +79,7 @@ object TrainDist {
       seqLen = seqLen,
       layerNegCounts = layerNegCounts,
       withProb = withProb,
-      startSampleLevel = startSampleLayer,
+      startSampleLevel = startSampleLevel,
       tolerance = tolerance,
       numThreadsPerNode = numThreadsPerNode,
       parallelSample = parallelSample,

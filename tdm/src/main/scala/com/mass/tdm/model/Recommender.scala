@@ -2,6 +2,7 @@ package com.mass.tdm.model
 
 import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.View
 import scala.math.Ordering
 
 import com.mass.sparkdl.Module
@@ -50,7 +51,7 @@ trait Recommender {
     val modelInputs = duplicateSequence(sequence, tree, useMask, candidateNum * 2)
     val (levelStartCode, level) = getLevelStart(candidateNum, 0, 0)
     val levelEndCode = levelStartCode * 2 + 1
-    val initCandidates = Array.range(levelStartCode, levelEndCode)
+    val initCandidates = Vector.range(levelStartCode, levelEndCode)
       .filter(codeNodeMap.contains)
       .map(i => TreeNodePred(i, codeNodeMap(i), 0.0f))
     val initValue = LevelInfo(initCandidates, Nil)
@@ -66,7 +67,7 @@ trait Recommender {
             levelInfo.leafNodes
           }
         if (nonLeafNodes.isEmpty) {
-          LevelInfo(Array.empty[TreeNodePred], newLeafNodes)
+          LevelInfo(Vector.empty[TreeNodePred], newLeafNodes)
         } else {
           val beamNodes =
             if (nonLeafNodes.length > candidateNum) {
@@ -82,13 +83,13 @@ trait Recommender {
             }
           val childrenNodes = beamNodes
             .view
-            .flatMap(n => IndexedSeq(2 * n.code + 1, 2 * n.code + 2))
+            .flatMap(n => View(2 * n.code + 1, 2 * n.code + 2))
             .filter(codeNodeMap.contains)
             .map(i => TreeNode(i, codeNodeMap(i)))
             .toArray
           val features = modelInputs.buildInputs(childrenNodes)
           val preds = model.forward(features).toTensor.storage().array()
-          val newCandidateNodes = Array.range(0, childrenNodes.length).map { i =>
+          val newCandidateNodes = Vector.range(0, childrenNodes.length).map { i =>
             TreeNodePred(childrenNodes(i).code, childrenNodes(i).node, preds(i))
           }
           LevelInfo(newCandidateNodes, newLeafNodes)
@@ -109,7 +110,7 @@ object Recommender {
 
   case class TreeNodePred(code: Int, node: Node, pred: Float)
 
-  case class LevelInfo(candidateNodes: Array[TreeNodePred], leafNodes: List[TreeNodePred])
+  case class LevelInfo(candidateNodes: Vector[TreeNodePred], leafNodes: List[TreeNodePred])
 
   sealed trait ModelInputs {
 
@@ -128,7 +129,9 @@ object Recommender {
     }
   }
 
-  private class SeqModelInputs(targetItem: Tensor[Int], seqItems: Tensor[Int]) extends ModelInputs {
+  private class SeqModelInputs(
+      targetItem: Tensor[Int],
+      seqItems: Tensor[Int]) extends ModelInputs {
 
     override def buildInputs(targetNodes: Array[TreeNode]): Table = {
       val (item, seq) = narrowInputRange(targetNodes, targetItem, seqItems)

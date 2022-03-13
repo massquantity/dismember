@@ -28,7 +28,7 @@ trait CandidateSearcher {
     val initValue = Seq(
       PathInfo(
         intermediateInput = sequence,
-        intermediatePath = List.empty[Int],
+        intermediatePath = Nil,
         candidateNode = -1,
         probability = 1.0)
     )

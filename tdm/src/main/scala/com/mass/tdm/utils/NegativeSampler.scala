@@ -89,8 +89,8 @@ class NegativeSampler(
           case n => pathNodes.drop(n - 1)
         }
         validLevels = startSampleLevel until totalLevel
-        (nodes, level) <- validNodes zip validLevels
-        posCode = nodes.code
+        (node, level) <- validNodes zip validLevels
+        posCode = node.code
         negCodes =
           if (withProb) {
             sampleFromCategoricalDistribution(level, posCode, threadId)
@@ -127,13 +127,10 @@ class NegativeSampler(
         s"popular items with high sampling probabilities")
       val levelStart = (math.pow(2, level) - 1).toInt
       val levelEnd = levelStart * 2 + 1
-      val numRemain = negNum - hasSampled.size
-      var k = 0
-      while (k < numRemain) {
+      while (hasSampled.size < negNum) {
         val s = ThreadLocalRandom.current.nextInt(levelStart, levelEnd)
         if (tree.codeNodeMap.contains(s)) {
           hasSampled += s
-          k += 1
         }
       }
     }

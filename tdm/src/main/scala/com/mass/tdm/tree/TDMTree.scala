@@ -78,22 +78,6 @@ class TDMTree extends DistTree with Serializable {
       }
     }
   }
-
-  def getAncestorNodes(itemCodes: Array[Int]): Array[Array[TreeNode]] = {
-    itemCodes.map { code =>
-      if (code <= 0 || !codeNodeMap.contains(code)) {
-        Array.empty[TreeNode]
-      } else {
-        val res = new ArrayBuffer[TreeNode]()
-        var _code = code
-        while (_code != 0) {
-          res += TreeNode(_code, codeNodeMap(_code))
-          _code = (_code - 1) >> 1
-        }
-        res.toArray
-      }
-    }
-  }
 }
 
 object TDMTree {

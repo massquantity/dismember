@@ -64,7 +64,7 @@ class MiniBatch(
 
 object MiniBatch {
 
-  sealed trait TransformedBatch
+  sealed trait TransformedBatch extends Product with Serializable
 
   case class LayerTransformedBatch(
     concatInputs: IndexedSeq[Tensor[Int]],  // itemSeqs + paths

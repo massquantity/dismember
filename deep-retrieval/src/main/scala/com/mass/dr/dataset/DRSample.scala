@@ -1,6 +1,6 @@
 package com.mass.dr.dataset
 
-sealed trait DRSample extends Serializable {
+sealed trait DRSample extends Product with Serializable {
 
   val sequence: Array[Int]
 
