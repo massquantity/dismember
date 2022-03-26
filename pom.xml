@@ -12,9 +12,10 @@
     <modules>
         <module>sparkdl</module>
         <module>tdm</module>
-        <module>examples</module>
         <module>jtm</module>
+        <module>otm</module>
         <module>deep-retrieval</module>
+        <module>examples</module>
     </modules>
 
     <properties>
