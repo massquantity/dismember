@@ -24,7 +24,7 @@ class NegativeSampler(
   private var negNumPerLayer: Array[Int] = _
   private[tdm] var layerSum: Int = -1
   private var levelProbDistributions: IndexedSeq[EnumeratedIntegerDistribution] = _
-  private val totalLevel: Int = tree.maxLevel
+  private val totalLevel: Int = tree.maxLevel + 1
   private[tdm] var initialized: Boolean = false
 
   def initParallel(): this.type = {
@@ -44,12 +44,12 @@ class NegativeSampler(
 
   private def computeSampleUnit(): Unit = {
     val _layerNegCounts = layerNegCounts.split(",")
-    require(_layerNegCounts.length >= tree.maxLevel, "Not enough negative sample layers")
+    require(_layerNegCounts.length >= totalLevel, "Not enough negative sample layers")
     require(_layerNegCounts.zipWithIndex.forall { case (num, i) =>
       num.toInt < math.pow(2, i).toInt
     }, "Num of negative samples must not exceed max numbers in current layer")
 
-    negNumPerLayer = _layerNegCounts.take(tree.maxLevel).map(_.toDouble.toInt)
+    negNumPerLayer = _layerNegCounts.take(totalLevel).map(_.toDouble.toInt)
     // positive(one per layer) + negative nums, exclude root node
     layerSum = negNumPerLayer.length - 1 + negNumPerLayer.sum - negNumPerLayer.head
   }

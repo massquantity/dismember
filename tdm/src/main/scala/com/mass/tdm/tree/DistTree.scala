@@ -22,41 +22,18 @@ trait DistTree {
   protected var maxCode: Int
   protected var nonLeafOffset: Int
 
-  @inline
-  def isFiltered(code: Int): Boolean = {
-    if (code < 0) return true
-    var maxIdx = 0
-    var i = 0
-    while (i < maxLevel) {
-      maxIdx = maxIdx * 2 + 1
-      i += 1
-    }
-
-    var _code = code
-    while (_code < maxIdx) {
-      if (leafCodes.contains(_code)) {
-        return false
-      }
-      _code = _code * 2 + 1
-    }
-    true
-  }
-
   def loadItems(idCodeAllParts: ArrayBuffer[IdCodePart], meta: TreeMeta): Unit = {
-    var _maxCode: Int = -1
-    var maxLeafId: Int = -1
+    val pairs =
+      for {
+        part <- idCodeAllParts
+        pair <- part.idCodeList
+      } yield pair
 
-    idCodeAllParts.foreach { part =>
-      part.idCodeList.foreach { i =>
-        idCodeMap(i.id) = i.code
-        leafCodes += i.code
-        maxLeafId = math.max(maxLeafId, i.id)
-        _maxCode = math.max(_maxCode, i.code)
-      }
-    }
-
-    nonLeafOffset = maxLeafId + 1
-    maxCode = _maxCode
+    val (leafIds, codes) = (pairs.map(_.id), pairs.map(_.code))
+    idCodeMap ++= leafIds.zip(codes)
+    leafCodes ++= codes
+    nonLeafOffset = leafIds.max + 1
+    maxCode = codes.max
     maxLevel = meta.maxLevel
   }
 

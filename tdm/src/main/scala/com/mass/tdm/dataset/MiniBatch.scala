@@ -20,13 +20,13 @@ class MiniBatch(
 
   private def computeSampleUnit(): Int = {
     val _layerNegCounts = layerNegCounts.split(",")
-    require(_layerNegCounts.length >= TDMOp.tree.maxLevel, "Not enough negative sample layers")
+    require(_layerNegCounts.length >= TDMOp.tree.maxLevel + 1, "Not enough negative sample layers")
     require(_layerNegCounts.zipWithIndex.forall { case (num, i) =>
       num.toInt < math.pow(2, i).toInt
     }, "Num of negative samples must not exceed max numbers in current layer")
 
     // positive(one per layer) + negative nums, exclude root node
-    val negNumPerLayer = _layerNegCounts.slice(startSampleLevel, TDMOp.tree.maxLevel).map(_.toDouble.toInt)
+    val negNumPerLayer = _layerNegCounts.slice(startSampleLevel, TDMOp.tree.maxLevel + 1).map(_.toInt)
     negNumPerLayer.length + negNumPerLayer.sum
   }
 

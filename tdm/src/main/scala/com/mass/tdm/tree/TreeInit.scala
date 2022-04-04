@@ -19,39 +19,38 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
 
   private val stat = mutable.HashMap.empty[Int, Int]
   private val userConsumed = mutable.HashMap.empty[Int, Array[Int]]
-  private var userInteraction: Map[Int, Array[Int]] = _
-  private var trainSample: InitSample = _
 
   def generate(
-      dataFile: String,
-      trainFile: String,
-      evalFile: Option[String],
-      statFile: String,
-      leafIdFile: String,
-      treePbFile: String,
-      userConsumedFile: Option[String]): Unit = {
-
+    dataFile: String,
+    trainFile: String,
+    evalFile: Option[String],
+    statFile: String,
+    leafIdFile: String,
+    treePbFile: String,
+    userConsumedFile: Option[String]
+  ): Unit = {
     if (splitForEval) {
       require(evalFile.isDefined, "couldn't find eval file path...")
     }
 
-    readFile(dataFile)
+    val trainSample = readFile(dataFile)
+    val userInteraction = getUserInteracted(trainSample)
     if (splitForEval) {
-      writeFile(trainFile, mode = "half_train")
-      writeFile(evalFile.get, mode = "eval")
+      writeFile(trainFile, mode = "half_train", userInteraction)
+      writeFile(evalFile.get, mode = "eval", userInteraction)
     } else {
-      writeFile(trainFile, mode = "train")
+      writeFile(trainFile, mode = "train", userInteraction)
     }
-    writeFile(statFile, mode = "stat")
+    writeFile(statFile, mode = "stat", userInteraction)
 
     userConsumedFile match {
-      case Some(path) => writeFile(path, mode = "user_consumed")
+      case Some(path) => writeFile(path, mode = "user_consumed", userInteraction)
       case None =>
     }
     initializeTree(trainSample, leafIdFile, treePbFile)
   }
 
-  def readFile(filename: String): Unit = {
+  def readFile(filename: String): InitSample = {
     var categoryDict = Map.empty[String, Int]
     var labelDict = Map.empty[String, Float]
     val users = new mutable.ArrayBuffer[Int]
@@ -87,14 +86,13 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
     input.close()
     fileReader.close()
 
-    trainSample = InitSample(
+    InitSample(
       users.toArray,
       items.toArray,
       categories.toArray,
       labels.toArray,
-      timestamp.toArray)
-
-    userInteraction = getUserInteracted(trainSample)
+      timestamp.toArray
+    )
   }
 
   private def getUserInteracted(trainSample: InitSample): Map[Int, Array[Int]] = {
@@ -121,7 +119,7 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
     Map.empty ++ res
   }
 
-  private def writeFile(filePath: String, mode: String): Unit = {
+  private def writeFile(filePath: String, mode: String, userInteraction: Map[Int, Array[Int]]): Unit = {
     val fileWriter: DistFileWriter = DistFileWriter(filePath)
     val output: OutputStream = fileWriter.create(overwrite = true)
     val writer = new PrintWriter(output, true)
@@ -156,40 +154,28 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
   }
 
   private[tdm] def initializeTree(
-      trainSample: InitSample,
-      leafIdFile: String,
-      treePbFile: String): Unit = {
-
-    // val item_id_set = trainSample("item").distinct.toSet[Int]
-    val itemSet = mutable.HashSet.empty[Int]
-    val itemBuffer = mutable.ArrayBuffer.empty[Item]
-    var i = 0
-    while (i < trainSample.item.length) {
-      val itemId = trainSample.item(i)
-      val catId = trainSample.category(i)
-      if (!itemSet.contains(itemId)) {
-        itemSet += itemId
-        itemBuffer += Item(itemId, catId)
-      }
-      i += 1
-    }
-    var items = itemBuffer.toArray
+    trainSample: InitSample,
+    leafIdFile: String,
+    treePbFile: String
+  ): Unit = {
+    val uniqueItems = (trainSample.item lazyZip trainSample.category)
+      .map(Item(_, _))
+      .distinctBy(_.itemId)
 
     val fileWriter = DistFileWriter(leafIdFile)
     val output = fileWriter.create(overwrite = true)
     val writer = new DataOutputStream(new BufferedOutputStream(output))
-  //  val writer = new BufferedWriter(new FileWriter(new File(leafIdFile)))
     try {
-      items.foreach(x => writer.writeBytes(s"${x.itemId.toString}\n"))
+      uniqueItems.foreach(x => writer.writeBytes(s"${x.itemId.toString}\n"))
     } finally {
       writer.close()
       output.close()
       fileWriter.close()
     }
 
-    items = items.sortWith((a, b) => {
+    val items = uniqueItems.sortWith { (a, b) =>
       a.catId < b.catId || (a.catId == b.catId && a.itemId < b.itemId)
-    })
+    }
 
     def genCode(start: Int, end: Int, code: Int): Unit = {
       if (end <= start) return
@@ -206,11 +192,11 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
     val ids = items.map(_.itemId)
     val codes = items.map(_.code)
 
-    val builder = new TreeBuilder(treePbFile)
-    builder.build(
+    TreeBuilder.build(
+      outputTreePath = treePbFile,
       treeIds = ids,
       treeCodes = codes,
-      stat = Some(stat)
+      stat = Some(stat.toMap)
     )
   }
 }
@@ -228,13 +214,13 @@ object TreeInit extends Context {
 
   // write seqLen + 1 items (sequence + target)
   private def writeTrain(
-      writer: PrintWriter,
-      userInteraction: Map[Int, Array[Int]],
-      userConsumed: mutable.HashMap[Int, Array[Int]],
-      seqLen: Int,
-      minSeqLen: Int,
-      stat: mutable.HashMap[Int, Int]): Unit = {
-
+    writer: PrintWriter,
+    userInteraction: Map[Int, Array[Int]],
+    userConsumed: mutable.HashMap[Int, Array[Int]],
+    seqLen: Int,
+    minSeqLen: Int,
+    stat: mutable.HashMap[Int, Int]
+  ): Unit = {
     userInteraction.foreach {
       case (user, items) =>
         userConsumed(user) = items
@@ -255,22 +241,21 @@ object TreeInit extends Context {
   }
 
   private def writeEither(
-      writer: PrintWriter,
-      userInteraction: Map[Int, Array[Int]],
-      userConsumed: mutable.HashMap[Int, Array[Int]],
-      seqLen: Int,
-      minSeqLen: Int,
-      splitRatio: Double,
-      stat: mutable.HashMap[Int, Int],
-      train: Boolean): Unit = {
-
+    writer: PrintWriter,
+    userInteraction: Map[Int, Array[Int]],
+    userConsumed: mutable.HashMap[Int, Array[Int]],
+    seqLen: Int,
+    minSeqLen: Int,
+    splitRatio: Double,
+    stat: mutable.HashMap[Int, Int],
+    train: Boolean
+  ): Unit = {
     val sb = new StringBuilder
     val users = userInteraction.keys.toArray
     users.foreach { user =>
       val items = userInteraction(user)
       if (train && items.length <= minSeqLen) {
         userConsumed(user) = items
-
       } else if (train && items.length > minSeqLen) {
         val arr = Array.fill[Int](seqLen - minSeqLen)(0) ++ items
         val trainNum = math.ceil((items.length - minSeqLen) * splitRatio).toInt
@@ -302,7 +287,7 @@ object TreeInit extends Context {
         val splitPoint = math.ceil((items.length - minSeqLen) * splitRatio).toInt
         val consumed = userConsumed(user).toSet
 
-        sb ++= s"user_${user}"
+        sb ++= s"user_$user"
         var hasNew = false
         var i = splitPoint
         val seqEnd = splitPoint + seqLen
@@ -325,9 +310,9 @@ object TreeInit extends Context {
   }
 
   private def writeStat(
-      writer: PrintWriter,
-      stat: mutable.HashMap[Int, Int]): Unit = {
-
+    writer: PrintWriter,
+    stat: mutable.HashMap[Int, Int]
+  ): Unit = {
     stat.foreach {
       case (user, count) =>
         writer.println(s"$user, $count")
@@ -336,9 +321,9 @@ object TreeInit extends Context {
   }
 
   private def writeUserConsumed(
-      writer: PrintWriter,
-      userConsumed: mutable.Map[Int, Array[Int]]): Unit = {
-
+    writer: PrintWriter,
+    userConsumed: mutable.Map[Int, Array[Int]]
+  ): Unit = {
     userConsumed.foreach {
       case (user, items) =>
         writer.write(s"user_$user")

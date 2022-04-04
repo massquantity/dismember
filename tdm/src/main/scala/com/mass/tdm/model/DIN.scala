@@ -13,7 +13,7 @@ object DIN {
   def buildModel[@specialized(Float, Double) T: ClassTag](embedSize: Int, paddingIdx: Int)(
       implicit ev: TensorNumeric[T]): Module[T] = {
 
-    val numIndex = (math.pow(2, TDMOp.tree.getMaxLevel) - 1).toInt
+    val numIndex = (math.pow(2, TDMOp.tree.getMaxLevel + 1) - 1).toInt
     val inputItem = Input[T]()
     val inputSeq = Input[T]()
     val inputMask = Input[T]()

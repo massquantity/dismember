@@ -13,7 +13,7 @@ import org.apache.hadoop.io.IOUtils
 object Serialization {
 
   def saveEmbeddings(path: String, model: Module[Float], embedSize: Int): Unit = {
-    val numItems = (math.pow(2, TDMOp.tree.getMaxLevel) - 1).toInt
+    val numItems = (math.pow(2, TDMOp.tree.getMaxLevel + 1) - 1).toInt
     val embedTensor = model.parameters()._1.head
     require(embedTensor.size().sameElements(Array(numItems, embedSize)),
       s"embedding size doesn't match, " +

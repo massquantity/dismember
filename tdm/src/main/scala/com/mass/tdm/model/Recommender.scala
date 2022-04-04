@@ -55,7 +55,7 @@ trait Recommender {
       .filter(codeNodeMap.contains)
       .map(i => TreeNodePred(i, codeNodeMap(i), 0.0f))
     val initValue = LevelInfo(initCandidates, Nil)
-    val finalLevelInfo = (level until tree.maxLevel).foldLeft(initValue) { (levelInfo, _) =>
+    val finalLevelInfo = (level to tree.maxLevel).foldLeft(initValue) { (levelInfo, _) =>
       if (levelInfo.candidateNodes.isEmpty) {
         levelInfo
       } else {

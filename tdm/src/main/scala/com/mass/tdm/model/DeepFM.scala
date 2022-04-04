@@ -10,7 +10,7 @@ object DeepFM {
   def buildModel(featSeqLen: Int, embedSize: Int, paddingIdx: Int): Module[Float] = {
 
     val totalLen = featSeqLen + 1
-    val numIndex = (math.pow(2, TDMOp.tree.getMaxLevel) - 1).toInt
+    val numIndex = (math.pow(2, TDMOp.tree.getMaxLevel + 1) - 1).toInt
     val inputItem = Input[Float]()
     val inputSeq = Input[Float]()
 

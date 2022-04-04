@@ -37,8 +37,12 @@ class RecursiveCluster(
     } else {
       train(0, ids.indices.toArray)
     }
-    val builder = new TreeBuilder(outputTreePath)
-    builder.build(treeIds = ids, treeCodes = codes)
+
+    TreeBuilder.build(
+      outputTreePath = outputTreePath,
+      treeIds = ids,
+      treeCodes = codes
+    )
   }
 
   def train(pcode: Int, index: Array[Int]): Unit = {
