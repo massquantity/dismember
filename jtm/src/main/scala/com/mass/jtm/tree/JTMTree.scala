@@ -1,10 +1,10 @@
 package com.mass.jtm.tree
 
-import java.io.{BufferedOutputStream, FileNotFoundException, OutputStream}
+import java.io.{BufferedOutputStream, OutputStream}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.util.{Failure, Success, Using}
+import scala.util.Using
 
 import com.mass.sparkdl.utils.{FileWriter => DistFileWriter}
 import com.mass.tdm.protobuf.store_kv.KVItem
@@ -18,7 +18,7 @@ class JTMTree extends DistTree with Serializable {
   val logger: Logger = Logger.getLogger(getClass)
 
   override protected[jtm] val codeNodeMap = mutable.Map.empty[Int, Node]
-  override protected val idCodeMap = mutable.Map.empty[Int, Int]
+  override protected[jtm] val idCodeMap = mutable.Map.empty[Int, Int]
   override protected[jtm] val leafCodes = new mutable.BitSet()
   override protected[jtm] var initialized: Boolean = false
   override protected[jtm] var maxLevel: Int = 0
@@ -42,40 +42,26 @@ class JTMTree extends DistTree with Serializable {
     code
   }
 
+  // filter(codeNodeMap.contains)
   def getAllNodesAtLevel(level: Int): Array[Int] = {
     val levelStart = math.pow(2, level).toInt - 1
     val levelEnd = levelStart * 2 + 1
-    (levelStart until levelEnd).toArray.filter(codeNodeMap.contains)
+    Array.range(levelStart, levelEnd)
   }
 
+  // filter(codeNodeMap.contains)  explore different nodes
   def getChildrenAtLevel(ancestor: Int, oldLevel: Int, level: Int): Array[Int] = {
-    var diff = level - oldLevel
-    var parent = Array(ancestor)
-    val children = ArrayBuffer.empty[Int]
-    var finished = false
-    while (!finished) {
-      parent.foreach { p =>
-        children += 2 * p + 1
-        children += 2 * p + 2
-      }
-      diff -= 1
-      if (diff == 0) {
-        finished = true
-      } else {
-        parent = children.toArray
-        children.clear()
-      }
+    (oldLevel until level).foldLeft(Array(ancestor)) { case (nodes, _) =>
+      nodes.flatMap(n => Array(n * 2 + 1, n * 2 + 2))
     }
-
-    children.toArray.filter(codeNodeMap.contains)  // todo: children at different places
-}
+  }
 
   def idToCode(
-      itemIds: Array[Int],
-      level: Int,
-      hierarchical: Boolean,
-      minLevel: Int): Array[Int] = {
-
+    itemIds: Array[Int],
+    level: Int,
+    hierarchical: Boolean,
+    minLevel: Int
+  ): Array[Int] = {
     val res = new Array[Int](itemIds.length)
     var i = 0
     while (i < itemIds.length) {
@@ -99,11 +85,11 @@ class JTMTree extends DistTree with Serializable {
   }
 
   def idToCodeWithMask(
-      itemIds: Array[Int],
-      level: Int,
-      hierarchical: Boolean,
-      minLevel: Int): (Array[Int], ArrayBuffer[Int]) = {
-
+    itemIds: Array[Int],
+    level: Int,
+    hierarchical: Boolean,
+    minLevel: Int
+  ): (Array[Int], ArrayBuffer[Int]) = {
     val mask = new ArrayBuffer[Int]()
     val res = new Array[Int](itemIds.length)
     var i = 0
@@ -128,54 +114,16 @@ class JTMTree extends DistTree with Serializable {
     (res, mask)
   }
 
-  def flattenLeaves(projectionPi: mutable.Map[Int, Int], maxLevel: Int): Unit = {
-    val minLeafCode = math.pow(2, maxLevel).toInt - 1
-    val projection = projectionPi.toArray
-    val projectionLeafCodes = projection.map(_._2).filter(_ >= minLeafCode).toSet
-    val unassignedLeafCodes = leafCodes.diff(projectionLeafCodes)
-    val (noPlaceItems, originalPlaceItems) = projection
-      .filter(_._2 < minLeafCode)
-      .partition(i => {
-        val oldCode = idCodeMap(i._1)
-        projectionLeafCodes.contains(oldCode)
-      })
-
-    println(s"unassigned nodes: ${unassignedLeafCodes.size}, " +
-      s"no place items: ${noPlaceItems.length}, " +
-      s"original place items: ${originalPlaceItems.length}")
-
-    // projectionPi doesn't contain these leaf codes, so original places are kept
-    originalPlaceItems.foreach { case (itemId, code) =>
-      val oldCode = idCodeMap(itemId)
-      projectionPi(itemId) = oldCode
-      unassignedLeafCodes -= oldCode
-    }
-
-    // assign to nearest leaf code
-    noPlaceItems.foreach { case (itemId, code) =>
-      val leafCode = code * 2 + 1
-      val nearestCode = unassignedLeafCodes.reduce { (a, b) =>
-        if (math.abs(a - leafCode) < math.abs(b - leafCode)) a else b
-      }
-      projectionPi(itemId) = nearestCode
-      unassignedLeafCodes -= nearestCode
-    }
-
-    println("unassigned nodes remained: " + unassignedLeafCodes.size)
-    require(unassignedLeafCodes.isEmpty, "still remains unassigned codes")
-  }
-
-  def writeTree(projectionPi: mutable.Map[Int, Int], pbFilePath: String): Unit = {
+  def writeTree(projectionPi: Map[Int, Int], pbFilePath: String): Unit = {
+    // some original leaf nodes may stay in upper level, so put all of them to leaves
+    // flattenLeaves(projectionPi, maxLevel)
     val leafStat = mutable.Map.empty[Int, Float]
     val pstat = mutable.Map.empty[Int, Float]
-    // some original leaf nodes may stay in upper level, so put all of them to leaves
-    flattenLeaves(projectionPi, maxLevel - 1)
-
     projectionPi.foreach { case (itemId, newCode) =>
       val oldCode = idCodeMap(itemId)
       val prob = codeNodeMap(oldCode).probality
       leafStat(newCode) = prob
-      val ancestors = getAncestors(newCode)
+      val ancestors = getAncestors(newCode, maxLevel)
       ancestors.foreach { anc =>
         pstat(anc) = pstat.getOrElse(anc, 0.0f) + prob
       }
@@ -183,15 +131,11 @@ class JTMTree extends DistTree with Serializable {
 
     val fileWriter = DistFileWriter(pbFilePath)
     val output: OutputStream = fileWriter.create(overwrite = true)
-    Using(new BufferedOutputStream(output)) { writer =>
+    Using.resource(new BufferedOutputStream(output)) { writer =>
       val parts = new ArrayBuffer[IdCodePart]()
       val tmpItems = new ArrayBuffer[IdCodePair]()
       val savedNodes = new mutable.BitSet()
-      val itemIds = projectionPi.keys.toArray
-      var i = 0
-      while (i < itemIds.length) {
-        val id = itemIds(i)
-        val code = projectionPi(id)
+      projectionPi.zipWithIndex.foreach { case ((id, code), i) =>
         val prob = leafStat(code)
         val leafCatId = 0
         val isLeaf = true
@@ -200,13 +144,13 @@ class JTMTree extends DistTree with Serializable {
         writeKV(leafKV, writer)
 
         tmpItems += IdCodePair(id, code)
-        if (i == itemIds.length - 1 || tmpItems.length == 512) {
+        if (i == projectionPi.size - 1 || tmpItems.length == 512) {
           val partId = "Part_" + (parts.length + 1)
-          parts += IdCodePart(toByteString(partId), tmpItems.clone())
+          parts += IdCodePart(toByteString(partId), tmpItems.clone().toSeq)
           tmpItems.clear()
         }
 
-        val ancestors = getAncestors(code)
+        val ancestors = getAncestors(code, maxLevel)
         ancestors.foreach { ancCode =>
           if (!savedNodes.contains(ancCode)) {
             val id = ancCode + nonLeafOffset
@@ -219,28 +163,16 @@ class JTMTree extends DistTree with Serializable {
             savedNodes.add(ancCode)
           }
         }
-        i += 1
       }
 
       parts.foreach { p =>
         val partKV = KVItem(p.partId, p.toByteString)
         writeKV(partKV, writer)
       }
-
       val partIds = parts.map(x => x.partId).toArray
       val meta = TreeMeta(maxLevel, partIds)
       val metaKV = KVItem(toByteString("tree_meta"), meta.toByteString)
       writeKV(metaKV, writer)
-
-    } match {
-      case Success(_) =>
-        output.close()
-        fileWriter.close()
-      case Failure(e: FileNotFoundException) =>
-        println(s"""file "$pbFilePath" not found""")
-        throw e
-      case Failure(t: Throwable) =>
-        throw t
     }
 
     logger.info(s"item num: ${projectionPi.size}, " +
@@ -258,126 +190,8 @@ object JTMTree {
     tree
   }
 
-  def getAncestors(code: Int): Array[Int] = {
-    val ancs = new ArrayBuffer[Int]()
-    var num = code
-    while (num > 0) {
-      num = (num - 1) / 2
-      ancs += num
-    }
-    ancs.toArray
+  def getAncestors(code: Int, maxLevel: Int): List[Int] = {
+    val ancestors = List.fill(maxLevel)(0)
+    ancestors.scanLeft(code)((a, _) => (a - 1) / 2).tail
   }
-
-  /*
-  def getChildrenAtLevel(ancestor: Int, oldLevel: Int, level: Int): Array[Int] = {
-  //  val levelStart = math.pow(2, level).toInt - 1
-  //  val levelEnd = levelStart * 2 + 1
-    var diff = level - oldLevel
-    var parent = Array(ancestor)
-    val children = ArrayBuffer.empty[Int]
-    // index start from 0, so all level subtract 1
-    var _level = oldLevel
-    val _maxLevel = maxLevel - 1
-    var finished = false
-    while (!finished) {
-      if (_level < _maxLevel) {
-        parent.foreach { p =>
-          val childLeft = 2 * p + 1
-          if (codeNodeMap.contains(childLeft)) {
-            children += childLeft
-          }
-          val childRight = 2 * p + 2
-          if (codeNodeMap.contains(childRight)) {
-            children += childRight
-          }
-        }
-      } else {
-        // leaf nodes can be different in final tree, so didn't exclude them
-        parent.foreach { p =>
-          children += 2 * p + 1
-          children += 2 * p + 2
-        }
-      }
-
-      _level += 1
-      diff -= 1
-      if (diff == 0) {
-        finished = true
-      } else {
-        parent = children.toArray
-        children.clear()
-      }
-      /*
-      if (children.head >= levelStart && children.head < levelEnd) {
-        finished = true
-      } else {
-        parent = children.toArray
-        children.clear()
-      } */
-    }
-    children.toArray
-  } */
-
-  /*
-  Using(new BufferedOutputStream(output)) { writer =>
-    val parts = new ArrayBuffer[IdCodePart]()
-    val tmpItems = new ArrayBuffer[IdCodePair]()
-    val codes = codeNodeMap.keys.toArray
-    var i = 0
-    while (i < codes.length) {
-      val code = codes(i)
-      if (leafStat.contains(code)) {
-        val id = leafStat(code)._1
-        val prob = leafStat(code)._2
-        val leafCatId = 0
-        val isLeaf = true
-        val leafNode = Node(id, prob, leafCatId, isLeaf)
-        val leafKV = KVItem(toByteString(code), leafNode.toByteString)
-        writeKV(leafKV, writer)
-
-        tmpItems += IdCodePair(id, code)
-        if (i == codes.length - 1 || tmpItems.length == 512) {
-          val partId = "Part_" + (parts.length + 1)
-          parts += IdCodePart(toByteString(partId), tmpItems.clone())
-          tmpItems.clear()
-        }
-      } else {
-        val id = codeNodeMap(code).id
-        val prob = pstat(code)
-        val leafCatId = 0
-        val isLeaf = false
-        val node = Node(id, prob, leafCatId, isLeaf)
-        val ancestorKV = KVItem(toByteString(code), node.toByteString)
-        writeKV(ancestorKV, writer)
-      }
-      i += 1
-    }
-
-    parts.foreach { p =>
-      val partKV = KVItem(p.partId, p.toByteString)
-      writeKV(partKV, writer)
-    }
-
-    val partIds = parts.map(x => x.partId).toArray
-    val meta = TreeMeta(maxLevel, partIds)
-    val metaKV = KVItem(toByteString("tree_meta"), meta.toByteString)
-    writeKV(metaKV, writer)
-
-  } match {
-    case Success(_) =>
-      output.close()
-      fileWriter.close()
-    case Failure(e: FileNotFoundException) =>
-      println(s"""file "$pbFilePath" not found""")
-      throw e
-    case Failure(t: Throwable) =>
-      throw t
-  }
-
-  logger.info(s"item num: ${projectionPi.size}, " +
-    s"tree level: $maxLevel, " +
-    s"leaf code start: ${projectionPi.values.min}, " +
-    s"leaf code end: ${projectionPi.values.max}")
-   */
-
 }
