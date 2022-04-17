@@ -36,18 +36,16 @@ class CoordinateDescent(
       v <- dataset.idItemMapping.keysIterator
     } {
       if (itemOccurrence.contains(v)) {
-        val finalPath = List.range(0, numPathPerItem).foldRight((List.empty[DRPath], 0.0)) {
+        val finalPath = List.range(0, numPathPerItem).foldRight[(List[DRPath], Double)]((Nil, 0.0)) {
           case (j, (selectedPath, partialSum)) =>
             if (t > 1) {
               val lastItemPath = itemPathMapping(v)(j)
               pathSize(lastItemPath) -= 1
             }
-            val candidatePath =
-              if (selectedPath.isEmpty) {
-                itemPathScore(v)
-              } else {
-                itemPathScore(v).filterNot(n => selectedPath.contains(n.path))
-              }
+           val candidatePath = selectedPath match {
+              case Nil => itemPathScore(v)
+              case _ => itemPathScore(v).filterNot(n => selectedPath.contains(n.path))
+           }
             val incrementalGain = candidatePath.map { n =>
               val size = pathSize.getOrElse(n.path, 0)
               val penalty = penaltyFactor * penaltyFunc(size, penaltyPolyOrder)

@@ -7,6 +7,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.util.Using
 
 import com.mass.sparkdl.utils.{FileWriter => DistFileWriter}
+import com.mass.tdm.{paddingId, paddingIdx}
 import com.mass.tdm.protobuf.store_kv.KVItem
 import com.mass.tdm.protobuf.tree.{IdCodePair, IdCodePart, Node, TreeMeta}
 import com.mass.tdm.tree.DistTree
@@ -24,8 +25,6 @@ class JTMTree extends DistTree with Serializable {
   override protected[jtm] var maxLevel: Int = 0
   override protected[jtm] var maxCode: Int = -1
   override protected var nonLeafOffset: Int = -1
-
-  private val paddingId: Int = 0  // padded original item id
 
   def init(path: String): Unit = {
     val (idCodeAllParts, treeMeta) = loadData(path)
@@ -67,7 +66,7 @@ class JTMTree extends DistTree with Serializable {
     while (i < itemIds.length) {
       val id = itemIds(i)
       if (id == paddingId) {
-        res(i) = -1
+        res(i) = paddingIdx
       } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
         res(i) =
           if (hierarchical && level >= minLevel) {
@@ -77,7 +76,7 @@ class JTMTree extends DistTree with Serializable {
           }
       } else {
         res(i) = id - nonLeafOffset
-        if (res(i) > maxCode) res(i) = -1
+        if (res(i) > maxCode) res(i) = paddingIdx
       }
       i += 1
     }
@@ -96,7 +95,7 @@ class JTMTree extends DistTree with Serializable {
     while (i < itemIds.length) {
       val id = itemIds(i)
       if (id == paddingId) {
-        res(i) = -1
+        res(i) = paddingIdx
         mask += i
       } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
         res(i) =
@@ -107,7 +106,7 @@ class JTMTree extends DistTree with Serializable {
           }
       } else {
         res(i) = id - nonLeafOffset
-        if (res(i) > maxCode) res(i) = -1
+        if (res(i) > maxCode) res(i) = paddingIdx
       }
       i += 1
     }

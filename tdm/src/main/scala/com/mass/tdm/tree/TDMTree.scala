@@ -6,6 +6,7 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
+import com.mass.tdm.{paddingId, paddingIdx}
 import com.mass.tdm.protobuf.tree.Node
 
 class TDMTree extends DistTree with Serializable {
@@ -19,8 +20,6 @@ class TDMTree extends DistTree with Serializable {
   override protected[tdm] var maxCode: Int = -1
   override protected var nonLeafOffset: Int = -1
 
-  private val paddingId: Int = 0  // padded original item id
-
   def getMaxLevel: Int = maxLevel
 
   def getIds: Array[Int] = idCodeMap.keys.toArray
@@ -33,13 +32,12 @@ class TDMTree extends DistTree with Serializable {
     initialized = true
   }
 
-  // paddingIndex = -1, paddingId = 0
   def idToCode(itemIds: Array[Int]): (Seq[Int], Array[Int]) = {
     val masks = new ArrayBuffer[Int]()
     val codes = itemIds.zipWithIndex.map { case (id, i) =>
       if (id == paddingId) {
         masks += i
-        -1
+        paddingIdx
       } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
         // leaves
         idCodeMap(id)
@@ -48,7 +46,7 @@ class TDMTree extends DistTree with Serializable {
         val tmp = id - nonLeafOffset
         if (tmp > maxCode) {
           masks += i
-          -1
+          paddingIdx
         } else {
           tmp
         }

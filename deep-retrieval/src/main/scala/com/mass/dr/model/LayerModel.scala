@@ -1,5 +1,6 @@
 package com.mass.dr.model
 
+import com.mass.dr.paddingIdx
 import com.mass.sparkdl.nn._
 import com.mass.sparkdl.nn.graphnn.Graph
 import com.mass.sparkdl.tensor.Tensor
@@ -11,8 +12,7 @@ class LayerModel(
     val numNode: Int,
     val numLayer: Int,
     seqLen: Int,
-    embedSize: Int,
-    paddingIdx: Int) {
+    embedSize: Int) {
   require(numLayer >= 2, "number of layers must be at least 2")
 
   private[dr] val model = buildModel()
@@ -78,15 +78,13 @@ object LayerModel {
       numNode: Int,
       numLayer: Int,
       seqLen: Int,
-      embedSize: Int,
-      paddingIdx: Int): LayerModel = {
+      embedSize: Int): LayerModel = {
     new LayerModel(
       numItem,
       numNode,
       numLayer,
       seqLen,
-      embedSize,
-      paddingIdx
+      embedSize
     )
   }
 }

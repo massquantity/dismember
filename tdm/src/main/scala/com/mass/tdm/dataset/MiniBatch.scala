@@ -57,7 +57,7 @@ class MiniBatch(
       }
     val itemShape = Array(threadLen * sampledNodesNumPerTarget, 1)
     val itemSeqShape = Array(threadLen * sampledNodesNumPerTarget, seqLen)
-    val labelShape = Array(threadLen * sampledNodesNumPerTarget)
+    val labelShape = Array(threadLen * sampledNodesNumPerTarget, 1)
 
     if (!useMask) {
       SeqTransformedBatch(

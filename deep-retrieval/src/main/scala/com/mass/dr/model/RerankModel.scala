@@ -1,15 +1,12 @@
 package com.mass.dr.model
 
+import com.mass.dr.paddingIdx
 import com.mass.sparkdl.nn.{Embedding, Input, Linear, Reshape}
 import com.mass.sparkdl.nn.graphnn.Graph
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.tensor.TensorNumeric.NumericDouble
 
-class RerankModel(
-    numItem: Int,
-    seqLen: Int,
-    embedSize: Int,
-    paddingIdx: Int) {
+class RerankModel(numItem: Int, seqLen: Int, embedSize: Int) {
   import RerankModel.extractCandidates
 
   private[dr] val model = buildModel()
@@ -78,17 +75,8 @@ class RerankModel(
 
 object RerankModel {
 
-  def apply(
-      numItems: Int,
-      seqLen: Int,
-      embedSize: Int,
-      paddingIdx: Int): RerankModel = {
-    new RerankModel(
-      numItems,
-      seqLen,
-      embedSize,
-      paddingIdx
-    )
+  def apply(numItems: Int, seqLen: Int, embedSize: Int): RerankModel = {
+    new RerankModel(numItems, seqLen, embedSize)
   }
 
   private def extractCandidates(

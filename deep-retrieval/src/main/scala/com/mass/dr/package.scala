@@ -16,4 +16,6 @@ package object dr {
 
   val encoding: Charset = Charset.defaultCharset()
 
+  val paddingIdx: Int = -1
+
 }

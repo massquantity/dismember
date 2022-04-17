@@ -42,16 +42,14 @@ class DeepRetrievalTest extends AnyFlatSpec with Matchers {
     minSeqLen = minSeqLen,
     dataPath = dataPath,
     mappingPath = None,
-    splitRatio = splitRatio,
-    paddingIdx = paddingIdx
+    splitRatio = splitRatio
   )
   val drModel = DeepRetrieval(
     numItem = dataset.numItem,
     numNode = numNode,
     numLayer = numLayer,
     seqLen = seqLen,
-    embedSize = embedSize,
-    paddingIdx = paddingIdx
+    embedSize = embedSize
   )
   drModel.setMapping(dataset)
 

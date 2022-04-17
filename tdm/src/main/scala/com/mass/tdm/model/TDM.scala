@@ -5,14 +5,14 @@ import scala.math.Ordering
 import com.mass.sparkdl.Module
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.tdm.operator.TDMOp
+import com.mass.tdm.paddingIdx
 import com.mass.tdm.utils.Serialization
 import com.mass.tdm.utils.Serialization.{saveEmbeddings, saveModel => sersaveModel}
 
 class TDM(
     featSeqLen: Int,
     val embedSize: Int,
-    deepModel: String,
-    paddingIndex: Int) extends Serializable with Recommender {
+    deepModel: String) extends Serializable with Recommender {
 
   private[this] var dlModel: Module[Float] = _
   private val dlModelName = deepModel.toLowerCase
@@ -30,10 +30,10 @@ class TDM(
 
   private def buildModel(): TDM.this.type = {
     if (dlModelName == "deepfm") {
-      dlModel = DeepFM.buildModel(featSeqLen, embedSize, paddingIndex)
+      dlModel = DeepFM.buildModel(featSeqLen, embedSize, paddingIdx)
       dlModel.setName("DeepFM")
     } else if (dlModelName == "din") {
-      dlModel = DIN.buildModel[Float](embedSize, paddingIndex)
+      dlModel = DIN.buildModel[Float](embedSize, paddingIdx)
       dlModel.setName("DIN")
     } else {
       throw new IllegalArgumentException("deepModel name should DeepFM or DIN")
@@ -62,8 +62,8 @@ class TDM(
 
 object TDM {
 
-  def apply(featSeqLen: Int, embedSize: Int, deepModel: String, paddingIndex: Int): TDM = {
-    val tdm = new TDM(featSeqLen, embedSize, deepModel, paddingIndex)
+  def apply(featSeqLen: Int, embedSize: Int, deepModel: String): TDM = {
+    val tdm = new TDM(featSeqLen, embedSize, deepModel)
     tdm.buildModel()
   }
 
@@ -74,7 +74,7 @@ object TDM {
   }
 
   def loadModel(path: String): TDM = {
-    val tdm = new TDM(0, 0, "DIN", -1)
+    val tdm = new TDM(0, 0, "DIN")
     tdm.setModel(Serialization.loadModel(path))
     tdm
   }

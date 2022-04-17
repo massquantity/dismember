@@ -29,7 +29,7 @@ class LocalOptimizer(
 
     // all models share same weight
     val subModelNum = Engine.coreNumber()
-    val models: Array[Module[Float]] = (1 to subModelNum).toArray.map { i =>
+    val models: Array[Module[Float]] = (1 to subModelNum).toArray.map { _ =>
       val m = model.cloneModule()
       Util.putWeightBias(wb, m)
       Util.initGradWeightBias(wb, m)
@@ -124,18 +124,18 @@ class LocalOptimizer(
     realParallelism = if (taskSize == 0) extraSize else subModelNum
     val miniBatchBuffer = new Array[TransformedBatch](realParallelism)
     Engine.default.invokeAndWait(
-      (0 until realParallelism).map(i => () => {
+      (0 until realParallelism).map { i => () =>
         val offset = batch.getOffset + i * taskSize + math.min(i, extraSize)
         val length = taskSize + (if (i < extraSize) 1 else 0)
         miniBatchBuffer(i) = batch.convert(allData, offset, length, i)
-      })
+      }
     )
     miniBatchBuffer
   }
 
   def trainBatch(miniBatch: Array[TransformedBatch]): Double = {
     val lossSum = Engine.default.invokeAndWait(
-      (0 until realParallelism).map(i => () => {
+      (0 until realParallelism).map { i => () =>
         val localModel = workingModels(i)
         localModel.zeroGradParameters()
         localModel.training()
@@ -151,7 +151,7 @@ class LocalOptimizer(
         val gradients = localCriterion.backward(outputs, labels)
         localModel.backward(inputs, gradients)
         localLoss
-      })
+      }
     ).sum
     lossSum / realParallelism
   }

@@ -4,7 +4,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
-import com.mass.jtm.optim.JTM
+import com.mass.jtm.optim.TreeLearning
 import com.mass.jtm.optim.TreeLearning.ItemInfo
 import com.mass.sparkdl.utils.Util
 import com.mass.sparkdl.Module
@@ -17,10 +17,10 @@ object TreeUtil {
 
   case class TreeMeta(leafNum: Int, maxLevel: Int, itemIds: Seq[Int])
 
-  val getTreeMeta: JTM => TreeMeta = jtmModel =>
+  val getTreeMeta: TreeLearning => TreeMeta = jtmModel =>
     TreeMeta(jtmModel.tree.leafCodes.size, jtmModel.tree.maxLevel, jtmModel.tree.idCodeMap.keys.toSeq)
 
-  def writeTree(jtmModel: JTM, projectionPi: Map[Int, Int], outputTreePath: String): Unit = {
+  def writeTree(jtmModel: TreeLearning, projectionPi: Map[Int, Int], outputTreePath: String): Unit = {
     jtmModel.tree.writeTree(projectionPi, outputTreePath)
   }
 

@@ -42,7 +42,7 @@ class JTM(
           val taskSize = currentNodes.length / numThreads
           val extraSize = currentNodes.length % numThreads
           Engine.default.invokeAndWait(
-            (0 until numThreads).map(i => () => {
+            (0 until numThreads).map { i => () =>
               val start = i * taskSize + math.min(i, extraSize)
               val end = start + taskSize + (if (i < extraSize) 1 else 0)
               currentNodes.slice(start, end).flatMap { node =>
@@ -56,7 +56,7 @@ class JTM(
                   parallelItems = false
                 )
               }.toMap
-            })
+            }
           ).toArray
         }
       val levelEnd = System.nanoTime()

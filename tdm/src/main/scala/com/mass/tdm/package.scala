@@ -10,6 +10,10 @@ package object tdm {
 
   val encoding: Charset = Charset.defaultCharset()
 
+  val paddingId: Int = 0  // padded original item id
+
+  val paddingIdx: Int = -1
+
   implicit class ArrayExtension[@specialized(Int, Long, Float, Double) T](array: Array[T])(
       implicit order: T => Ordered[T]) {
 

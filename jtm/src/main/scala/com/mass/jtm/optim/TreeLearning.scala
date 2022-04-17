@@ -111,7 +111,7 @@ trait TreeLearning {
       val extraSize = itemsAssignedToNode.length % numThreads
       val realParallelism = if (taskSize == 0) extraSize else numThreads
       Engine.default.invokeAndWait(
-        (0 until realParallelism).map(i => () => {
+        (0 until realParallelism).map { i => () =>
           val start = i * taskSize + math.min(i, extraSize)
           val end = start + taskSize + (if (i < extraSize) 1 else 0)
           sortNodeWeights(
@@ -121,7 +121,7 @@ trait TreeLearning {
             level,
             i
           )
-        })
+        }
       ).reduce(_ ++ _)
     } else {
       sortNodeWeights(

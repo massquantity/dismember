@@ -3,7 +3,7 @@ package com.mass.dr.model
 import java.io.{BufferedInputStream, ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
 
 import com.mass.dr.dataset.LocalDataSet.loadMapping
-import com.mass.dr.Path
+import com.mass.dr.{paddingIdx, Path}
 import com.mass.dr.dataset.LocalDataSet
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.tensor.TensorNumeric.NumericDouble
@@ -15,8 +15,7 @@ class DeepRetrieval(
     numNode: Int,
     numLayer: Int,
     seqLen: Int,
-    embedSize: Int,
-    paddingIdx: Int) extends Serializable with CandidateSearcher {
+    embedSize: Int) extends Serializable with CandidateSearcher {
   import DeepRetrieval._
 
   @transient private var itemIdMapping: Map[Int, Int] = _
@@ -34,14 +33,12 @@ class DeepRetrieval(
     numNode,
     numLayer,
     seqLen,
-    embedSize,
-    paddingIdx
+    embedSize
   )
   val reRankModel: RerankModel = RerankModel(
     numItem,
     seqLen,
-    embedSize,
-    paddingIdx
+    embedSize
   )
   val reRankWeights: Tensor[Double] = Tensor[Double](numItem, embedSize).randn(0.0, 0.05)
   val reRankBias: Tensor[Double] = Tensor[Double](numItem).zero()
@@ -89,15 +86,13 @@ object DeepRetrieval {
       numNode: Int,
       numLayer: Int,
       seqLen: Int,
-      embedSize: Int,
-      paddingIdx: Int): DeepRetrieval = {
+      embedSize: Int): DeepRetrieval = {
     new DeepRetrieval(
       numItem,
       numNode,
       numLayer,
       seqLen,
-      embedSize,
-      paddingIdx
+      embedSize
     )
   }
 

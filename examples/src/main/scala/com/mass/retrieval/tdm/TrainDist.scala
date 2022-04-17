@@ -95,8 +95,7 @@ object TrainDist {
     val tdmModel = TDM(
       featSeqLen = seqLen,
       embedSize = embedSize,
-      deepModel = deepModel,
-      paddingIndex = paddingIndex)
+      deepModel = deepModel)
 
     val optimizer = new DistOptimizer(
       model = tdmModel.getModel,

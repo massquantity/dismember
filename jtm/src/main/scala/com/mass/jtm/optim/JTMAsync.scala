@@ -1,24 +1,23 @@
-package com.mass.jtm.tree
+package com.mass.jtm.optim
 
 import scala.collection.mutable
 
 import com.mass.sparkdl.utils.Engine
+import org.apache.log4j.Logger
 
-class TreeLearningAsync(
-    modelName: String,
-    gap: Int,
-    seqLen: Int,
-    hierarchical: Boolean,
-    minLevel: Int,
-    numThreads: Int,
-    delimiter: String = ",") extends TreeLearning(
-      modelName, gap, seqLen, hierarchical, minLevel, numThreads, delimiter) {
-  import TreeLearningAsync._
-
+class JTMAsync(
+    override val modelName: String,
+    override val gap: Int,
+    override val seqLen: Int,
+    override val hierarchical: Boolean,
+    override val minLevel: Int,
+    override val numThreads: Int) extends TreeLearning {
+  import JTMAsync._
   require(gap > 0, s"gap must be positive, but got $gap")
   require(isPowerOf2(numThreads), s"numThreads should be power of 2, but got $numThreads")
+  val logger: Logger = Logger.getLogger(getClass)
 
-  override def run(outputTreePath: String): Unit = {
+  override def optimize(): Map[Int, Int] = {
     var level, _gap = gap
     val projectionPi = mutable.Map[Int, Int]()
     for (itemCode <- tree.leafCodes) {
@@ -47,13 +46,13 @@ class TreeLearningAsync(
       }
 
       val levelEnd = System.nanoTime()
-      println(f"level $level assign time:  ${(levelEnd - levelStart) / 1e9d}%.6fs")
+      logger.info(f"level $level assign time:  ${(levelEnd - levelStart) / 1e9d}%.6fs")
       _gap = math.min(_gap, maxLevel - level)
       level += _gap
     }
 
     if (asyncParallel) {
-      println("asynchronous learning begin...")
+      logger.info("asynchronous learning begin...")
       val asyncStartNodes = tree.getAllNodesAtLevel(asyncStartLevel)
       Engine.default.invokeAndWait(
         (0 until numThreads).map(i => () => {
@@ -63,8 +62,8 @@ class TreeLearningAsync(
     }
 
     val totalEnd = System.nanoTime()
-    println(f"total tree learning time: ${(totalEnd - totalStart) / 1e9d}%.6fs")
-    tree.writeTree(projectionPi, outputTreePath)
+    logger.info(f"total tree learning time: ${(totalEnd - totalStart) / 1e9d}%.6fs")
+    Map.empty ++ projectionPi
   }
 
   def singlePathAssign(
@@ -96,23 +95,30 @@ class TreeLearningAsync(
       _level += _gap
     }
     val end = System.nanoTime()
-    println(f"thread $modelIdx assign time:  ${(end - start) / 1e9d}%.6fs")
+    logger.info(f"thread $modelIdx assign time:  ${(end - start) / 1e9d}%.6fs")
     subProjection
   }
 }
 
 
-object TreeLearningAsync {
+object JTMAsync {
 
   def apply(
-      modelName: String,
-      gap: Int,
-      seqLen: Int,
-      hierarchical: Boolean,
-      minLevel: Int,
-      numThreads: Int = 1,
-      delimiter: String = ","): TreeLearning = {
-    new TreeLearningAsync(modelName, gap, seqLen, hierarchical, minLevel, numThreads, delimiter)
+    modelName: String,
+    gap: Int,
+    seqLen: Int,
+    hierarchical: Boolean,
+    minLevel: Int,
+    numThreads: Int = 1
+  ): JTMAsync = {
+    new JTMAsync(
+      modelName,
+      gap,
+      seqLen,
+      hierarchical,
+      minLevel,
+      numThreads,
+    )
   }
 
   private def isPowerOf2(n: Int): Boolean = {
