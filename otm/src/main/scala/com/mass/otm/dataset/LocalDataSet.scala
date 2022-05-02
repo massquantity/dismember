@@ -6,50 +6,36 @@ import scala.collection.mutable
 import scala.util.Using
 
 import com.mass.otm.dataset.OTMSample.{OTMEvalSample, OTMTrainSample}
-import com.mass.otm.encoding
-import com.mass.sparkdl.dataset.DataUtil
+import com.mass.otm.{encoding, paddingIdx, upperLog2}
 import com.mass.sparkdl.utils.{FileReader => DistFileReader}
 import org.apache.commons.lang3.math.NumberUtils
 
-class LocalDataSet(
-    dataPath: String,
-    totalTrainBatchSize: Int,
-    totalEvalBatchSize: Int,
-    seqLen: Int,
-    minSeqLen: Int,
-    startSampleLevel: Int = 1,
-    splitRatio: Double = 0.8,
-    numThreads: Int = 1,
-    useMask: Boolean,
-    paddingIdx: Int = -1) {
+class LocalDataSet(dataPath: String, seqLen: Int, minSeqLen: Int, splitRatio: Double) {
   import LocalDataSet._
   require(seqLen > 0 && minSeqLen > 0 && seqLen >= minSeqLen)
-  require(startSampleLevel > 0, s"start sample level should be at least 1, got $startSampleLevel")
 
-  private val trainBatchSize = totalTrainBatchSize
-  private val evalBatchSize = totalEvalBatchSize
-  private val initData: Array[InitSample] = readFile(dataPath)
+  private val initData: Seq[InitSample] = readFile(dataPath)
+  lazy val uniqueItems: Seq[Int] = initData.map(_.item).distinct
+  lazy val (itemIdMapping, idItemMapping) = initializeMapping(uniqueItems)
+  lazy val DataInfo(userConsumed, trainData, evalData) = generateData(initData)
 
-  lazy val (itemIdMapping, itemPathMapping) = initializeMapping(initData)
-  lazy val (userConsumed, trainData, evalData) = generateData()
-
-  private def generateData(): (Map[Int, Array[Int]], Array[OTMTrainSample], Array[OTMEvalSample]) = {
-    val groupedSamples = initData.groupBy(_.user).toArray.map { case (user, samples) =>
+  private def generateData(initData: Seq[InitSample]): DataInfo = {
+    val groupedSamples = initData.groupBy(_.user).toIndexedSeq.map { case (user, samples) =>
       (user, samples.sortBy(_.timestamp).map(_.item).distinct.map(itemIdMapping(_)))
     }
     val (userConsumed, trainSamples, evalSamples) = groupedSamples.map { case (user, items) =>
       if (items.length <= minSeqLen) {
-        (user -> items, Array.empty[OTMTrainSample], Array.empty[OTMEvalSample])
+        (user -> items, Seq.empty[OTMTrainSample], Seq.empty[OTMEvalSample])
       } else if (items.length == minSeqLen + 1) {
-        (user -> items, Array(OTMTrainSample(items.init, items.last)), Array.empty[OTMEvalSample])
+        (user -> items, Seq(OTMTrainSample(items.init, items.last)), Seq.empty[OTMEvalSample])
       } else {
-        val fullSeq = Array.fill[Int](seqLen - minSeqLen)(paddingIdx) ++ items
+        val fullSeq = Seq.fill[Int](seqLen - minSeqLen)(paddingIdx) ++ items
         val splitPoint = math.ceil((items.length - minSeqLen) * splitRatio).toInt
         val _trainSamples = fullSeq
           .take(splitPoint + seqLen)
           .sliding(seqLen + 1)
           .map(s => OTMTrainSample(s.init, s.last))
-          .toArray
+          .toSeq
 
         val consumed = items.take(splitPoint + minSeqLen)
         val consumedSet = consumed.toSet
@@ -58,59 +44,73 @@ class LocalDataSet(
         val _evalSamples =
           if (labels.nonEmpty) {
             val evalSeq = _evalSeq.takeRight(seqLen)
-            Array(OTMEvalSample(evalSeq, labels, user))
+            Seq(OTMEvalSample(evalSeq, labels, user))
           } else {
-            Array.empty[OTMEvalSample]
+            Seq.empty[OTMEvalSample]
           }
         (user -> consumed, _trainSamples, _evalSamples)
       }
     }.unzip3
 
-    val validTrain = trainSamples.filter(_.nonEmpty).flatten
-    val validEval = evalSamples.filter(_.nonEmpty).flatten
-    (userConsumed.toMap, validTrain, validEval)
+    DataInfo(
+      userConsumed.toMap,
+      trainSamples.filter(_.nonEmpty).flatten,
+      evalSamples.filter(_.nonEmpty).flatten
+    )
   }
-
-  def shuffle(): Unit = DataUtil.shuffle(trainData)
 
   def trainSize: Int = trainData.length
 
   def evalSize: Int = evalData.length
 
-  def numItem: Int = itemIdMapping.size
+  def numItem: Int = uniqueItems.length
 
+  def numNode: Int = {
+    val leafLevel = upperLog2(numItem)
+    (math.pow(2, leafLevel + 1) - 1).toInt
+  }
 }
 
 object LocalDataSet {
 
   case class InitSample(user: Int, item: Int, timestamp: Long)
 
-  private def readFile(dataPath: String): Array[InitSample] = {
+  case class DataInfo(
+    userConsumed: Map[Int, Seq[Int]],
+    trainData: IndexedSeq[OTMSample],
+    evalData: IndexedSeq[OTMSample]
+  )
+
+  def apply(dataPath: String, seqLen: Int, minSeqLen: Int, splitRatio: Double): LocalDataSet = {
+    new LocalDataSet(dataPath, seqLen, minSeqLen, splitRatio)
+  }
+
+  def readFile(dataPath: String): Seq[InitSample] = {
     val fileReader = DistFileReader(dataPath)
     val inputStream = fileReader.open()
     val lines = Using.resource(new BufferedReader(new InputStreamReader(inputStream, encoding.name))) {
-      reader => Iterator.continually(reader.readLine()).takeWhile(_ != null).toArray
+      reader => Iterator.continually(reader.readLine()).takeWhile(_ != null).toSeq
     }
     lines
+      .view
       .map(_.trim.split(","))
       .filter(i => i.length == 5 && NumberUtils.isCreatable(i(0)))
       .map(i => InitSample(i(0).toInt, i(1).toInt, i(3).toLong))
+      .toSeq
   }
 
-  private def initializeMapping(data: Array[InitSample]): (Map[Int, Int], Map[Int, Int]) = {
-    val items = data.map(_.item).distinct
+  def initializeMapping(items: Seq[Int]): (Map[Int, Int], Map[Int, Int]) = {
     val shuffledItems = scala.util.Random.shuffle(items)
-    val sampledIds = sampleRandomLeaves(items)
+    val sampledIds = sampleRandomLeaves(items.length)
     (shuffledItems.zip(sampledIds).toMap, sampledIds.zip(shuffledItems).toMap)
   }
 
-  private def sampleRandomLeaves(items: Array[Int]): Seq[Int] = {
-    val log2 = (n: Int) => math.ceil(math.log(n) / math.log(2)).toInt
-    val leafLevel = log2(items.length)
+  private def sampleRandomLeaves(itemNum: Int): Seq[Int] = {
+    val leafLevel = upperLog2(itemNum)
     val start = math.pow(2, leafLevel).toInt - 1
     val end = start * 2 + 1
     val hasSampled = mutable.BitSet.empty
-    while (hasSampled.size < items.length) {
+    while (hasSampled.size < itemNum) {
       val s = scala.util.Random.between(start, end)
       if (!hasSampled.contains(s)) {
         hasSampled += s
