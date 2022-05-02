@@ -49,7 +49,7 @@ trait Recommender {
     val codeNodeMap = tree.codeNodeMap
     // binary tree with 2 child => candidateNum * 2
     val modelInputs = duplicateSequence(sequence, tree, useMask, candidateNum * 2)
-    val (levelStartCode, level) = getLevelStart(candidateNum, 0, 0)
+    val (levelStartCode, level) = getLevelStart(candidateNum)
     val levelEndCode = levelStartCode * 2 + 1
     val initCandidates = Vector.range(levelStartCode, levelEndCode)
       .filter(codeNodeMap.contains)
@@ -200,5 +200,14 @@ object Recommender {
   def getLevelStart(candidateNum: Int, n: Int, level: Int): (Int, Int) = {
     if (candidateNum == 0) (n, level)
     else getLevelStart((candidateNum - 1) / 2, n * 2 + 1, level + 1)
+  }
+
+  // start level has num of nodes <= candidateNum
+  def getLevelStart(candidateNum: Int): (Int, Int) = {
+    require(candidateNum > 0)
+    val log2 = (n: Int) => math.floor(math.log(n) / math.log(2)).toInt
+    val level = log2(candidateNum)
+    val startNode = (1 to level).foldLeft(0)((i, _) => i * 2 + 1)
+    (startNode, level)
   }
 }

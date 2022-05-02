@@ -34,9 +34,9 @@ class BCECriterionWithLogits[@specialized(Float, Double) T: ClassTag](
     val batchSize = input.nElement()
     val iOffset = input.storageOffset()
     val tOffset = target.storageOffset()
-    if (buffer == null) buffer = new Array[T](batchSize)
-    if (buffer2 == null) buffer2 = new Array[T](batchSize)
-    if (ones == null) ones = Array.fill[T](batchSize)(ev.one)
+    if (buffer == null || buffer.length < batchSize) buffer = new Array[T](batchSize)
+    if (buffer2 == null || buffer2.length < batchSize) buffer2 = new Array[T](batchSize)
+    if (ones == null || ones.length < batchSize) ones = Array.fill[T](batchSize)(ev.one)
 
     // compute max(x, 0) - x * z + log(1 + exp(-abs(x)))
     var i = 0

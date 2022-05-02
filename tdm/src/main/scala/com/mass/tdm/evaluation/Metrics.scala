@@ -16,10 +16,6 @@ object Metrics {
       }
       i += 1
     }
-  //  val precision = if (commonItems != 0) commonItems.toDouble / k else 0.0
-  //  val recall = if (commonItems != 0) commonItems.toDouble / labels.length else 0.0
-  //  val ndcg = if (commonItems != 0) dcg / idcg else 0.0
-  //  (precision, recall, ndcg)
 
     if (commonItems != 0) {
       (commonItems.toDouble / k, commonItems.toDouble / labels.length, dcg / idcg)
