@@ -2,21 +2,27 @@ package com.mass.otm.dataset
 
 import java.io.{BufferedReader, InputStreamReader}
 
-import scala.collection.mutable
-import scala.util.Using
+import scala.collection.BitSet
+import scala.util.{Random, Using}
 
-import com.mass.otm.dataset.OTMSample.{OTMEvalSample, OTMTrainSample}
 import com.mass.otm.{encoding, paddingIdx, upperLog2}
+import com.mass.otm.dataset.OTMSample.{OTMEvalSample, OTMTrainSample}
 import com.mass.sparkdl.utils.{FileReader => DistFileReader}
 import org.apache.commons.lang3.math.NumberUtils
 
-class LocalDataSet(dataPath: String, seqLen: Int, minSeqLen: Int, splitRatio: Double) {
+class LocalDataSet(
+    dataPath: String,
+    seqLen: Int,
+    minSeqLen: Int,
+    splitRatio: Double,
+    mode: String,
+    seed: Long) {
   import LocalDataSet._
   require(seqLen > 0 && minSeqLen > 0 && seqLen >= minSeqLen)
 
   private val initData: Seq[InitSample] = readFile(dataPath)
-  lazy val uniqueItems: Seq[Int] = initData.map(_.item).distinct
-  lazy val (itemIdMapping, idItemMapping) = initializeMapping(uniqueItems)
+  lazy val (itemIdMapping, idItemMapping) = initializeMapping(initData, mode, seed)
+  lazy val allNodes = getAllNodes(idItemMapping.keys.toSeq)
   lazy val DataInfo(userConsumed, trainData, evalData) = generateData(initData)
 
   private def generateData(initData: Seq[InitSample]): DataInfo = {
@@ -63,9 +69,9 @@ class LocalDataSet(dataPath: String, seqLen: Int, minSeqLen: Int, splitRatio: Do
 
   def evalSize: Int = evalData.length
 
-  def numItem: Int = uniqueItems.length
+  def numItem: Int = itemIdMapping.size
 
-  def numNode: Int = {
+  def numTreeNode: Int = {
     val leafLevel = upperLog2(numItem)
     (math.pow(2, leafLevel + 1) - 1).toInt
   }
@@ -73,7 +79,7 @@ class LocalDataSet(dataPath: String, seqLen: Int, minSeqLen: Int, splitRatio: Do
 
 object LocalDataSet {
 
-  case class InitSample(user: Int, item: Int, timestamp: Long)
+  case class InitSample(user: Int, item: Int, timestamp: Long, category: String)
 
   case class DataInfo(
     userConsumed: Map[Int, Seq[Int]],
@@ -81,8 +87,22 @@ object LocalDataSet {
     evalData: IndexedSeq[OTMSample]
   )
 
-  def apply(dataPath: String, seqLen: Int, minSeqLen: Int, splitRatio: Double): LocalDataSet = {
-    new LocalDataSet(dataPath, seqLen, minSeqLen, splitRatio)
+  def apply(
+    dataPath: String,
+    seqLen: Int,
+    minSeqLen: Int,
+    splitRatio: Double,
+    mode: String,
+    seed: Long
+  ): LocalDataSet = {
+    new LocalDataSet(
+      dataPath,
+      seqLen,
+      minSeqLen,
+      splitRatio,
+      mode,
+      seed
+    )
   }
 
   def readFile(dataPath: String): Seq[InitSample] = {
@@ -95,27 +115,45 @@ object LocalDataSet {
       .view
       .map(_.trim.split(","))
       .filter(i => i.length == 5 && NumberUtils.isCreatable(i(0)))
-      .map(i => InitSample(i(0).toInt, i(1).toInt, i(3).toLong))
+      .map(i => InitSample(i(0).toInt, i(1).toInt, i(3).toLong, i(4)))
       .toSeq
   }
 
-  def initializeMapping(items: Seq[Int]): (Map[Int, Int], Map[Int, Int]) = {
-    val shuffledItems = scala.util.Random.shuffle(items)
-    val sampledIds = sampleRandomLeaves(items.length)
-    (shuffledItems.zip(sampledIds).toMap, sampledIds.zip(shuffledItems).toMap)
+  def initializeMapping(
+    samples: Seq[InitSample],
+    mode: String,
+    seed: Long
+  ): (Map[Int, Int], Map[Int, Int]) = {
+    val rand = new scala.util.Random(seed)
+    val uniqueSamples = samples.distinctBy(_.item)
+    val orderedItems = mode match {
+      case "random" =>
+        val items = uniqueSamples.map(_.item)
+        rand.shuffle(items)
+      case "category" =>
+        uniqueSamples.sortWith { (a, b) =>
+          a.category < b.category || (a.category == b.category && a.item < b.item)
+        }.map(_.item)
+    }
+    val sampledIds = sampleRandomLeaves(uniqueSamples.length, rand)
+    (orderedItems.zip(sampledIds).toMap, sampledIds.zip(orderedItems).toMap)
   }
 
-  private def sampleRandomLeaves(itemNum: Int): Seq[Int] = {
+  private def sampleRandomLeaves(itemNum: Int, rand: Random): Seq[Int] = {
     val leafLevel = upperLog2(itemNum)
-    val start = math.pow(2, leafLevel).toInt - 1
-    val end = start * 2 + 1
-    val hasSampled = mutable.BitSet.empty
-    while (hasSampled.size < itemNum) {
-      val s = scala.util.Random.between(start, end)
-      if (!hasSampled.contains(s)) {
-        hasSampled += s
-      }
+    val leafStart = math.pow(2, leafLevel).toInt - 1
+    val leafEnd = leafStart * 2 + 1
+    rand
+      .shuffle(LazyList.range(leafStart, leafEnd))
+      .take(itemNum)
+      .sorted
+  }
+
+  def getAllNodes(ids: Seq[Int]): BitSet = {
+    val leafLevel = upperLog2(ids.length)
+    ids.foldLeft(BitSet.empty) { (res, i) =>
+      val pathNodes = (1 to leafLevel).scanLeft(i)((a, _) => (a - 1) / 2)
+      res ++ pathNodes
     }
-    hasSampled.toSeq
   }
 }

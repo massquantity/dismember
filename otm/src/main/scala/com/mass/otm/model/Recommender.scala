@@ -1,7 +1,6 @@
 package com.mass.otm.model
 
-import com.mass.otm.dataset.OTMSample
-import com.mass.otm.dataset.MiniBatch.{duplicateSequence, transform}
+import com.mass.otm.dataset.{MiniBatch, OTMSample}
 import com.mass.otm.DeepModel
 import com.mass.otm.tree.OTMTree
 import com.mass.otm.tree.OTMTree.Node
@@ -16,35 +15,35 @@ trait Recommender {
     tree: OTMTree,
     beamSize: Int,
     seqLen: Int,
-    useMask: Boolean,
+    useMask: Boolean
   ): Seq[Seq[Node]] = {
     val (initCandidates, initSize) = tree.initializeBeam(batchData.length)
-    val (itemSeqs, masks) = duplicateSequence(batchData, beamSize, seqLen)
+    val miniBatch = MiniBatch(batchData, initSize, beamSize, seqLen, useMask, 1)
     (tree.startLevel until tree.leafLevel).foldLeft(initCandidates) { case (candidateNodes, level) =>
-      val (batchInputs, beamNodes, candidateNum) = {
+      val beamNodes =
         if (level == tree.startLevel) {
-          val nodes = candidateNodes.map(_.flatMap(i => Seq(i.id * 2 + 1, i.id * 2 + 2)))
-          val inputs = transform(batchData, nodes, initSize, None, seqLen, useMask)
-          (inputs, nodes, initSize * 2)
+          candidateNodes.map(_.flatMap(i => Seq(i.id * 2 + 1, i.id * 2 + 2)))
         } else {
-          val nodes =
-            for {
-              nodes <- candidateNodes
-            } yield {
-              nodes
-                .sortBy(_.pred)(Ordering[Double].reverse)
-                .take(beamSize)
-                .flatMap(n => Seq(n.id * 2 + 1, n.id * 2 + 2))
-            }
-          val inputs = transform(batchData, nodes, beamSize, Some((itemSeqs, masks)), seqLen, useMask)
-          (inputs, nodes, beamSize * 2)
+          for {
+            nodes <- candidateNodes
+          } yield {
+            nodes
+              .sortBy(_.pred)(Ordering[Double].reverse)
+              .take(beamSize)
+              .flatMap(n => Seq(n.id * 2 + 1, n.id * 2 + 2))
+          }
         }
-      }
+      val nodeSize = if (level == tree.startLevel) initSize else beamSize
+      val batchInputs = miniBatch.batchTransform(beamNodes, nodeSize)
       val batchOutputs = deepModel.forward(batchInputs).toTensor
+      // take certain size since the underlying array may be larger than u think
+      val offset = batchOutputs.storageOffset()
+      val end = offset + batchOutputs.nElement()
       val candidatePreds = batchOutputs
         .storage()
         .array()
-        .sliding(candidateNum, candidateNum)
+        .slice(offset, end)
+        .sliding(nodeSize * 2, nodeSize * 2)
         .toSeq
 
       beamNodes.zip(candidatePreds).map { case (nodes, preds) =>

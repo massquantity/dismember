@@ -33,6 +33,15 @@ class OTMTree(val startLevel: Int, val leafLevel: Int) {
       levelNodes :: allNodes
     }
   }
+
+  // levelSize * batchSize
+  def normalTargets(data: Seq[OTMSample]): Seq[Seq[TargetNode]] = {
+    data.map { i =>
+      Seq.range(1, leafLevel - startLevel)
+        .scanRight(i.target)((_, b) => (b - 1) >> 1)
+        .map(TargetNode(_, 1.0))
+    }.transpose
+  }
 }
 
 object OTMTree {
