@@ -10,7 +10,7 @@ trait Recommender {
 
   // batchSize * beamSize * 2
   private[otm] def batchBeamSearch(
-    batchData: IndexedSeq[OTMSample],
+    batchData: Seq[OTMSample],
     deepModel: DeepModel[Double],
     tree: OTMTree,
     beamSize: Int,

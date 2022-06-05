@@ -1,5 +1,8 @@
 package com.mass.otm.dataset
 
+case class OTMSample(sequence: Seq[Int], targetItems: List[Int], user: Int)
+
+/*
 sealed trait OTMSample extends Product with Serializable {
 
   val sequence: Seq[Int]
@@ -42,4 +45,14 @@ object OTMSample {
         s"labels: ${if (labels == null) "null" else labels.mkString("Seq(", ", ", ")")}"
     }
   }
+
+  case class MultiLabelSample(
+    override val sequence: Seq[Int],
+    override val labels: Seq[Int],
+    override val user: Int
+  ) extends OTMSample {
+
+    override val target: Int = -1
+  }
 }
+*/

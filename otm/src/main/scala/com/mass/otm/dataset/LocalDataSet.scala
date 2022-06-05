@@ -6,7 +6,6 @@ import scala.collection.BitSet
 import scala.util.{Random, Using}
 
 import com.mass.otm.{encoding, paddingIdx, upperLog2}
-import com.mass.otm.dataset.OTMSample.{OTMEvalSample, OTMTrainSample}
 import com.mass.sparkdl.utils.{FileReader => DistFileReader}
 import org.apache.commons.lang3.math.NumberUtils
 
@@ -15,54 +14,72 @@ class LocalDataSet(
     seqLen: Int,
     minSeqLen: Int,
     splitRatio: Double,
-    mode: String,
+    leafInitMode: String,
+    labelMode: String,
     seed: Long) {
   import LocalDataSet._
   require(seqLen > 0 && minSeqLen > 0 && seqLen >= minSeqLen)
+  // println(f"\tEval time: ${(System.nanoTime() - start) / 1e9d}%.4fs, ")
 
-  private val initData: Seq[InitSample] = readFile(dataPath)
-  lazy val (itemIdMapping, idItemMapping) = initializeMapping(initData, mode, seed)
+  private val rand = new Random(seed)
+  private val initData: Array[InitSample] = readFile(dataPath)
+  lazy val (itemIdMapping, idItemMapping) = initializeMapping(initData, leafInitMode, rand)
   lazy val allNodes = getAllNodes(idItemMapping.keys.toSeq)
-  lazy val DataInfo(userConsumed, trainData, evalData) = generateData(initData)
+  lazy val DataInfo(userConsumed, trainData, evalData) = labelMode match {
+    case "singleLabel" => generateWithSingleLabel(initData)
+    case "multiLabel" => generateWithMultiLabel(initData)
+  }
 
-  private def generateData(initData: Seq[InitSample]): DataInfo = {
-    val groupedSamples = initData.groupBy(_.user).toIndexedSeq.map { case (user, samples) =>
+  private def generateWithMultiLabel(initData: Array[InitSample]): DataInfo = {
+    val groupedSamples = initData.groupBy(_.user).toSeq.map { case (user, samples) =>
       (user, samples.sortBy(_.timestamp).map(_.item).distinct.map(itemIdMapping(_)))
     }
-    val (userConsumed, trainSamples, evalSamples) = groupedSamples.map { case (user, items) =>
-      if (items.length <= minSeqLen) {
-        (user -> items, Seq.empty[OTMTrainSample], Seq.empty[OTMEvalSample])
-      } else if (items.length == minSeqLen + 1) {
-        (user -> items, Seq(OTMTrainSample(items.init, items.last)), Seq.empty[OTMEvalSample])
-      } else {
-        val fullSeq = Seq.fill[Int](seqLen - minSeqLen)(paddingIdx) ++ items
-        val splitPoint = math.ceil((items.length - minSeqLen) * splitRatio).toInt
-        val _trainSamples = fullSeq
-          .take(splitPoint + seqLen)
-          .sliding(seqLen + 1)
-          .map(s => OTMTrainSample(s.init, s.last))
-          .toSeq
-
-        val consumed = items.take(splitPoint + minSeqLen)
-        val consumedSet = consumed.toSet
-        val (_evalSeq, _labels) = fullSeq.splitAt(splitPoint + seqLen)
-        val labels = _labels.filterNot(consumedSet) // remove items appeared in train data
-        val _evalSamples =
-          if (labels.nonEmpty) {
-            val evalSeq = _evalSeq.takeRight(seqLen)
-            Seq(OTMEvalSample(evalSeq, labels, user))
+    val (userConsumed, samples) = groupedSamples
+      .foldRight[(Map[Int, Seq[Int]], List[OTMSample])]((Map.empty, Nil)) {
+        case ((user, items), (userConsumed, samples)) =>
+          if (items.length > seqLen) {
+            val (sequence, labels) = items.splitAt(seqLen)
+            (userConsumed + (user -> sequence), OTMSample(sequence, labels.toList, user) :: samples)
           } else {
-            Seq.empty[OTMEvalSample]
+            (userConsumed, samples)
           }
-        (user -> consumed, _trainSamples, _evalSamples)
       }
-    }.unzip3
+    val splitPoint = (groupedSamples.length * splitRatio).toInt
+    val (trainSamples, evalSamples) = rand.shuffle(samples).splitAt(splitPoint)
+    DataInfo(userConsumed, trainSamples, evalSamples)  // evalSamples.map(i => i.copy(labels = i.labels.take(10)))
+  }
 
-    DataInfo(
-      userConsumed.toMap,
-      trainSamples.filter(_.nonEmpty).flatten,
-      evalSamples.filter(_.nonEmpty).flatten
-    )
+  private def generateWithSingleLabel(initData: Array[InitSample]): DataInfo = {
+    val groupedSamples = initData.groupBy(_.user).toArray.map { case (user, samples) =>
+      (user, samples.sortBy(_.timestamp).map(_.item).distinct.map(itemIdMapping(_)))
+    }
+    groupedSamples.foldRight(DataInfo(Map.empty, Nil, Nil)) {
+      case ((user, items), DataInfo(userConsumed, trainSamples, evalSamples)) =>
+        if (items.length <= minSeqLen) {
+          DataInfo(userConsumed, trainSamples, evalSamples)
+        } else if (items.length == minSeqLen + 1) {
+          DataInfo(
+            userConsumed + (user -> items),
+            OTMSample(items.init, List(items.last), user) :: trainSamples,
+            evalSamples
+          )
+        } else {
+          val fullSeq = Array.fill[Int](seqLen - minSeqLen)(paddingIdx) ++: items
+          val splitPoint = math.ceil((items.length - minSeqLen) * splitRatio).toInt
+          val seqTrain = fullSeq
+            .take(splitPoint + seqLen)
+            .sliding(seqLen + 1)
+            .map(s => OTMSample(s.init, List(s.last), user))
+            .toList
+          val consumed = items.take(splitPoint + minSeqLen)
+          val (evalSeq, labels) = fullSeq.splitAt(splitPoint + seqLen)
+          DataInfo(
+            userConsumed + (user -> consumed),
+            seqTrain ::: trainSamples,
+            OTMSample(evalSeq.takeRight(seqLen), labels.toList, user) :: evalSamples
+          )
+        }
+    }
   }
 
   def trainSize: Int = trainData.length
@@ -83,8 +100,8 @@ object LocalDataSet {
 
   case class DataInfo(
     userConsumed: Map[Int, Seq[Int]],
-    trainData: IndexedSeq[OTMSample],
-    evalData: IndexedSeq[OTMSample]
+    trainData: List[OTMSample],
+    evalData: List[OTMSample]
   )
 
   def apply(
@@ -92,7 +109,8 @@ object LocalDataSet {
     seqLen: Int,
     minSeqLen: Int,
     splitRatio: Double,
-    mode: String,
+    leafInitMode: String,
+    labelMode: String,
     seed: Long
   ): LocalDataSet = {
     new LocalDataSet(
@@ -100,33 +118,33 @@ object LocalDataSet {
       seqLen,
       minSeqLen,
       splitRatio,
-      mode,
+      leafInitMode,
+      labelMode,
       seed
     )
   }
 
-  def readFile(dataPath: String): Seq[InitSample] = {
+  def readFile(dataPath: String): Array[InitSample] = {
     val fileReader = DistFileReader(dataPath)
     val inputStream = fileReader.open()
     val lines = Using.resource(new BufferedReader(new InputStreamReader(inputStream, encoding.name))) {
-      reader => Iterator.continually(reader.readLine()).takeWhile(_ != null).toSeq
+      reader => Iterator.continually(reader.readLine()).takeWhile(_ != null).toArray
     }
     lines
       .view
       .map(_.trim.split(","))
       .filter(i => i.length == 5 && NumberUtils.isCreatable(i(0)))
       .map(i => InitSample(i(0).toInt, i(1).toInt, i(3).toLong, i(4)))
-      .toSeq
+      .toArray
   }
 
   def initializeMapping(
     samples: Seq[InitSample],
-    mode: String,
-    seed: Long
+    leafInitMode: String,
+    rand: Random
   ): (Map[Int, Int], Map[Int, Int]) = {
-    val rand = new scala.util.Random(seed)
     val uniqueSamples = samples.distinctBy(_.item)
-    val orderedItems = mode match {
+    val orderedItems = leafInitMode match {
       case "random" =>
         val items = uniqueSamples.map(_.item)
         rand.shuffle(items)

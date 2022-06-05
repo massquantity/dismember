@@ -1,5 +1,7 @@
 package com.mass.otm.tree
 
+import scala.collection.mutable.ArrayBuffer
+
 import com.mass.otm.{paddingIdx, DeepModel}
 import com.mass.otm.dataset.OTMSample
 import com.mass.sparkdl.tensor.Tensor
@@ -20,26 +22,25 @@ class OTMTree(val startLevel: Int, val leafLevel: Int) {
     (initCandidates, initSize)
   }
 
-  // levelSize * batchSize
-  def optimalPseudoTargets(data: Seq[OTMSample], seqLen: Int, useMask: Boolean)(
+  // levelSize * batchSize * labelNum
+  def optimalPseudoTargets(data: List[OTMSample], seqLen: Int, useMask: Boolean)(  // parallel computing
     implicit model: DeepModel[Double]
-  ): List[List[TargetNode]] = {
-    val (itemSeqs, masks) = sequenceBatch(data, seqLen)
-    (leafLevel until startLevel by -1).foldLeft[List[List[TargetNode]]](Nil) { (allNodes, _) =>
+  ): List[List[List[TargetNode]]] = {
+    (leafLevel until startLevel by -1).foldLeft[List[List[List[TargetNode]]]](Nil) { (allNodes, _) =>
       val levelNodes = allNodes match {
-        case Nil => data.map(i => TargetNode(i.target, 1.0)).toList
-        case childNodes :: _ => computeTargets(childNodes, itemSeqs, masks, useMask)
+        case Nil => data.map(_.targetItems.map(TargetNode(_, 1.0)))
+        case childNodes :: _ => computeTargets(childNodes, data, seqLen, useMask)
       }
       levelNodes :: allNodes
     }
   }
 
-  // levelSize * batchSize
-  def normalTargets(data: Seq[OTMSample]): Seq[Seq[TargetNode]] = {
-    data.map { i =>
+  // levelSize * batchSize * labelNum
+  def normalTargets(data: Seq[OTMSample]): Seq[Seq[Seq[TargetNode]]] = {
+    data.map { d =>
       Seq.range(1, leafLevel - startLevel)
-        .scanRight(i.target)((_, b) => (b - 1) >> 1)
-        .map(TargetNode(_, 1.0))
+        .scanRight(d.targetItems)((_, items) => items.map(i => (i - 1) >> 1))
+        .map(i => i.map(TargetNode(_, 1.0)))
     }.transpose
   }
 }
@@ -50,39 +51,63 @@ object OTMTree {
 
   case class TargetNode(id: Int, label: Double)
 
+  val clipValue = (value: Double, min: Double, max: Double) => math.max(min, math.min(max, value))
+
   def apply(startLevel: Int, leafLevel: Int): OTMTree = {
     new OTMTree(startLevel, leafLevel)
   }
 
   def computeTargets(
-    childNodes: List[TargetNode],
-    itemSeqs: Tensor[Int],
-    masks: Tensor[Int],
+    childrenNodes: List[List[TargetNode]],  // batchSize * labelNum
+    data: Seq[OTMSample],
+    seqLen: Int,
     useMask: Boolean
   )(
     implicit model: DeepModel[Double]
-  ): List[TargetNode] = {
-    val (posPreds, negPreds) = computeChildScores(childNodes, itemSeqs, masks, useMask)
-    childNodes.lazyZip(posPreds).lazyZip(negPreds).map { case (n, pos, neg) =>
-      val parentId = (n.id - 1) >> 1
-      val parentLabel = if (pos > neg) n.label else 0.0
-      TargetNode(parentId, parentLabel)
-    }
+  ): List[List[TargetNode]] = {
+    val labelNums = childrenNodes.map(_.length)
+    val (itemSeqs, masks) = sequenceBatch(data, labelNums, seqLen)
+    val (posPreds, negPreds, negLabels) = computeChildrenScores(childrenNodes, itemSeqs, masks, useMask)
+    childrenNodes.foldRight[(List[List[TargetNode]], Int)]((Nil, 0)) { case (nodes, (targets, offset)) =>
+      val labelNum = nodes.length
+      val nodesWithLabels = nodes.zipWithIndex.map { case (n, i) =>
+        val index = offset + i
+        val label = if (posPreds(index) > negPreds(index)) n.label else negLabels(index)
+        (n.id, label)
+      }
+      val parentNodes = nodesWithLabels
+        .groupMapReduce(i => (i._1 - 1) >> 1)(_._2)(_ + _)
+        .toList
+        .map(i => TargetNode(i._1, clipValue(i._2, 0.0, 1.0)))
+      (parentNodes :: targets, offset + labelNum)
+    }._1
   }
 
-  def computeChildScores(
-    nodes: List[TargetNode],
+  def computeChildrenScores(
+    batchNodes: List[List[TargetNode]],
     itemSeqs: Tensor[Int],
     masks: Tensor[Int],
     useMask: Boolean
   )(
     implicit model: DeepModel[Double]
-  ): (Array[Double], Array[Double]) = {
-    val length = nodes.length
-    val posNodes = nodes.map(_.id).toArray
-    val negNodes = posNodes.map(n => if (n % 2 == 0) n - 1 else n + 1)
-    val posTensor = Tensor(posNodes, Array(length, 1))
-    val negTensor = Tensor(negNodes, Array(length, 1))
+  ): (Array[Double], Array[Double], Array[Double]) = {
+    val length = batchNodes.map(_.length).sum
+    val batchPosNodes = ArrayBuffer[Int]()
+    val batchNegNodes = ArrayBuffer[Int]()
+    val negLabels = batchNodes.toArray.flatMap { nodes =>
+      val posNodes = nodes.map(_.id)
+      val negNodes = posNodes.map(n => if (n % 2 == 0) n - 1 else n + 1)
+      batchPosNodes ++= posNodes
+      batchNegNodes ++= negNodes
+      negNodes.map { n =>
+        nodes.find(_.id == n) match {
+          case Some(i) => i.label
+          case None => 0.0
+        }
+      }
+    }
+    val posTensor = Tensor(batchPosNodes.toArray, Array(length, 1))
+    val negTensor = Tensor(batchNegNodes.toArray, Array(length, 1))
     val (posInputs, negInputs) =
       if (useMask) {
         (Table(posTensor, itemSeqs, masks), Table(negTensor, itemSeqs, masks))
@@ -91,13 +116,22 @@ object OTMTree {
       }
     val posPreds = model.forward(posInputs).toTensor.storage().array()
     val negPreds = model.forward(negInputs).toTensor.storage().array()
-    (posPreds, negPreds)
+    (posPreds, negPreds, negLabels)
   }
 
-  def sequenceBatch(data: Seq[OTMSample], seqLen: Int): (Tensor[Int], Tensor[Int]) = {
-    val sequence = data.flatMap(_.sequence).toArray
+  def sequenceBatch(
+    data: Seq[OTMSample],
+    labelNums: Seq[Int],
+    seqLen: Int
+  ): (Tensor[Int], Tensor[Int]) = {
+    val sequence =
+      for {
+        (d, n) <- data.toArray zip labelNums
+        _ <- 1 to n
+        i <- d.sequence
+      } yield i
     val masks = sequence.zipWithIndex.filter(_._1 == paddingIdx).map(_._2)
     val maskTensor = if (masks.isEmpty) Tensor[Int]() else Tensor(masks, Array(masks.length))
-    (Tensor(sequence, Array(data.length, seqLen)), maskTensor)
+    (Tensor(sequence, Array(labelNums.sum, seqLen)), maskTensor)
   }
 }

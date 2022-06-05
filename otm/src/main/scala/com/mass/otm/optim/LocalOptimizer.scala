@@ -59,7 +59,7 @@ class LocalOptimizer(
         .zip(1 to numBatchInEpoch)
         .map { case (batchData, iter) =>
           val start = System.nanoTime()
-          implicit val preModel = deepModel  // .cloneModule()
+          implicit val preModel = deepModel
           val pseudoTargets = tree.optimalPseudoTargets(batchData, seqLen, useMask)
           // val pseudoTargets = tree.normalTargets(batchData)
           val (initCandidates, initSize) = tree.initializeBeam(batchData.length)
@@ -73,7 +73,7 @@ class LocalOptimizer(
                 case _ => miniBatch.batchTransform(candidateNodes, targets, beamSize)
               }
               val (batchOutputs, loss) = trainBatch(transformedData)
-              val (totalWeights, totalGradients) = syncGradients()
+              val (totalWeights, totalGradients) = syncGradients(transformedData.length)
               adamOptimizer.optimize(_ => (loss, totalGradients), totalWeights)
 
               val candidateNum = if (level == startLevel) initSize * 2 else beamSize * 2
@@ -112,7 +112,7 @@ class LocalOptimizer(
 
   def trainBatch(transformedData: IndexedSeq[(Table, Tensor[Double])]): (Seq[Tensor[Double]], Double) = {
     val trainResults = Engine.default.invokeAndWait(
-      (0 until numThread).map { i => () =>
+      transformedData.indices.map { i => () =>
         val localModel = clonedModels(i)
         localModel.zeroGradParameters()
         localModel.training()
@@ -124,16 +124,16 @@ class LocalOptimizer(
         (outputs, loss)
       }
     ).unzip
-    (trainResults._1, trainResults._2.sum / numThread)
+    (trainResults._1, trainResults._2.sum / transformedData.length)
   }
 
-  def syncGradients(): (Tensor[Double], Tensor[Double]) = {
+  def syncGradients(syncNum: Int): (Tensor[Double], Tensor[Double]) = {
     val (totalWeights, totalGradients) = getParameters(deepModel)
-    (0 until numThread).foreach {
+    (0 until syncNum).foreach {
       case i@0 => totalGradients.copy(clonedGradients(i))
       case i@_ => totalGradients.add(clonedGradients(i))
     }
-    totalGradients.div(numThread)
+    totalGradients.div(syncNum)
     (totalWeights, totalGradients)
   }
 

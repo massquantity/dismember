@@ -6,7 +6,7 @@ import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.utils.Table
 
 class MiniBatch(
-    batchData: IndexedSeq[OTMSample],
+    batchData: Seq[OTMSample],
     initSize: Int,
     beamSize: Int,
     seqLen: Int,
@@ -26,14 +26,14 @@ class MiniBatch(
   }
 
   def batchTransform(
-    nodes: Seq[Seq[Int]],
-    targets: Seq[TargetNode],
+    batchNodes: Seq[Seq[Int]],           // batchSize * beamSize
+    batchTargets: Seq[Seq[TargetNode]],  // batchSize * labelNum
     nodeSize: Int
   ): IndexedSeq[(Table, Tensor[Double])] = {
     val batchItemSeqs = if (nodeSize == initSize) initItemSeqs else itemSeqs
     val batchMasks = if (nodeSize == initSize) initMasks else masks
     val batchNum = threadDataSize * nodeSize * 2
-    val batchItems = nodes
+    val batchItems = batchNodes
       .flatten
       .toArray
       .sliding(batchNum, batchNum)
@@ -41,17 +41,19 @@ class MiniBatch(
       .toIndexedSeq
     val allLabels =
       for {
-        (levelNodes, target) <- nodes zip targets
+        (levelNodes, levelTargets) <- batchNodes zip batchTargets
         n <- levelNodes
-        label = if (n == target.id) target.label else 0.0
-      } yield label
+      } yield levelTargets.find(_.id == n) match {
+        case Some(i) => i.label
+        case None => 0.0
+      }
     val batchLabels = allLabels
       .toArray
       .sliding(batchNum, batchNum)
       .map(labels => Tensor(labels, Array(labels.length, 1)))
       .toIndexedSeq
 
-    (0 until numThread).map { i =>
+    batchItems.indices.map { i =>
       if (useMask) {
         (Table(batchItems(i), batchItemSeqs(i), batchMasks(i)), batchLabels(i))
       } else {
@@ -76,7 +78,7 @@ class MiniBatch(
 object MiniBatch {
 
   def apply(
-    batchData: IndexedSeq[OTMSample],
+    batchData: Seq[OTMSample],
     initSize: Int,
     beamSize: Int,
     seqLen: Int,

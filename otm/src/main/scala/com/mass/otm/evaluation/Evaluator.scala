@@ -51,8 +51,11 @@ object Evaluator extends Serializable with Recommender {
               .sortBy(_.pred)(Ordering[Double].reverse)
               .take(topk)
             val preds = leafNodes.map(_.pred)
-            val labels = leafNodes.map(i => if (i.id == data.target) 1.0 else 0.0)
-            val metrics = computeMetrics(leafNodes, data.labels)
+            val labels = leafNodes.map { n => data.targetItems.find(_ == n.id) match {
+              case Some(_) => 1.0
+              case None => 0.0
+            }}
+            val metrics = computeMetrics(leafNodes, data.targetItems)
             (preds, labels, metrics)
           }.unzip3
           val batchSumLoss = computeLoss(batchPreds, batchLabels, i)
