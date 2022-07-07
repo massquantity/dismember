@@ -59,8 +59,8 @@ class LocalOptimizer(
         .zip(1 to numBatchInEpoch)
         .map { case (batchData, iter) =>
           val start = System.nanoTime()
-          implicit val preModel = deepModel
-          val pseudoTargets = tree.optimalPseudoTargets(batchData, seqLen, useMask)
+          implicit val preModels = clonedModels
+          val pseudoTargets = tree.optimalPseudoTargets(batchData, seqLen, useMask, numThread)
           // val pseudoTargets = tree.normalTargets(batchData)
           val (initCandidates, initSize) = tree.initializeBeam(batchData.length)
           val miniBatch = MiniBatch(batchData, initSize, beamSize, seqLen, useMask, numThread)

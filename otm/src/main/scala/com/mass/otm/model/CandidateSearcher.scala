@@ -6,7 +6,7 @@ import com.mass.otm.tree.OTMTree
 import com.mass.otm.tree.OTMTree.Node
 import com.mass.sparkdl.tensor.TensorNumeric.NumericDouble
 
-trait Recommender {
+trait CandidateSearcher {
 
   // batchSize * beamSize * 2
   private[otm] def batchBeamSearch(

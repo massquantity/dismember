@@ -5,7 +5,7 @@ import java.util.concurrent.Executors
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.Duration
 
-import com.mass.otm.model.Recommender
+import com.mass.otm.model.CandidateSearcher
 import com.mass.otm.DeepModel
 import com.mass.otm.dataset.LocalDataSet
 import com.mass.otm.evaluation.Metrics.computeMetrics
@@ -16,7 +16,7 @@ import com.mass.sparkdl.tensor.TensorNumeric.NumericDouble
 import com.mass.sparkdl.Criterion
 import com.mass.sparkdl.utils.Engine
 
-object Evaluator extends Serializable with Recommender {
+object Evaluator extends Serializable with CandidateSearcher {
 
   val threadNum = Engine.coreNumber()
 

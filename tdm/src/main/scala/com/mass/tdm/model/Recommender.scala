@@ -3,7 +3,6 @@ package com.mass.tdm.model
 import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.View
-import scala.math.Ordering
 
 import com.mass.sparkdl.Module
 import com.mass.sparkdl.tensor.Tensor

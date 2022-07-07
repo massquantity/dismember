@@ -6,7 +6,7 @@ import com.mass.otm.{paddingIdx, DeepModel}
 import com.mass.otm.dataset.OTMSample
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.tensor.TensorNumeric.NumericDouble
-import com.mass.sparkdl.utils.Table
+import com.mass.sparkdl.utils.{Engine, Table}
 
 // start level has num of nodes <= beamSize, i.e. upper level of first candidate level
 class OTMTree(val startLevel: Int, val leafLevel: Int) {
@@ -23,13 +23,13 @@ class OTMTree(val startLevel: Int, val leafLevel: Int) {
   }
 
   // levelSize * batchSize * labelNum
-  def optimalPseudoTargets(data: List[OTMSample], seqLen: Int, useMask: Boolean)(  // parallel computing
-    implicit model: DeepModel[Double]
+  def optimalPseudoTargets(data: List[OTMSample], seqLen: Int, useMask: Boolean, threadNum: Int)(
+    implicit models: IndexedSeq[DeepModel[Double]]
   ): List[List[List[TargetNode]]] = {
     (leafLevel until startLevel by -1).foldLeft[List[List[List[TargetNode]]]](Nil) { (allNodes, _) =>
       val levelNodes = allNodes match {
         case Nil => data.map(_.targetItems.map(TargetNode(_, 1.0)))
-        case childNodes :: _ => computeTargets(childNodes, data, seqLen, useMask)
+        case childNodes :: _ => computeTargetsParallel(childNodes, data, seqLen, useMask, threadNum)
       }
       levelNodes :: allNodes
     }
@@ -57,8 +57,29 @@ object OTMTree {
     new OTMTree(startLevel, leafLevel)
   }
 
-  def computeTargets(
+  def computeTargetsParallel(
     childrenNodes: List[List[TargetNode]],  // batchSize * labelNum
+    batchData: Seq[OTMSample],
+    seqLen: Int,
+    useMask: Boolean,
+    threadNum: Int
+  )(
+    implicit models: IndexedSeq[DeepModel[Double]]
+  ): List[List[TargetNode]] = {
+    val threadSize = math.ceil(batchData.length.toDouble / threadNum).toInt
+    val threadNodes = childrenNodes.sliding(threadSize, threadSize).toSeq
+    val threadData = batchData.sliding(threadSize, threadSize).toIndexedSeq
+    Engine.default.invokeAndWait(
+      threadNodes.zipWithIndex.map { case (nodes, i) => () =>
+        implicit val model = models(i)
+        val data = threadData(i)
+        computeTargets(nodes, data, seqLen, useMask)
+      }
+    ).reduce(_ ::: _)
+  }
+
+  def computeTargets(
+    childrenNodes: List[List[TargetNode]],
     data: Seq[OTMSample],
     seqLen: Int,
     useMask: Boolean
