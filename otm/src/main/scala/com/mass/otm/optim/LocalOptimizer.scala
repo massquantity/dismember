@@ -5,17 +5,18 @@ import com.mass.otm.dataset.{LocalDataSet, MiniBatch, OTMSample}
 import com.mass.otm.evaluation.Evaluator
 import com.mass.otm.model.ModelUtil._
 import com.mass.otm.tree.OTMTree
-import com.mass.otm.tree.OTMTree.Node
+import com.mass.otm.tree.OTMTree.{BatchNodes, Node}
 import com.mass.sparkdl.nn.BCECriterionWithLogits
 import com.mass.sparkdl.optim.Adam
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.tensor.TensorNumeric.NumericDouble
-import com.mass.sparkdl.utils.{Engine, Table}
+import com.mass.sparkdl.utils.Engine
 import org.apache.log4j.Logger
 
 class LocalOptimizer(
     model: DeepModel[Double],
     dataset: LocalDataSet,
+    targetMode: String,
     numEpoch: Int,
     totalTrainBatchSize: Int,
     totalEvalBatchSize: Int,
@@ -30,8 +31,7 @@ class LocalOptimizer(
 
   val criterion = BCECriterionWithLogits[Double]()
   val adamOptimizer = Adam[Double](learningRate)
-  val startLevel = lowerLog2(beamSize)
-  val leafLevel = upperLog2(dataset.numItem)
+  val (startLevel, leafLevel) = (lowerLog2(beamSize), upperLog2(dataset.numItem))
   val trainBatchSize = math.max(1, totalTrainBatchSize / (beamSize * 2))
   val numBatchInEpoch = math.ceil(dataset.trainSize.toDouble / trainBatchSize).toInt
   val tree = OTMTree(startLevel, leafLevel)
@@ -59,26 +59,22 @@ class LocalOptimizer(
         .zip(1 to numBatchInEpoch)
         .map { case (batchData, iter) =>
           val start = System.nanoTime()
-          implicit val preModels = clonedModels
-          val pseudoTargets = tree.optimalPseudoTargets(batchData, seqLen, useMask, numThread)
-          // val pseudoTargets = tree.normalTargets(batchData)
-          val (initCandidates, initSize) = tree.initializeBeam(batchData.length)
-          val miniBatch = MiniBatch(batchData, initSize, beamSize, seqLen, useMask, numThread)
-          val initInfo = LevelInfo(initCandidates, Nil, startLevel)
-          val LevelInfo(_, batchLoss, _) = pseudoTargets.foldLeft(initInfo) {
-            case (LevelInfo(parentNodes, levelLoss, level), targets) =>
-              val candidateNodes = parentNodes.map(_.flatMap(i => Seq(i.id * 2 + 1, i.id * 2 + 2)))
-              val transformedData = levelLoss match {
-                case Nil => miniBatch.batchTransform(candidateNodes, targets, initSize)
-                case _ => miniBatch.batchTransform(candidateNodes, targets, beamSize)
-              }
-              val (batchOutputs, loss) = trainBatch(transformedData)
-              val (totalWeights, totalGradients) = syncGradients(transformedData.length)
+          implicit val (preModels, _seqLen, _useMask) = (clonedModels, seqLen, useMask)
+          val threadData = splitToThreadData(batchData, numThread)
+          val targetNodes = targetMode match {
+            case "pseudo" => tree.optimalPseudoTargets(threadData)
+            case "normal" => tree.normalTargets(threadData)
+          }
+          val beamSearchNodes = tree.beamSearchNodes(threadData, beamSize)
+          val miniBatches = threadData.map(td => MiniBatch(td, beamSize, startLevel))
+          val initInfo = LevelInfo(Nil, startLevel)
+          val LevelInfo(batchLoss, _) = targetNodes.zip(beamSearchNodes).foldLeft(initInfo) {
+            case (LevelInfo(levelLoss, level), (levelTargetNodes, levelBeamNodes)) =>
+              val beamStart = if (level == startLevel) true else false
+              val loss = trainBatch(levelTargetNodes, levelBeamNodes, miniBatches, beamStart)
+              val (totalWeights, totalGradients) = syncGradients(threadData.length)
               adamOptimizer.optimize(_ => (loss, totalGradients), totalWeights)
-
-              val candidateNum = if (level == startLevel) initSize * 2 else beamSize * 2
-              val levelNodes = searchCandidates(batchData, candidateNodes, candidateNum, batchOutputs)
-              LevelInfo(levelNodes, loss :: levelLoss, level + 1)
+              LevelInfo(loss :: levelLoss, level + 1)
           }
           val end = System.nanoTime()
           val iterationTime = end - start
@@ -110,21 +106,25 @@ class LocalOptimizer(
     }
   }
 
-  def trainBatch(transformedData: IndexedSeq[(Table, Tensor[Double])]): (Seq[Tensor[Double]], Double) = {
-    val trainResults = Engine.default.invokeAndWait(
-      transformedData.indices.map { i => () =>
-        val localModel = clonedModels(i)
-        localModel.zeroGradParameters()
-        localModel.training()
-        val (inputs, labels) = transformedData(i)
-        val outputs = localModel.forward(inputs).toTensor
-        val loss = clonedCriterions(i).forward(outputs, labels)
-        val gradients = clonedCriterions(i).backward(outputs, labels)
-        localModel.backward(inputs, gradients)
-        (outputs, loss)
-      }
-    ).unzip
-    (trainResults._1, trainResults._2.sum / transformedData.length)
+  def trainBatch(
+    targetNodes: IndexedSeq[BatchNodes],
+    beamNodes: IndexedSeq[BatchNodes],
+    miniBatches: IndexedSeq[MiniBatch],
+    beamStart: Boolean
+  ): Double = {
+    val totalLoss = Engine.default.invokeAndWait(miniBatches.indices.map { i => () =>
+      val transformedData = miniBatches(i).batchTransform(beamNodes(i), targetNodes(i), beamStart)
+      val localModel = clonedModels(i)
+      localModel.zeroGradParameters()
+      localModel.training()
+      val (inputs, labels) = transformedData
+      val outputs = localModel.forward(inputs).toTensor
+      val loss = clonedCriterions(i).forward(outputs, labels)
+      val gradients = clonedCriterions(i).backward(outputs, labels)
+      localModel.backward(inputs, gradients)
+      loss
+    })
+    totalLoss.sum / miniBatches.length
   }
 
   def syncGradients(syncNum: Int): (Tensor[Double], Tensor[Double]) = {
@@ -161,7 +161,7 @@ class LocalOptimizer(
             nodes
               .lazyZip(preds)
               .map(Node)
-              .sortBy(_.pred)(Ordering[Double].reverse)
+              .sortBy(_.score)(Ordering[Double].reverse)
               .take(beamSize)
           }.toVector
       }.reduce(_ ++ _)
@@ -170,11 +170,12 @@ class LocalOptimizer(
 
 object LocalOptimizer {
 
-  case class LevelInfo(candidateNodes: Seq[Seq[Node]], loss: List[Double], level: Int)
+  case class LevelInfo(loss: List[Double], level: Int)
 
   def apply(
     deepModel: DeepModel[Double],
     dataset: LocalDataSet,
+    targetMode: String,
     numEpoch: Int,
     totalTrainBatchSize: Int,
     totalEvalBatchSize: Int,
@@ -188,6 +189,7 @@ object LocalOptimizer {
     new LocalOptimizer(
       deepModel,
       dataset,
+      targetMode,
       numEpoch,
       totalTrainBatchSize,
       totalEvalBatchSize,
@@ -198,6 +200,14 @@ object LocalOptimizer {
       useMask,
       progressInterval
     )
+  }
+
+  private def splitToThreadData(
+    data: List[OTMSample],
+    numThread: Int
+  ): IndexedSeq[List[OTMSample]] = {
+    val threadDataSize = math.ceil(data.length.toDouble / numThread).toInt
+    data.sliding(threadDataSize, threadDataSize).toIndexedSeq
   }
 
   private def duplicateModels(

@@ -16,25 +16,25 @@ trait CandidateSearcher {
     beamSize: Int,
     seqLen: Int,
     useMask: Boolean
-  ): Seq[Seq[Node]] = {
+  ): List[List[Node]] = {
     val (initCandidates, initSize) = tree.initializeBeam(batchData.length)
-    val miniBatch = MiniBatch(batchData, initSize, beamSize, seqLen, useMask, 1)
+    val miniBatch = MiniBatch(batchData, beamSize, tree.startLevel)(seqLen, useMask)
     (tree.startLevel until tree.leafLevel).foldLeft(initCandidates) { case (candidateNodes, level) =>
       val beamNodes =
         if (level == tree.startLevel) {
-          candidateNodes.map(_.flatMap(i => Seq(i.id * 2 + 1, i.id * 2 + 2)))
+          candidateNodes.map(_.flatMap(n => List(n.id * 2 + 1, n.id * 2 + 2)))
         } else {
           for {
             nodes <- candidateNodes
           } yield {
             nodes
-              .sortBy(_.pred)(Ordering[Double].reverse)
+              .sortBy(_.score)(Ordering[Double].reverse)
               .take(beamSize)
-              .flatMap(n => Seq(n.id * 2 + 1, n.id * 2 + 2))
+              .flatMap(n => List(n.id * 2 + 1, n.id * 2 + 2))
           }
         }
       val nodeSize = if (level == tree.startLevel) initSize else beamSize
-      val batchInputs = miniBatch.batchTransform(beamNodes, nodeSize)
+      val batchInputs = miniBatch.batchTransform(beamNodes, level == tree.startLevel)
       val batchOutputs = deepModel.forward(batchInputs).toTensor
       // take certain size since the underlying array may be larger than u think
       val offset = batchOutputs.storageOffset()

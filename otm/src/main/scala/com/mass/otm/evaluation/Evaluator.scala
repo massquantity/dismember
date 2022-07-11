@@ -48,9 +48,9 @@ object Evaluator extends Serializable with CandidateSearcher {
             val leafNodes = nodes
               .filterNot(n => consumedItems.contains(n.id))
               .filter(n => dataset.allNodes.contains(n.id))
-              .sortBy(_.pred)(Ordering[Double].reverse)
+              .sortBy(_.score)(Ordering[Double].reverse)
               .take(topk)
-            val preds = leafNodes.map(_.pred)
+            val preds = leafNodes.map(_.score)
             val labels = leafNodes.map { n => data.targetItems.find(_ == n.id) match {
               case Some(_) => 1.0
               case None => 0.0

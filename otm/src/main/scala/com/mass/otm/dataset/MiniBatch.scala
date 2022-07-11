@@ -1,72 +1,47 @@
 package com.mass.otm.dataset
 
 import com.mass.otm.paddingIdx
-import com.mass.otm.tree.OTMTree.TargetNode
+import com.mass.otm.tree.OTMTree.BatchNodes
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.utils.Table
 
-class MiniBatch(
-    batchData: Seq[OTMSample],
-    initSize: Int,
-    beamSize: Int,
-    seqLen: Int,
-    useMask: Boolean,
-    numThread: Int) {
+class MiniBatch(batchData: Seq[OTMSample], beamSize: Int, startLevel: Int)(
+  implicit seqLen: Int, useMask: Boolean
+) {
   import MiniBatch._
-  val threadDataSize = math.ceil(batchData.length.toDouble / numThread).toInt
-  val (initItemSeqs, initMasks) = batchSequence(initSize)
-  val (itemSeqs, masks) = batchSequence(beamSize)
-
-  def batchSequence(nodeSize: Int): (IndexedSeq[Tensor[Int]], IndexedSeq[Tensor[Int]]) = {
-    batchData
-      .sliding(threadDataSize, threadDataSize)
-      .map(duplicateSequence(_, nodeSize, seqLen))
-      .toIndexedSeq
-      .unzip
-  }
+  val (initItemSeqs, initMasks) = duplicateSequence(batchData, getInitSize(startLevel), seqLen)
+  val (itemSeqs, masks) = duplicateSequence(batchData, beamSize, seqLen)
 
   def batchTransform(
-    batchNodes: Seq[Seq[Int]],           // batchSize * beamSize
-    batchTargets: Seq[Seq[TargetNode]],  // batchSize * labelNum
-    nodeSize: Int
-  ): IndexedSeq[(Table, Tensor[Double])] = {
-    val batchItemSeqs = if (nodeSize == initSize) initItemSeqs else itemSeqs
-    val batchMasks = if (nodeSize == initSize) initMasks else masks
-    val batchNum = threadDataSize * nodeSize * 2
-    val batchItems = batchNodes
-      .flatten
-      .toArray
-      .sliding(batchNum, batchNum)
-      .map(items => Tensor(items, Array(items.length, 1)))
-      .toIndexedSeq
+    batchNodes: BatchNodes,    // batchSize * beamSize
+    batchTargets: BatchNodes,  // batchSize * labelNum
+    beamStart: Boolean
+  ): (Table, Tensor[Double]) = {
+    val batchItemSeqs = if (beamStart) initItemSeqs else itemSeqs
+    val batchMasks = if (beamStart) initMasks else masks
+    val shape = Array(batchNodes.map(_.length).sum, 1)
+    val batchItems = Tensor(batchNodes.flatten.toArray.map(_.id), shape)
     val allLabels =
       for {
         (levelNodes, levelTargets) <- batchNodes zip batchTargets
         n <- levelNodes
-      } yield levelTargets.find(_.id == n) match {
-        case Some(i) => i.label
+      } yield levelTargets.find(_.id == n.id) match {
+        case Some(i) => i.score
         case None => 0.0
       }
-    val batchLabels = allLabels
-      .toArray
-      .sliding(batchNum, batchNum)
-      .map(labels => Tensor(labels, Array(labels.length, 1)))
-      .toIndexedSeq
-
-    batchItems.indices.map { i =>
-      if (useMask) {
-        (Table(batchItems(i), batchItemSeqs(i), batchMasks(i)), batchLabels(i))
-      } else {
-        (Table(batchItems(i), batchItemSeqs(i)), batchLabels(i))
-      }
+    val batchLabels = Tensor(allLabels.toArray, Array(allLabels.length, 1))
+    if (useMask) {
+      (Table(batchItems, batchItemSeqs, batchMasks), batchLabels)
+    } else {
+      (Table(batchItems, batchItemSeqs), batchLabels)
     }
   }
 
-  def batchTransform(nodes: Seq[Seq[Int]], nodeSize: Int): Table = {
+  def batchTransform(nodes: Seq[Seq[Int]], beamStart: Boolean): Table = {
     val shape = Array(nodes.map(_.length).sum, 1)
     val batchItems = Tensor(nodes.flatten.toArray, shape)
-    val batchItemSeqs = if (nodeSize == initSize) initItemSeqs.head else itemSeqs.head
-    val batchMasks = if (nodeSize == initSize) initMasks.head else masks.head
+    val batchItemSeqs = if (beamStart) initItemSeqs else itemSeqs
+    val batchMasks = if (beamStart) initMasks else masks
     if (useMask) {
       Table(batchItems, batchItemSeqs, batchMasks)
     } else {
@@ -77,26 +52,18 @@ class MiniBatch(
 
 object MiniBatch {
 
-  def apply(
-    batchData: Seq[OTMSample],
-    initSize: Int,
-    beamSize: Int,
-    seqLen: Int,
-    useMask: Boolean,
-    numThread: Int
+  def apply(batchData: Seq[OTMSample], initSize: Int, beamSize: Int)(
+    implicit seqLen: Int, useMask: Boolean
   ): MiniBatch = {
-    new MiniBatch(
-      batchData,
-      initSize,
-      beamSize,
-      seqLen,
-      useMask,
-      numThread
-    )
+    new MiniBatch(batchData, initSize, beamSize)
   }
 
   // batchSize * beamSize * 2 * seqLen
-  def duplicateSequence(data: Seq[OTMSample], nodeSize: Int, seqLen: Int): (Tensor[Int], Tensor[Int]) = {
+  def duplicateSequence(
+    data: Seq[OTMSample],
+    nodeSize: Int,
+    seqLen: Int
+  ): (Tensor[Int], Tensor[Int]) = {
     val shape = Array(data.length * nodeSize * 2, seqLen)
     val itemSeqs =
       for {
@@ -107,5 +74,11 @@ object MiniBatch {
     val masks = itemSeqs.zipWithIndex.filter(_._1 == paddingIdx).map(_._2)
     val maskTensor = if (masks.isEmpty) Tensor[Int]() else Tensor(masks, Array(masks.length))
     (Tensor(itemSeqs, shape), maskTensor)
+  }
+
+  def getInitSize(startLevel: Int): Int = {
+    val startNode = (1 to startLevel).foldLeft(0)((i, _) => i * 2 + 1)
+    val endNode = startNode * 2 + 1
+    endNode - startNode
   }
 }

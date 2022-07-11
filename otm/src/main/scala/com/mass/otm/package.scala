@@ -16,4 +16,6 @@ package object otm {
 
   val upperLog2 = (n: Int) => math.ceil(math.log(n) / math.log(2)).toInt
 
+  val clipValue = (value: Double, min: Double, max: Double) => math.max(min, math.min(max, value))
+
 }
