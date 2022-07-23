@@ -43,7 +43,7 @@ case class EvalResult(
     stringRepr ++= f"rerank loss: ${reRankLoss / count}%.4f\n"
     stringRepr ++= f"\t\tprecision: ${precision / size}%.6f, "
     stringRepr ++= f"recall: ${recall / size}%.6f, "
-    stringRepr ++= f"ndcg: ${ndcg / size}%.6f\n"
+    stringRepr ++= f"ndcg: ${ndcg / size}%.6f"
     stringRepr.toString
   }
 }

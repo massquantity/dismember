@@ -1,23 +1,16 @@
 package com.mass.dr.optim
 
-import java.io.{BufferedOutputStream, OutputStream}
-import java.nio.ByteBuffer
-
 import scala.collection.mutable
-import scala.util.{Failure, Random, Success, Using}
+import scala.util.Random
 
-import com.mass.sparkdl.utils.{Engine, FileWriter => DistFileWriter}
-import com.mass.dr.dataset.DRSample.DRTrainSample
+import com.mass.sparkdl.utils.Engine
 import com.mass.dr.dataset.LocalDataSet
 import com.mass.dr.model.{CandidateSearcher, LayerModel}
 import com.mass.dr.model.CandidateSearcher.PathScore
 import com.mass.dr.{Path => DRPath}
-import com.mass.dr.protobuf.item_mapping.{ItemSet, Item => ProtoItem, Path => ProtoPath}
 
 class CoordinateDescent(
     dataset: LocalDataSet,
-    model: LayerModel,
-    trainMode: String,
     batchSize: Int,
     numIteration: Int,
     numCandidatePath: Int,
@@ -30,13 +23,26 @@ class CoordinateDescent(
   import CoordinateDescent._
   val numThread = Engine.coreNumber()
   val itemOccurrence = computeItemOccurrence(dataset)
-  val itemPathScore = trainMode match {
-    case "batch" => batchPathScore(dataset, model, numCandidatePath, batchSize, numThread)
-    case "streaming" => streamingPathScore(dataset, model, numCandidatePath, decayFactor)
-  }
 
-  def optimize(): Map[Int, IndexedSeq[DRPath]] = {
-    val itemPathMapping = mutable.Map.empty[Int, IndexedSeq[DRPath]]
+  def optimize(model: LayerModel, trainMode: String): Map[Int, Seq[DRPath]] = {
+    val itemPathScore = trainMode match {
+      case "batch" => batchPathScore(
+        dataset,
+        model,
+        numCandidatePath,
+        batchSize,
+        numThread
+      )
+      case "streaming" => streamingPathScore(
+        dataset,
+        model,
+        numCandidatePath,
+        decayFactor,
+        batchSize,
+        numThread
+      )
+    }
+    val itemPathMapping = mutable.Map.empty[Int, Seq[DRPath]]
     val pathSize = mutable.Map.empty[DRPath, Int]
     for {
       t <- 1 to numIteration
@@ -62,7 +68,7 @@ class CoordinateDescent(
             val (maxPath, score) = incrementalGain.maxBy(_._2)
             pathSize(maxPath) = pathSize.getOrElse(maxPath, 0) + 1
             (maxPath :: selectedPath, partialSum + score)
-        }._1.toIndexedSeq
+        }._1
       } else {
         generateRandomPath(numPathPerItem, numLayer, numNode)
       }
@@ -73,7 +79,31 @@ class CoordinateDescent(
 
 object CoordinateDescent extends CandidateSearcher {
 
-  implicit val ord = Ordering[Double].reverse
+  def apply(
+    dataset: LocalDataSet,
+    batchSize: Int,
+    numIteration: Int,
+    numCandidatePath: Int,
+    numPathPerItem: Int,
+    numLayer: Int,
+    numNode: Int,
+    decayFactor: Double,
+    penaltyFactor: Double,
+    penaltyPolyOrder: Int
+  ): CoordinateDescent = {
+    new CoordinateDescent(
+      dataset,
+      batchSize,
+      numIteration,
+      numCandidatePath,
+      numPathPerItem,
+      numLayer,
+      numNode,
+      decayFactor,
+      penaltyFactor,
+      penaltyPolyOrder
+    )
+  }
 
   val penaltyFunc: (Int, Int) => Double = (pathSize, polyOrder) => {
     val _func = (_s: Int) => math.pow(_s, polyOrder) / polyOrder
@@ -85,7 +115,7 @@ object CoordinateDescent extends CandidateSearcher {
       .flatten
       .groupMapReduce(_.path)(_.prob)(_ + _)
       .toSeq
-      .sortBy(_._2)
+      .sortBy(_._2)(Ordering[Double].reverse)
       .take(num)
       .map(i => PathScore(i._1, i._2))
 
@@ -121,67 +151,55 @@ object CoordinateDescent extends CandidateSearcher {
     dataset: LocalDataSet,
     model: LayerModel,
     numCandidatePath: Int,
-    decayFactor: Double = 0.999
+    decayFactor: Double,
+    batchSize: Int,
+    numThread: Int
   ): Map[Int, Seq[PathScore]] = {
     val itemPathScores = mutable.Map.empty[Int, Seq[PathScore]]
     val data = dataset.getTrainData
-    data.foreach { case DRTrainSample(sequence, item) =>
-      val candidatePath = beamSearch(sequence, model, numCandidatePath)
-      if (!itemPathScores.contains(item)) {
-        itemPathScores(item) = candidatePath
-      } else {
-        val originalPath = itemPathScores(item)
-        val minScore = originalPath.minBy(_.prob).prob
-        val originalPathScore = originalPath.view.map(i => i.path -> i.prob).toMap
-        val candidatePathScore = candidatePath.view.map(i => i.path -> i.prob).toMap
-        val unionPath = originalPathScore.keySet.union(candidatePathScore.keySet).toArray
-        val newPath = unionPath.map { p =>
-          val newScore =
-            if (originalPathScore.contains(p) && candidatePathScore.contains(p)) {
-              decayFactor * originalPathScore(p) + candidatePathScore(p)
-            } else if (!originalPathScore.contains(p) && candidatePathScore.contains(p)) {
-              decayFactor * minScore + candidatePathScore(p)
-            } else {
-              decayFactor * originalPathScore(p)
-            }
-          PathScore(p, newScore)
+    for {
+      batchData <- data.sliding(batchSize, batchSize).toSeq
+      threadDataSize = math.ceil(batchData.length.toDouble / numThread).toInt
+      threadData = batchData.sliding(threadDataSize, threadDataSize).toSeq
+    } {
+      Engine.default.invokeAndWait(threadData.map { td => () =>
+        td.map { d =>
+          val candidatePath = beamSearch(d.sequence, model, numCandidatePath)
+          (d.target, candidatePath)
         }
-        itemPathScores(item) = newPath.sortBy(_.prob).take(numCandidatePath)
-      }
+      }).flatten
+        .foreach { case (item, candidatePath) =>
+          if (!itemPathScores.contains(item)) {
+            itemPathScores(item) = candidatePath
+          } else {
+            val originalPath = itemPathScores(item)
+            val minScore = originalPath.minBy(_.prob).prob
+            val originalPathScore = originalPath.view.map(i => i.path -> i.prob).toMap
+            val candidatePathScore = candidatePath.view.map(i => i.path -> i.prob).toMap
+            val unionPath = originalPathScore.keySet.union(candidatePathScore.keySet).toSeq
+            val newPath = unionPath.map { p =>
+              val newScore =
+                if (originalPathScore.contains(p) && candidatePathScore.contains(p)) {
+                  decayFactor * originalPathScore(p) + candidatePathScore(p)
+                } else if (!originalPathScore.contains(p) && candidatePathScore.contains(p)) {
+                  decayFactor * minScore + candidatePathScore(p)
+                } else {
+                  decayFactor * originalPathScore(p)
+                }
+              PathScore(p, newScore)
+            }
+            itemPathScores(item) = newPath
+              .sortBy(_.prob)(Ordering[Double].reverse)
+              .take(numCandidatePath)
+          }
+        }
     }
     Map.empty ++ itemPathScores
   }
 
-  def generateRandomPath(numPathPerItem: Int, numLayer: Int, numNode: Int): IndexedSeq[DRPath] = {
+  def generateRandomPath(numPathPerItem: Int, numLayer: Int, numNode: Int): Seq[DRPath] = {
     for {
       _ <- 1 to numPathPerItem
     } yield (1 to numLayer).map(_ => Random.nextInt(numNode))
-  }
-
-  def writeMapping(
-    outputPath: String,
-    itemIdMapping: Map[Int, Int],
-    itemPathMapping: mutable.Map[Int, IndexedSeq[DRPath]]
-  ): Unit = {
-    val allItems = ItemSet(
-      itemIdMapping.map { case (item, id) =>
-        val paths = itemPathMapping(id).map(ProtoPath(_))
-        ProtoItem(item, id, paths)
-      }.toSeq
-    )
-
-    val fileWriter = DistFileWriter(outputPath)
-    val output: OutputStream = fileWriter.create(overwrite = true)
-    Using(new BufferedOutputStream(output)) { writer =>
-      val bf: ByteBuffer = ByteBuffer.allocate(4).putInt(allItems.serializedSize)
-      writer.write(bf.array())
-      allItems.writeTo(writer)
-    } match {
-      case Success(_) =>
-        output.close()
-        fileWriter.close()
-      case Failure(t: Throwable) =>
-        throw t
-    }
   }
 }

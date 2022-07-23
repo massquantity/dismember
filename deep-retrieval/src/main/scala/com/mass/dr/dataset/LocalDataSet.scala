@@ -1,14 +1,11 @@
 package com.mass.dr.dataset
 
-import java.io.{BufferedInputStream, DataInputStream}
+import java.nio.file.{Files, Paths}
 import java.util.concurrent.atomic.AtomicInteger
 
-import scala.collection.mutable
-import scala.util.{Failure, Random, Success, Using}
-
-import com.mass.dr.{encoding, paddingIdx, Path => DRPath}
+import com.mass.dr.{encoding, paddingIdx}
 import com.mass.dr.dataset.DRSample.{DREvalSample, DRTrainSample}
-import com.mass.dr.protobuf.item_mapping.{ItemSet, Path => ProtoPath}
+import com.mass.dr.model.MappingOp.{initItemPathMapping, loadMapping}
 import com.mass.sparkdl.dataset.DataUtil
 import com.mass.sparkdl.utils.{FileReader => DistFileReader}
 import org.apache.commons.lang3.math.NumberUtils
@@ -22,43 +19,33 @@ class LocalDataSet(
     seqLen : Int,
     minSeqLen: Int,
     dataPath: String,
-    mappingPath: Option[String],
-    splitRatio: Double = 0.8,
-    delimiter: String = ",") {
+    mappingPath: String,
+    initialize: Boolean,
+    splitRatio: Double,
+    delimiter: String) {
   import LocalDataSet._
   require(seqLen > 0 && minSeqLen > 0 && seqLen >= minSeqLen)
 
   private val initData: Array[InitSample] = readFile(dataPath, delimiter)
 
-  lazy val (itemIdMapping, itemPathMapping) = mappingPath match {
-    case Some(path) => loadMapping(path)
-    case None =>
+  // if mapping doesn't exist, initialize randomly
+  lazy val (itemIdMapping, itemPathMapping) =
+    if (initialize || !Files.isRegularFile(Paths.get(mappingPath))) {
       val uniqueItems = initData.map(_.item).distinct
       val idMapping = uniqueItems.zipWithIndex.toMap
-      val pathMapping = initializeMapping(uniqueItems.length, numLayer, numNode, numPathPerItem)
+      val pathMapping = initItemPathMapping(uniqueItems.length, numLayer, numNode, numPathPerItem)
       (idMapping, pathMapping)
-  }
+    } else {
+      loadMapping(mappingPath)
+    }
 
   lazy val idItemMapping: Map[Int, Int] = itemIdMapping.map(i => i._2 -> i._1)
 
   lazy val (userConsumed, trainData, evalData) = generateData()
 
-  lazy val trainMiniBatch: MiniBatch = new MiniBatch(
-    itemPathMapping,
-    numItem,
-    numNode,
-    numLayer,
-    numPathPerItem,
-    seqLen
-  )
-  lazy val evalMiniBatch: MiniBatch = new MiniBatch(
-    itemPathMapping,
-    numItem,
-    numNode,
-    numLayer,
-    numPathPerItem,
-    seqLen
-  )
+  lazy val trainMiniBatch = MiniBatch(numItem, numNode, numLayer, numPathPerItem, seqLen)
+
+  lazy val evalMiniBatch = MiniBatch(numItem, numNode, numLayer, numPathPerItem, seqLen)
 
   private[dr] def iteratorMiniBatch(train: Boolean): Iterator[MiniBatch] = {
     new Iterator[MiniBatch] {
@@ -72,13 +59,13 @@ class LocalDataSet(
       private val index = new AtomicInteger(0)
 
       override def hasNext: Boolean = {
-        if (train) true else index.get() < originalDataSize
+        index.get() < originalDataSize
       }
 
       override def next(): MiniBatch = {
-        val curIndex = index.getAndAdd(numTargetsPerBatch)
-        val offset = curIndex % originalDataSize
+        val offset = index.get()
         val length = math.min(numTargetsPerBatch, originalDataSize - offset)
+        index.set(offset + length)
         miniBatch.updatePosition(offset, length)
       }
     }
@@ -140,6 +127,36 @@ object LocalDataSet {
 
   case class InitSample(user: Int, item: Int, timestamp: Long)
 
+  def apply(
+    numLayer: Int,
+    numNode: Int,
+    numPathPerItem: Int,
+    trainBatchSize: Int,
+    evalBatchSize: Int,
+    seqLen : Int,
+    minSeqLen: Int,
+    dataPath: String,
+    mappingPath: String,
+    initialize: Boolean,
+    splitRatio: Double,
+    delimiter: String
+  ): LocalDataSet = {
+    new LocalDataSet(
+      numLayer,
+      numNode,
+      numPathPerItem,
+      trainBatchSize,
+      evalBatchSize,
+      seqLen,
+      minSeqLen,
+      dataPath,
+      mappingPath,
+      initialize,
+      splitRatio,
+      delimiter
+    )
+  }
+
   def buildTrainData(
       dataPath: String,
       seqLen : Int,
@@ -171,43 +188,5 @@ object LocalDataSet {
     input.close()
     fileReader.close()
     samples
-  }
-
-  private def initializeMapping(
-      numItem: Int,
-      numLayer: Int,
-      numNode: Int,
-      numPathPerItem: Int): Map[Int, IndexedSeq[DRPath]] = {
-    (0 until numItem).map(_ -> {
-      val m = for {
-        _ <- 1 to numPathPerItem
-        _ <- 1 to numLayer
-      } yield Random.nextInt(numNode)
-      m.sliding(numLayer, numLayer).toIndexedSeq
-    }).toMap
-  }
-
-  private[dr] def loadMapping(path: String): (Map[Int, Int], Map[Int, Seq[DRPath]]) = {
-    val idMapping = mutable.Map.empty[Int, Int]
-    val pathMapping = mutable.Map.empty[Int, Seq[DRPath]]
-    val fileReader = DistFileReader(path)
-    val input = fileReader.open()
-    Using(new DataInputStream(new BufferedInputStream(input))) { input =>
-      val size = input.readInt()
-      val buf = new Array[Byte](size)
-      input.readFully(buf)
-      val allItems = ItemSet.parseFrom(buf).items
-      allItems.foreach { i =>
-        idMapping(i.item) = i.id
-        pathMapping(i.id) = i.paths.map(_.index.toIndexedSeq)
-      }
-    } match {
-      case Success(_) =>
-        input.close()
-        fileReader.close()
-      case Failure(t: Throwable) =>
-        throw t
-    }
-    (Map.empty ++ idMapping, Map.empty ++ pathMapping)
   }
 }

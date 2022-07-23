@@ -4,7 +4,6 @@ import com.mass.dr.Path
 import com.mass.sparkdl.tensor.Tensor
 
 class MiniBatch(
-    itemPathMapping: Map[Int, Seq[Path]],
     numItem: Int,
     numNode: Int,
     numLayer: Int,
@@ -21,7 +20,12 @@ class MiniBatch(
     this
   }
 
-  def transformLayerData(data: Array[DRSample], offset: Int, length: Int): LayerTransformedBatch = {
+  def transformLayerData(
+    data: Array[DRSample],
+    offset: Int,
+    length: Int,
+    itemPathMapping: Map[Int, Seq[Path]]
+  ): LayerTransformedBatch = {
     val totalLen = length * numPathPerItem
     val samples = Array.range(offset, offset + length).map(data(_))
     val concatInputs = (0 until numLayer).map { layer =>
@@ -50,7 +54,11 @@ class MiniBatch(
     LayerTransformedBatch(concatInputs, targets)
   }
 
-  def transformRerankData(data: Array[DRSample], offset: Int, length: Int): RerankTransformedBatch = {
+  def transformRerankData(
+    data: Array[DRSample],
+    offset: Int,
+    length: Int
+  ): RerankTransformedBatch = {
     val samples = data.slice(offset, offset + length)
     val itemSeqs = Tensor(samples.flatMap(_.sequence), Array(length, seqLen))
     val targets = Tensor(samples.map(_.target), Array(length, 1))
@@ -63,6 +71,22 @@ class MiniBatch(
 }
 
 object MiniBatch {
+
+  def apply(
+    numItem: Int,
+    numNode: Int,
+    numLayer: Int,
+    numPathPerItem: Int,
+    seqLen: Int
+  ): MiniBatch = {
+    new MiniBatch(
+      numItem,
+      numNode,
+      numLayer,
+      numPathPerItem,
+      seqLen
+    )
+  }
 
   sealed trait TransformedBatch extends Product with Serializable
 

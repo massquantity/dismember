@@ -30,20 +30,21 @@ object MappingOp {
     numItem: Int,
     numLayer: Int,
     numNode: Int,
-    numPathPerItem: Int): Map[Int, IndexedSeq[DRPath]] = {
+    numPathPerItem: Int
+  ): Map[Int, Seq[DRPath]] = {
     (0 until numItem).map(_ -> {
       val m = for {
         _ <- 1 to numPathPerItem
         _ <- 1 to numLayer
       } yield Random.nextInt(numNode)
-      m.sliding(numLayer, numLayer).toIndexedSeq
+      m.sliding(numLayer, numLayer).toSeq
     }).toMap
   }
 
   def writeMapping(
     outputPath: String,
     itemIdMapping: Map[Int, Int],
-    itemPathMapping: Map[Int, IndexedSeq[DRPath]]
+    itemPathMapping: Map[Int, Seq[DRPath]]
   ): Unit = {
     val allItems = ItemSet(
       itemIdMapping.map { case (item, id) =>
@@ -67,7 +68,7 @@ object MappingOp {
     }
   }
 
-  def loadMapping(path: String): MappingOp = {
+  def loadMapping(path: String): (Map[Int, Int], Map[Int, Seq[DRPath]]) = {
     val idMapping = mutable.Map.empty[Int, Int]
     val pathMapping = mutable.Map.empty[Int, Seq[DRPath]]
     val fileReader = DistFileReader(path)
@@ -88,6 +89,11 @@ object MappingOp {
       case Failure(t: Throwable) =>
         throw t
     }
-    MappingOp(Map.empty ++ idMapping, Map.empty ++ pathMapping)
+    (Map.empty ++ idMapping, Map.empty ++ pathMapping)
+  }
+
+  def loadMappingOp(path: String): MappingOp = {
+    val tmp = loadMapping(path)
+    MappingOp(tmp._1, tmp._2)
   }
 }

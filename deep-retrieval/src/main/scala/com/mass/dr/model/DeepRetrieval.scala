@@ -2,15 +2,13 @@ package com.mass.dr.model
 
 import java.io.{BufferedInputStream, ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
 
-import com.mass.dr.dataset.LocalDataSet.loadMapping
-import com.mass.dr.{paddingIdx, Path}
-import com.mass.dr.dataset.LocalDataSet
-import com.mass.sparkdl.tensor.Tensor
-import com.mass.sparkdl.tensor.TensorNumeric.NumericDouble
+import com.mass.dr.paddingIdx
 import com.mass.sparkdl.utils.{FileReader => DistFileReader, FileWriter => DistFileWriter}
 import org.apache.hadoop.io.IOUtils
 
 class DeepRetrieval(
+    val layerModel: LayerModel,
+    val reRankModel: RerankModel,
     numItem: Int,
     numNode: Int,
     numLayer: Int,
@@ -18,76 +16,43 @@ class DeepRetrieval(
     embedSize: Int) extends Serializable with CandidateSearcher {
   import DeepRetrieval._
 
-  @transient private var itemIdMapping: Map[Int, Int] = _
-  @transient private var itemPathMapping: Map[Int, Seq[Path]] = _
-  @transient lazy val idItemMapping: Map[Int, Int] = itemIdMapping.map(i => i._2 -> i._1)
-  @transient lazy val pathItemsMapping: Map[Path, Seq[Int]] = {
-    itemPathMapping
-      .flatMap { case (item, paths) => paths.map((_, item)) }
-      .groupBy(_._1)
-      .map(i => i._1 -> i._2.values.toSeq)
-  }
-
-  val layerModel: LayerModel = LayerModel(
-    numItem,
-    numNode,
-    numLayer,
-    seqLen,
-    embedSize
-  )
-  val reRankModel: RerankModel = RerankModel(
-    numItem,
-    seqLen,
-    embedSize
-  )
-  val reRankWeights: Tensor[Double] = Tensor[Double](numItem, embedSize).randn(0.0, 0.05)
-  val reRankBias: Tensor[Double] = Tensor[Double](numItem).zero()
-
-  def recommend(sequence: Seq[Int], topk: Int, beamSize: Int): Seq[(Int, Double)] = {
-    val sequenceIds = sequence.map(itemIdMapping.getOrElse(_, paddingIdx))
+  def recommend(
+    sequence: Seq[Int],
+    topk: Int,
+    beamSize: Int,
+    mappings: MappingOp
+  ): Seq[(Int, Double)] = {
+    val sequenceIds = sequence.map(mappings.itemIdMapping.getOrElse(_, paddingIdx))
     val candidateItems = searchCandidate(
       sequenceIds,
       layerModel,
       beamSize,
-      pathItemsMapping
+      mappings.pathItemMapping
     )
-    val reRankScores = reRankModel.inference(
-      candidateItems,
-      sequenceIds,
-      reRankWeights,
-      reRankBias,
-      embedSize
-    )
+    val reRankScores = reRankModel.inference(candidateItems, sequenceIds)
 
     candidateItems
       .zip(reRankScores)
       .sortBy(_._2)(Ordering[Double].reverse)
       .take(topk)
-      .map(i => (idItemMapping(i._1), sigmoid(i._2)))
-  }
-
-  def setMapping(mappingPath: String): this.type = {
-    val tmp = loadMapping(mappingPath)
-    itemIdMapping = tmp._1
-    itemPathMapping = tmp._2
-    this
-  }
-
-  def setMapping(dataset: LocalDataSet): Unit = {
-    itemIdMapping = dataset.itemIdMapping
-    itemPathMapping = dataset.itemPathMapping
+      .map(i => (mappings.idItemMapping(i._1), sigmoid(i._2)))
   }
 }
 
 object DeepRetrieval {
 
   def apply(
-      numItem: Int,
-      numNode: Int,
-      numLayer: Int,
-      seqLen: Int,
-      embedSize: Int): DeepRetrieval = {
+    layerModel: LayerModel,
+    reRankModel: RerankModel,
+    numItem: Int,
+    numNode: Int,
+    numLayer: Int,
+    seqLen: Int,
+    embedSize: Int
+  ): DeepRetrieval = {
     new DeepRetrieval(
+      layerModel,
+      reRankModel,
       numItem,
       numNode,
       numLayer,
@@ -95,6 +60,8 @@ object DeepRetrieval {
       embedSize
     )
   }
+
+  val sigmoid = (logit: Double) => 1.0 / (1 + java.lang.Math.exp(-logit))
 
   def saveModel(model: DeepRetrieval, modelPath: String): Unit = {
     val fileWriter = DistFileWriter(modelPath)
@@ -115,7 +82,7 @@ object DeepRetrieval {
     }
   }
 
-  def loadModel(modelPath: String, mappingPath: String): DeepRetrieval = {
+  def loadModel(modelPath: String): DeepRetrieval = {
     var model: DeepRetrieval = null
     val fileReader = DistFileReader(modelPath)
     val input = fileReader.open()
@@ -130,10 +97,6 @@ object DeepRetrieval {
       input.close()
       fileReader.close()
     }
-    model.setMapping(mappingPath)
-  }
-
-  def sigmoid(logit: Double): Double = {
-    1.0 / (1 + java.lang.Math.exp(-logit))
+    model
   }
 }

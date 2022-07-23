@@ -6,16 +6,15 @@ import com.mass.sparkdl.nn.graphnn.Graph
 import com.mass.sparkdl.tensor.Tensor
 import com.mass.sparkdl.tensor.TensorNumeric.NumericDouble
 
-class RerankModel(numItem: Int, seqLen: Int, embedSize: Int) {
+class RerankModel(numItem: Int, seqLen: Int, embedSize: Int) extends Serializable {
   import RerankModel.extractCandidates
 
   private[dr] val model = buildModel()
-  lazy val embedParams: Tensor[Double] = model.fetchModuleParameters(
-    "embedding", "weight"
-  )
-  lazy val linearParams: Seq[Tensor[Double]] = model.fetchModuleParameters(
-    "linear", Seq("weight", "bias")
-  )
+  lazy val parameters = model.adjustParameters()
+  lazy val embedParams = model.fetchModuleParameters("embedding", "weight")
+  lazy val linearParams = model.fetchModuleParameters("linear", Seq("weight", "bias"))
+  val softmaxWeights = Tensor[Double](numItem, embedSize).randn(0.0, 0.05)
+  val softmaxBiases = Tensor[Double](numItem).zero()
 
   private def buildModel(): Graph[Double] = {
     val flattenSize = seqLen * embedSize
@@ -40,14 +39,9 @@ class RerankModel(numItem: Int, seqLen: Int, embedSize: Int) {
     model.backward(input, gradOutput).toTensor
   }
 
-  def inference(
-      candidateItems: Seq[Int],
-      inputSeq: Seq[Int],
-      softmaxWeights: Tensor[Double],
-      softmaxBiases: Tensor[Double],
-      embedSize: Int): Array[Double] = {
+  def inference(candidateItems: Seq[Int], inputSeq: Seq[Int]): Array[Double] = {
     val output = Tensor[Double](candidateItems.length)
-    val userVector = inferenceUserVector(inputSeq, embedSize)
+    val userVector = inferenceUserVector(inputSeq)
     val candidateWeights = extractCandidates(candidateItems, softmaxWeights, embedSize)
     val candidateBiases = extractCandidates(candidateItems, softmaxBiases)
     output.addmv(0.0, 1.0, candidateWeights, userVector)
@@ -55,7 +49,7 @@ class RerankModel(numItem: Int, seqLen: Int, embedSize: Int) {
     output.storage().array()
   }
 
-  def inferenceUserVector(inputSeq: Seq[Int], embedSize: Int): Tensor[Double] = {
+  def inferenceUserVector(inputSeq: Seq[Int]): Tensor[Double] = {
     val output = Tensor[Double](embedSize)
     val (linearWeight, linearBias) = (linearParams.head, linearParams.last)
     val embedArray = embedParams.storage().array()
