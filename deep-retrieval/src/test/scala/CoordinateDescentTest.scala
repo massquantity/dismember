@@ -60,13 +60,13 @@ class CoordinateDescentTest extends AnyFlatSpec with Matchers {
 
   "CoordinateDescent batch mode" should "update mapping correctly" in {
     val itemPathMapping = coo.optimize(layerModel, trainMode = "batch")
-    assert(itemPathMapping.keySet == dataset.idItemMapping.keySet)
-    itemPathMapping.values.forall(_.length == numPathPerItem)
+    itemPathMapping.keySet should be (dataset.idItemMapping.keySet)
+    all (itemPathMapping.values) should have length numPathPerItem
   }
 
   "CoordinateDescent streaming mode" should "update mapping correctly" in {
     val itemPathMapping = coo.optimize(layerModel, trainMode = "streaming")
     assert(itemPathMapping.keySet == dataset.idItemMapping.keySet)
-    itemPathMapping.values.forall(_.length == numPathPerItem)
+    all (itemPathMapping.values) should have length numPathPerItem
   }
 }
