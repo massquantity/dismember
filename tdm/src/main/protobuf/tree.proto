@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package com.mass.tdm.protobuf;
+
+message IdCodePair {
+  int32 id = 1;
+  int32 code = 2;
+}
+
+message IdCodePart {
+  bytes part_id = 1;
+  repeated IdCodePair id_code_list = 2;
+}
+
+message TreeMeta {
+  int32 max_level = 1;
+  repeated bytes id_code_part = 2;
+}
+
+message Node {
+  int32 id = 1;
+  float probality = 2;
+  int32 leaf_cate_id = 3;
+  bool is_leaf = 4;
+  repeated float embed_vec = 5;
+  bytes data = 6;
+}
