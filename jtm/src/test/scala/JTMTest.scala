@@ -1,5 +1,7 @@
 import com.mass.jtm.optim.JTM
 import com.mass.jtm.tree.TreeUtil
+import com.mass.scalann.utils.Engine
+import com.mass.scalann.utils.Property.filePath
 import org.apache.log4j.{Level, Logger}
 import org.scalatest.flatspec.AnyFlatSpec
 
@@ -7,8 +9,8 @@ class JTMTest extends AnyFlatSpec {
   Logger.getLogger("com.mass").setLevel(Level.INFO)
 
   val numThread = 8
-  Engine.setNodeAndCore(1, numThread)
-  val prefix = s"${System.getProperty("user.dir")}/data/"
+  Engine.setCoreNumber(numThread)
+  val prefix = s"${filePath("jtm")}/data/"
   val jtm = JTM(
     modelName = "DIN",
     gap = 1,

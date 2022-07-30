@@ -168,7 +168,7 @@ class JTMTree extends DistTree with Serializable {
         val partKV = KVItem(p.partId, p.toByteString)
         writeKV(partKV, writer)
       }
-      val partIds = parts.map(x => x.partId).toArray
+      val partIds = parts.map(x => x.partId).toSeq
       val meta = TreeMeta(maxLevel, partIds)
       val metaKV = KVItem(toByteString("tree_meta"), meta.toByteString)
       writeKV(metaKV, writer)
