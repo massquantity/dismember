@@ -10,15 +10,16 @@ object Property {
   val logger: Logger = Logger.getLogger(getClass)
 
   def readConf(
-      path: String,
-      prefix: String,
-      truncate: Boolean = true,
-      print: Boolean): Map[String, String] = {
-
+    path: String,
+    prefix: String,
+    name: String,
+    truncate: Boolean = true,
+    print: Boolean
+  ): Map[String, String] = {
     val fileSource = path match {
       case "fromResource" =>
         logger.info("Using config file from resources...")
-        scala.io.Source.fromInputStream(getClass.getResourceAsStream("/tdm.conf"))
+        scala.io.Source.fromInputStream(getClass.getResourceAsStream(s"/$name.conf"))
       case _ =>
         logger.info("Using user defined config file...")
         require(fileExists(path), s"Config file $path doesn't exist")
@@ -44,7 +45,7 @@ object Property {
     }
 
     // mutable.LinkedHashMap[String, String](lines: _*)
-    Map[String, String](lines: _*)
+    Map(lines: _*)
   }
 
   def configLocal(conf: Map[String, String]): Unit = {

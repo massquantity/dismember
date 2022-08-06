@@ -1,4 +1,4 @@
-package com.mass.retrieval.tdm
+package com.mass.retrieval.jtm
 
 import com.mass.scalann.nn.BCECriterionWithLogits
 import com.mass.scalann.optim.Adam
@@ -10,18 +10,18 @@ import com.mass.tdm.optim.LocalOptimizer
 import org.apache.log4j.{Level, Logger}
 import scopt.OptionParser
 
-object TDMTrainDeepModel {
+object JTMTrainDeepModel {
 
-  case class Params(tdmConfFile: String = "fromResource")
+  case class Params(jtmConfFile: String = "fromResource")
 
   def main(args: Array[String]): Unit = {
     Logger.getLogger("com.mass").setLevel(Level.INFO)
 
     val defaultParams = Params()
-    val parser = new OptionParser[Params]("TrainDeepModel") {
-      opt[String]("tdmConfFile")
-        .text(s"TDM config file path, default path is `tdm.conf` from resource folder")
-        .action((x, c) => c.copy(tdmConfFile = x))
+    val parser = new OptionParser[Params]("InitializeTree") {
+      opt[String]("jtmConfFile")
+        .text(s"JTM config file path, default path is `jtm.conf` from resource folder")
+        .action((x, c) => c.copy(jtmConfFile = x))
     }
 
     parser.parse(args, defaultParams) match {
@@ -31,7 +31,7 @@ object TDMTrainDeepModel {
   }
 
   def run(params: Params): Unit = {
-    val conf = Property.readConf(params.tdmConfFile, "model", "tdm", print = true)
+    val conf = Property.readConf(params.jtmConfFile, "model", "jtm", print = true)
     Property.configLocal(conf)
 
     val dlModelName = getOrStop(conf, "deep_model").toLowerCase

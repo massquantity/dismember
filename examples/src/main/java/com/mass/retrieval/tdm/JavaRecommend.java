@@ -9,7 +9,7 @@ public class JavaRecommend {
     public static void main(String[] args) {
         String modelPath = "path/to/model";
         String treePath = "path/to/tree_pb_file";
-        TDM tdmModel = TDM.loadModel(modelPath);
+        TDM tdmModel = TDM.loadModel(modelPath, "DeepFM");
         TDM.loadTree(treePath);
 
         // user interacted sequence with 10 items, recommend 3 items with 20 candidates
