@@ -1,0 +1,10 @@
+.idea/
+*.iml
+.worksheet
+
+.bsp/
+target/
+**/.DS_Store
+
+/project/project
+/project/target
