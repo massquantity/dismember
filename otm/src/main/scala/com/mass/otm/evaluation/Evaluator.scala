@@ -1,8 +1,8 @@
 package com.mass.otm.evaluation
 
-import java.util.concurrent.Executors
+import java.util.concurrent.{Executors, ExecutorService}
 
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
 
 import com.mass.otm.model.CandidateSearcher
@@ -22,10 +22,8 @@ object Evaluator extends Serializable with CandidateSearcher {
 
   implicit val criterions = (1 to threadNum).map(_ => BCECriterionWithLogits[Double](sizeAverage = false))
 
-  implicit val context: ExecutionContext = ExecutionContext.fromExecutorService(
-    Executors.newFixedThreadPool(threadNum)
-  )
-  // import scala.concurrent.ExecutionContext.Implicits.global
+  // implicit val context: ExecutionContext = ExecutionContext.fromExecutorService(createExecutorService(threadNum))
+  import scala.concurrent.ExecutionContext.Implicits.global
 
   def evaluate(
     models: IndexedSeq[DeepModel[Double]],
@@ -77,5 +75,13 @@ object Evaluator extends Serializable with CandidateSearcher {
     val predTensor = Tensor(preds, Array(preds.length, 1))
     val labelTensor = Tensor(labels, Array(labels.length, 1))
     criterions(rank).forward(predTensor, labelTensor)
+  }
+
+  def createExecutorService(numThreads: Int): ExecutorService = {
+    Executors.newFixedThreadPool(numThreads, (r: Runnable) => {
+      val t = Executors.defaultThreadFactory().newThread(r)
+      t.setDaemon(true)
+      t
+    })
   }
 }

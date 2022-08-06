@@ -1,12 +1,14 @@
 package com.mass.otm.dataset
 
 import java.io.{BufferedReader, InputStreamReader}
+import java.nio.file.{Files, Paths}
 
 import scala.collection.BitSet
 import scala.util.{Random, Using}
 
 import com.mass.otm.{encoding, paddingIdx, upperLog2}
 import com.mass.scalann.utils.{FileReader => DistFileReader}
+import com.mass.tdm.utils.Serialization.loadBothMapping
 import org.apache.commons.lang3.math.NumberUtils
 
 class LocalDataSet(
@@ -15,22 +17,32 @@ class LocalDataSet(
     minSeqLen: Int,
     splitRatio: Double,
     leafInitMode: String,
-    labelMode: String,
-    seed: Long) {
+    initMapping: Boolean,
+    mappingPath: String,
+    labelNum: Int,
+    seed: Long,
+    dataMode: String) {
   import LocalDataSet._
   require(seqLen > 0 && minSeqLen > 0 && seqLen >= minSeqLen)
-  // println(f"\tEval time: ${(System.nanoTime() - start) / 1e9d}%.4fs, ")
 
   private val rand = new Random(seed)
   private val initData: Array[InitSample] = readFile(dataPath)
-  lazy val (itemIdMapping, idItemMapping) = initializeMapping(initData, leafInitMode, rand)
+
+  // if mapping doesn't exist, initialize randomly
+  lazy val (itemIdMapping, idItemMapping) =
+    if (initMapping || !Files.isRegularFile(Paths.get(mappingPath))) {
+      initializeMapping(initData, leafInitMode, rand)
+    } else {
+      println(s"load mapping from $mappingPath")
+      loadBothMapping(mappingPath)
+    }
   lazy val allNodes = getAllNodes(idItemMapping.keys.toSeq)
-  lazy val DataInfo(userConsumed, trainData, evalData) = labelMode match {
-    case "singleLabel" => generateWithSingleLabel(initData)
-    case "multiLabel" => generateWithMultiLabel(initData)
+  lazy val DataInfo(userConsumed, trainData, evalData) = dataMode match {
+    case "one_user_sample" => generateOneSamplePerUser(initData)
+    case _ => generateSamples(initData)
   }
 
-  private def generateWithMultiLabel(initData: Array[InitSample]): DataInfo = {
+  private def generateOneSamplePerUser(initData: Array[InitSample]): DataInfo = {
     val groupedSamples = initData.groupBy(_.user).toSeq.map { case (user, samples) =>
       (user, samples.sortBy(_.timestamp).map(_.item).distinct.map(itemIdMapping(_)))
     }
@@ -39,7 +51,8 @@ class LocalDataSet(
         case ((user, items), (userConsumed, samples)) =>
           if (items.length > seqLen) {
             val (sequence, labels) = items.splitAt(seqLen)
-            (userConsumed + (user -> sequence), OTMSample(sequence, labels.toList, user) :: samples)
+            val newSample = OTMSample(sequence, labels.toList, user)
+            (userConsumed + (user -> sequence), newSample :: samples)
           } else {
             (userConsumed, samples)
           }
@@ -49,34 +62,38 @@ class LocalDataSet(
     DataInfo(userConsumed, trainSamples, evalSamples)  // evalSamples.map(i => i.copy(labels = i.labels.take(10)))
   }
 
-  private def generateWithSingleLabel(initData: Array[InitSample]): DataInfo = {
+  private def generateSamples(initData: Array[InitSample]): DataInfo = {
     val groupedSamples = initData.groupBy(_.user).toArray.map { case (user, samples) =>
       (user, samples.sortBy(_.timestamp).map(_.item).distinct.map(itemIdMapping(_)))
     }
+    val paddingSeq = Array.fill(seqLen - minSeqLen)(paddingIdx)
     groupedSamples.foldRight(DataInfo(Map.empty, Nil, Nil)) {
       case ((user, items), DataInfo(userConsumed, trainSamples, evalSamples)) =>
         if (items.length <= minSeqLen) {
           DataInfo(userConsumed, trainSamples, evalSamples)
-        } else if (items.length == minSeqLen + 1) {
+        } else if (items.length == minSeqLen + labelNum) {
+          val fullSeq = paddingSeq ++: items.take(minSeqLen)
+          val newTrainSample = OTMSample(fullSeq, items.drop(minSeqLen).toList, user)
           DataInfo(
             userConsumed + (user -> items),
-            OTMSample(items.init, List(items.last), user) :: trainSamples,
+            newTrainSample :: trainSamples,
             evalSamples
           )
         } else {
-          val fullSeq = Array.fill[Int](seqLen - minSeqLen)(paddingIdx) ++: items
+          val fullSeq = paddingSeq ++: items
           val splitPoint = math.ceil((items.length - minSeqLen) * splitRatio).toInt
-          val seqTrain = fullSeq
+          val seqTrainSamples = fullSeq
             .take(splitPoint + seqLen)
-            .sliding(seqLen + 1)
-            .map(s => OTMSample(s.init, List(s.last), user))
+            .sliding(seqLen + labelNum)
+            .map(s => OTMSample(s.take(seqLen), s.drop(seqLen).toList, user))
             .toList
           val consumed = items.take(splitPoint + minSeqLen)
           val (evalSeq, labels) = fullSeq.splitAt(splitPoint + seqLen)
+          val newEvalSample = OTMSample(evalSeq.takeRight(seqLen), labels.toList, user)
           DataInfo(
             userConsumed + (user -> consumed),
-            seqTrain ::: trainSamples,
-            OTMSample(evalSeq.takeRight(seqLen), labels.toList, user) :: evalSamples
+            seqTrainSamples ::: trainSamples,
+            newEvalSample :: evalSamples
           )
         }
     }
@@ -110,8 +127,11 @@ object LocalDataSet {
     minSeqLen: Int,
     splitRatio: Double,
     leafInitMode: String,
-    labelMode: String,
-    seed: Long
+    initMapping: Boolean,
+    mappingPath: String,
+    labelNum: Int,
+    seed: Long,
+    dataMode: String = "default"
   ): LocalDataSet = {
     new LocalDataSet(
       dataPath,
@@ -119,8 +139,11 @@ object LocalDataSet {
       minSeqLen,
       splitRatio,
       leafInitMode,
-      labelMode,
-      seed
+      initMapping,
+      mappingPath,
+      labelNum,
+      seed,
+      dataMode
     )
   }
 
