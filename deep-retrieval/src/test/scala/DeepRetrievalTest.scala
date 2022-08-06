@@ -24,7 +24,7 @@ class DeepRetrievalTest extends AnyFlatSpec with Matchers {
   val minSeqLen = 2
   val dataPath = s"${filePath("deep-retrieval")}/data/data.csv"
   val mappingPath = s"${filePath("deep-retrieval")}/data/dr_mapping.txt"
-  val initialize = true
+  val initMapping = true
   val splitRatio = 0.8
   val paddingIdx = -1
   val embedSize = 16
@@ -46,7 +46,7 @@ class DeepRetrievalTest extends AnyFlatSpec with Matchers {
     minSeqLen = minSeqLen,
     dataPath = dataPath,
     mappingPath = mappingPath,
-    initialize = true,
+    initMapping = initMapping,
     splitRatio = splitRatio,
     delimiter = ","
   )

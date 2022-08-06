@@ -20,7 +20,7 @@ class LocalDataSet(
     minSeqLen: Int,
     dataPath: String,
     mappingPath: String,
-    initialize: Boolean,
+    initMapping: Boolean,
     splitRatio: Double,
     delimiter: String) {
   import LocalDataSet._
@@ -30,12 +30,13 @@ class LocalDataSet(
 
   // if mapping doesn't exist, initialize randomly
   lazy val (itemIdMapping, itemPathMapping) =
-    if (initialize || !Files.isRegularFile(Paths.get(mappingPath))) {
+    if (initMapping || !Files.isRegularFile(Paths.get(mappingPath))) {
       val uniqueItems = initData.map(_.item).distinct
       val idMapping = uniqueItems.zipWithIndex.toMap
       val pathMapping = initItemPathMapping(uniqueItems.length, numLayer, numNode, numPathPerItem)
       (idMapping, pathMapping)
     } else {
+      println(s"load mapping from $mappingPath")
       loadMapping(mappingPath)
     }
 
@@ -79,14 +80,15 @@ class LocalDataSet(
       if (items.length <= minSeqLen) {
         (user -> items, Array.empty[DRTrainSample], Array.empty[DREvalSample])
       } else if (items.length == minSeqLen + 1) {
-        (user -> items, Array(DRTrainSample(items.init.toSeq, items.last)), Array.empty[DREvalSample])
+        val fullSeq = Seq.fill[Int](seqLen - minSeqLen)(paddingIdx) ++ items.init
+        (user -> items, Array(DRTrainSample(fullSeq, items.last)), Array.empty[DREvalSample])
       } else {
-        val fullSeq = Array.fill[Int](seqLen - minSeqLen)(paddingIdx) ++ items
+        val fullSeq = Seq.fill[Int](seqLen - minSeqLen)(paddingIdx) ++ items
         val splitPoint = math.ceil((items.length - minSeqLen) * splitRatio).toInt
         val _trainSamples = fullSeq
           .slice(0, splitPoint + seqLen)
           .sliding(seqLen + 1)
-          .map(s => DRTrainSample(s.init.toSeq, s.last))
+          .map(s => DRTrainSample(s.init, s.last))
           .toArray
 
         val consumed = items.slice(0, splitPoint + minSeqLen)
@@ -96,7 +98,7 @@ class LocalDataSet(
         val _evalSamples =
           if (labels.nonEmpty) {
             val evalSeq = _evalSeq.takeRight(seqLen)
-            Array(DREvalSample(evalSeq.toSeq, labels.toSeq, user))
+            Array(DREvalSample(evalSeq, labels, user))
           } else {
             Array.empty[DREvalSample]
           }
@@ -137,7 +139,7 @@ object LocalDataSet {
     minSeqLen: Int,
     dataPath: String,
     mappingPath: String,
-    initialize: Boolean,
+    initMapping: Boolean,
     splitRatio: Double,
     delimiter: String
   ): LocalDataSet = {
@@ -151,7 +153,7 @@ object LocalDataSet {
       minSeqLen,
       dataPath,
       mappingPath,
-      initialize,
+      initMapping,
       splitRatio,
       delimiter
     )

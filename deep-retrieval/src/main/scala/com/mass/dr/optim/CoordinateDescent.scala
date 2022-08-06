@@ -10,17 +10,16 @@ import com.mass.dr.model.CandidateSearcher.PathScore
 import com.mass.dr.{Path => DRPath}
 
 class CoordinateDescent(
-  dataset: LocalDataSet,
-  batchSize: Int,
-  numIteration: Int,
-  numCandidatePath: Int,
-  numPathPerItem: Int,
-  numLayer: Int,
-  numNode: Int,
-  decayFactor: Double = 0.999,
-  penaltyFactor: Double = 3e-6,
-  penaltyPolyOrder: Int = 4) {
-
+    dataset: LocalDataSet,
+    batchSize: Int,
+    numIteration: Int,
+    numCandidatePath: Int,
+    numPathPerItem: Int,
+    numLayer: Int,
+    numNode: Int,
+    decayFactor: Double = 0.999,
+    penaltyFactor: Double = 3e-6,
+    penaltyPolyOrder: Int = 4) {
   import CoordinateDescent._
 
   val numThread = Engine.coreNumber()

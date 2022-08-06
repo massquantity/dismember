@@ -12,6 +12,7 @@ import com.mass.dr.protobuf.item_mapping.{ItemSet, Item => ProtoItem, Path => Pr
 import com.mass.scalann.utils.{FileReader => DistFileReader, FileWriter => DistFileWriter}
 
 case class MappingOp(itemIdMapping: Map[Int, Int], itemPathMapping: Map[Int, Seq[DRPath]]) {
+
   val idItemMapping: Map[Int, Int] = itemIdMapping.map(i => i._2 -> i._1)
 
   val pathItemMapping: Map[DRPath, Seq[Int]] = pathToItems(itemPathMapping)
