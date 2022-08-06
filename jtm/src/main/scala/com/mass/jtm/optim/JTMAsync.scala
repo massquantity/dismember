@@ -6,12 +6,15 @@ import com.mass.scalann.utils.Engine
 import org.apache.log4j.Logger
 
 class JTMAsync(
-    override val modelName: String,
+    override val dataPath: String,
+    override val treePath: String,
+    override val modelPath: String,
     override val gap: Int,
     override val seqLen: Int,
     override val hierarchical: Boolean,
     override val minLevel: Int,
-    override val numThreads: Int) extends TreeLearning {
+    override val numThreads: Int,
+    override val useMask: Boolean) extends TreeLearning {
   import JTMAsync._
   require(gap > 0, s"gap must be positive, but got $gap")
   require(isPowerOf2(numThreads), s"numThreads should be power of 2, but got $numThreads")
@@ -54,11 +57,13 @@ class JTMAsync(
     if (asyncParallel) {
       logger.info("asynchronous learning begin...")
       val asyncStartNodes = tree.getAllNodesAtLevel(asyncStartLevel)
-      Engine.default.invokeAndWait(
-        (0 until numThreads).map(i => () => {
-          singlePathAssign(asyncStartNodes(i), level, _gap, i, projectionPi)
-        })
-      ).foreach(projectionPi ++= _)
+      asyncStartNodes.sliding(numThreads, numThreads).foreach { nodes =>
+        Engine.default.invokeAndWait(
+          nodes.zipWithIndex.map { i => () =>
+            singlePathAssign(i._1, level, _gap, i._2, projectionPi)
+          }
+        ).foreach(projectionPi ++= _)
+      }
     }
 
     val totalEnd = System.nanoTime()
@@ -67,12 +72,12 @@ class JTMAsync(
   }
 
   def singlePathAssign(
-      initNode: Int,
-      level: Int,
-      gap: Int,
-      modelIdx: Int,
-      initProjection: mutable.Map[Int, Int]): mutable.Map[Int, Int] = {
-
+    initNode: Int,
+    level: Int,
+    gap: Int,
+    modelIdx: Int,
+    initProjection: mutable.Map[Int, Int]
+  ): mutable.Map[Int, Int] = {
     val start = System.nanoTime()
     val subProjection = mutable.Map[Int, Int]()
     val initialLevel = level - gap
@@ -104,24 +109,30 @@ class JTMAsync(
 object JTMAsync {
 
   def apply(
-    modelName: String,
+    dataPath: String,
+    treePath: String,
+    modelPath: String,
     gap: Int,
     seqLen: Int,
     hierarchical: Boolean,
     minLevel: Int,
-    numThreads: Int = 1
+    numThreads: Int,
+    useMask: Boolean
   ): JTMAsync = {
     new JTMAsync(
-      modelName,
+      dataPath,
+      treePath,
+      modelPath,
       gap,
       seqLen,
       hierarchical,
       minLevel,
       numThreads,
+      useMask
     )
   }
 
   private def isPowerOf2(n: Int): Boolean = {
-    n > 0 && (n & (n - 1)) == 0
+    n > 1 && (n & (n - 1)) == 0
   }
 }

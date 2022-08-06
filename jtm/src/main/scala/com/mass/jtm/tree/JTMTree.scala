@@ -30,6 +30,7 @@ class JTMTree extends DistTree with Serializable {
     val (idCodeAllParts, treeMeta) = loadData(path)
     loadItems(idCodeAllParts, treeMeta)
     initialized = true
+    println(s"load tree from $path")
   }
 
   def getAncestorAtLevel(item: Int, level: Int): Int = {
@@ -42,10 +43,10 @@ class JTMTree extends DistTree with Serializable {
   }
 
   // filter(codeNodeMap.contains)
-  def getAllNodesAtLevel(level: Int): Array[Int] = {
+  def getAllNodesAtLevel(level: Int): Seq[Int] = {
     val levelStart = math.pow(2, level).toInt - 1
     val levelEnd = levelStart * 2 + 1
-    Array.range(levelStart, levelEnd)
+    Seq.range(levelStart, levelEnd)
   }
 
   // filter(codeNodeMap.contains)  explore different nodes
