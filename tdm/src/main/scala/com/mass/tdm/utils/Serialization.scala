@@ -12,7 +12,7 @@ import org.apache.hadoop.io.IOUtils
 
 object Serialization {
 
-  def saveEmbeddings(path: String, model: Module[Float], embedSize: Int): Unit = {
+  def saveEmbeddings[T](path: String, model: Module[T], embedSize: Int): Unit = {
     val numItems = (math.pow(2, TDMOp.tree.getMaxLevel + 1) - 1).toInt
     val embedTensor = model.parameters()._1.head
     require(embedTensor.size().sameElements(Array(numItems, embedSize)),
@@ -55,7 +55,7 @@ object Serialization {
     }
   }
 
-  def saveModel(path: String, model: Module[Float]): Unit = {
+  def saveModel[T](path: String, model: Module[T]): Unit = {
     val fileWriter = DistFileWriter(path)
     val output: OutputStream = fileWriter.create(overwrite = true)
     val byteArrayOut = new ByteArrayOutputStream()
@@ -77,13 +77,13 @@ object Serialization {
     }
   }
 
-  def loadModel(path: String): Module[Float] = {
-    var model: Module[Float] = null
+  def loadModel[T](path: String): Module[T] = {
+    var model: Module[T] = null
     val fileReader = DistFileReader(path)
     val input = fileReader.open()
     val reader = new ObjectInputStream(new BufferedInputStream(input))
     try {
-      model = reader.readObject().asInstanceOf[Module[Float]]
+      model = reader.readObject().asInstanceOf[Module[T]]
     } catch {
       case e: FileNotFoundException =>
         println(s"""file "$path" not found""")
@@ -98,4 +98,27 @@ object Serialization {
     model
   }
 
+  def saveMapping(path: String, mapping: Map[Int, Int]): Unit = {
+    Using.resource(new BufferedWriter(new FileWriter(path))) { writer =>
+      mapping.foreach { case (item, id) =>
+        writer.write(s"$item $id\n")
+      }
+    }
+  }
+
+  def loadMapping(path: String): Map[Int, Int] = {
+    val fileSource = scala.io.Source.fromFile(path)
+    fileSource
+      .getLines()
+      .map { line =>
+        val kv = line.split("\\s+").map(_.trim)
+        kv.head.toInt -> kv.last.toInt
+      }
+      .toMap
+  }
+
+  def loadBothMapping(path: String): (Map[Int, Int], Map[Int, Int]) = {
+    val itemIdMapping = loadMapping(path)
+    (itemIdMapping, itemIdMapping.map(_.swap))
+  }
 }

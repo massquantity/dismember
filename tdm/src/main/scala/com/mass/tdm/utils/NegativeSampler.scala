@@ -91,13 +91,13 @@ class NegativeSampler(
         validLevels = startSampleLevel until totalLevel
         (node, level) <- validNodes zip validLevels
         posCode = node.code
-        negCodes =
+        negCodesList =
           if (withProb) {
             sampleFromCategoricalDistribution(level, posCode, threadId)
           } else {
             sampleFromUniformDistribution(level, posCode)
           }
-      } yield posCode :: negCodes
+      } yield posCode :: negCodesList
 
     val labels =
       for {

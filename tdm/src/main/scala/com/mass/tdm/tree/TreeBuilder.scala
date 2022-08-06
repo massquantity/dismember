@@ -37,14 +37,12 @@ object TreeBuilder {
       case Some(treeStat) => computeNodeOccurrence(items, treeStat, maxLevel)
       case None => Map.empty[Int, Float]
     }
-
     val fileWriter = DistFileWriter(outputTreePath)
     val output: OutputStream = fileWriter.create(overwrite = true)
     Using(new BufferedOutputStream(output)) { writer =>
       val parts = new mutable.ArrayBuffer[IdCodePart]()
       val tmpItems = new mutable.ArrayBuffer[IdCodePair]()
       val savedItems = new mutable.HashSet[Int]()
-
       items.zipWithIndex foreach { case (Item(id, code), i) =>
         val prob = stat match {
           case Some(s) if s.contains(id) => s(id).toFloat
@@ -82,14 +80,12 @@ object TreeBuilder {
         val partKV = KVItem(p.partId, p.toByteString)
         writeKV(partKV, writer)
       }
-
       val partIds = parts.map(x => x.partId).toSeq
       val meta = TreeMeta(maxLevel, partIds)
       val metaKV = KVItem(toByteString("tree_meta"), meta.toByteString)
       writeKV(metaKV, writer)
       logger.info(s"item num: ${treeIds.length}, tree level: $maxLevel, " +
         s"leaf code start: ${leafCodes.min}, leaf code end: ${leafCodes.max}")
-
     } match {
       case Success(_) =>
         output.close()
@@ -146,7 +142,11 @@ object TreeBuilder {
     ancestors.scanLeft(code)((a, _) => (a - 1) / 2).tail
   }
 
-  def computeNodeOccurrence(items: Array[Item], stat: Map[Int, Int], maxLevel: Int): Map[Int, Float] = {
+  def computeNodeOccurrence(
+    items: Array[Item],
+    stat: Map[Int, Int],
+    maxLevel: Int
+  ): Map[Int, Float] = {
     val res = mutable.Map.empty[Int, Float]
     items foreach { case Item(id, code) =>
       val ancestors = getAncestors(code, maxLevel)
