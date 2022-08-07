@@ -14,26 +14,22 @@ import com.mass.scalann.Module
 trait TreeLearning {
   import TreeLearning._
 
-  val modelName: String
+  val dataPath: String
+  val treePath: String
+  val modelPath: String
   val gap: Int
   val seqLen: Int
   val hierarchical: Boolean
   val minLevel: Int
   val numThreads: Int
+  val useMask: Boolean
 
-  private val useMask: Boolean = if (modelName.toLowerCase() == "din") true else false
-  private var itemSequenceMap: Map[Int, Array[Int]] = _
-  private var dlModel: Array[Module[Float]] = _
-  protected[jtm] var tree: JTMTree = _
+  private val itemSequenceMap: Map[Int, Array[Int]] = readDataFile(dataPath)
+  private val dlModel: Array[Module[Float]] = TreeUtil.duplicateModel(modelPath, numThreads)
+  protected[jtm] val tree: JTMTree = JTMTree(treePath)
   lazy val maxLevel: Int = tree.maxLevel
 
   def optimize(): Map[Int, Int]
-
-  def load(dataPath: String, treePath: String, modelPath: String): Unit = {
-    itemSequenceMap = readDataFile(dataPath)
-    dlModel = TreeUtil.duplicateModel(modelPath, numThreads)
-    tree = JTMTree(treePath)
-  }
 
   def readDataFile(dataPath: String): Map[Int, Array[Int]] = {
     val fileReader = DistFileReader(dataPath)
@@ -90,12 +86,10 @@ trait TreeLearning {
           s"maxAssignNum: $maxAssignNum")
     }
 
-    val childrenProjection =
-      for {
-        (node, items) <- balancedNodesMap.iterator
-        i <- items
-      } yield i.id -> node
-    childrenProjection.toMap
+    for {
+      (node, items) <- balancedNodesMap
+      i <- items
+    } yield i.id -> node
   }
 
   private def computeWeightsForItemsAtLevel(
@@ -164,12 +158,9 @@ trait TreeLearning {
     var _level = level
     while (node > currentNode) {
       val sampleSet = buildFeatures(itemSeq, node, _level)
-      weights += dlModel(modelIdx)
-        .forward(sampleSet)
-        .toTensor[Float]
-        .storage()
-        .array()
-        .sum
+      // use Tensor sum
+      val score = dlModel(modelIdx).forward(sampleSet).toTensor[Float].sum()
+      weights += score
       node = (node - 1) / 2
       _level -= 1
     }

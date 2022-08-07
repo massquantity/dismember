@@ -12,17 +12,15 @@ import com.mass.tdm.operator.TDMOp
 object Evaluator extends Serializable with Recommender {
 
   def evaluate(
-      models: Array[Module[Float]],
-      dataset: LocalDataSet,
-      criterions: Array[Criterion[Float]],
-      topk: Int,
-      candidateNum: Int,
-      state: Table,
-      useMask: Boolean): EvalResult = {
-
+    models: Array[Module[Float]],
+    dataset: LocalDataSet,
+    criterions: Array[Criterion[Float]],
+    topk: Int,
+    candidateNum: Int,
+    useMask: Boolean
+  ): EvalResult = {
     val subModelNum = Engine.coreNumber()
     val miniBatchIter = dataset.iteratorMiniBatch(train = false, expandBatch = true)
-
     miniBatchIter.map { batch =>
       val allData = dataset.getEvalData
       val userConsumed = dataset.getUserConsumed
@@ -30,7 +28,6 @@ object Evaluator extends Serializable with Recommender {
       val taskSize = miniBatchSize / subModelNum
       val extraSize = miniBatchSize % subModelNum
       val realParallelism = if (taskSize == 0) extraSize else subModelNum
-
       Engine.default.invokeAndWait(
         (0 until realParallelism).map(i => () => {
           val offset = batch.getOffset + i * taskSize + math.min(i, extraSize)

@@ -82,7 +82,7 @@ class LocalOptimizer(
           epochTime += iterationTime
           dataCount += batchData.length
 
-          if (iter == numBatchInEpoch || iter % progressInterval == 0) {
+          if (iter == numBatchInEpoch || (progressInterval > 0 && iter % progressInterval == 0)) {
             val iterMetrics = reportProgress(
               clonedModels,
               dataset,

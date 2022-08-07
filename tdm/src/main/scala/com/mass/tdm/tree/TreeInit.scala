@@ -9,7 +9,7 @@ import com.mass.scalann.utils.{FileReader => DistFileReader, FileWriter => DistF
 import org.apache.commons.lang3.math.NumberUtils
 
 // https://github.com/databricks/scala-style-guide/blob/master/README-ZH.md
-class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: Double = 0.8) {
+class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: Double) {
   import TreeInit._
   require(seqLen > 0 && minSeqLen > 0 && seqLen >= minSeqLen)
   require(splitRatio > 0 && splitRatio < 1)
@@ -25,7 +25,7 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
     leafIdFile: String,
     treePbFile: String,
     userConsumedFile: Option[String]
-  ): Unit = {
+  ): (Array[Int], Array[Int]) = {
     if (splitForEval) {
       require(evalFile.isDefined, "couldn't find eval file path...")
     }
@@ -116,21 +116,47 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
     Map.empty ++ res
   }
 
-  private def writeFile(filePath: String, mode: String, userInteraction: Map[Int, Array[Int]]): Unit = {
+  private def writeFile(
+    filePath: String,
+    mode: String,
+    userInteraction: Map[Int, Array[Int]]
+  ): Unit = {
     val fileWriter: DistFileWriter = DistFileWriter(filePath)
     val output: OutputStream = fileWriter.create(overwrite = true)
     val writer = new PrintWriter(output, true)
-
     try {
       mode match {
         case "train" =>
-          writeTrain(writer, userInteraction, userConsumed, seqLen, minSeqLen, stat)
+          writeTrain(
+            writer,
+            userInteraction,
+            userConsumed,
+            seqLen,
+            minSeqLen,
+            stat
+          )
         case "half_train" =>
-          writeEither(writer, userInteraction, userConsumed, seqLen, minSeqLen,
-            splitRatio, stat, train = true)
+          writeEither(
+            writer,
+            userInteraction,
+            userConsumed,
+            seqLen,
+            minSeqLen,
+            splitRatio,
+            stat,
+            train = true
+          )
         case "eval" =>
-          writeEither(writer, userInteraction, userConsumed, seqLen, minSeqLen,
-            splitRatio, stat, train = false)
+          writeEither(
+            writer,
+            userInteraction,
+            userConsumed,
+            seqLen,
+            minSeqLen,
+            splitRatio,
+            stat,
+            train = false
+          )
         case "stat" =>
           writeStat(writer, stat)
         case "user_consumed" =>
@@ -154,7 +180,7 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
     trainSample: InitSample,
     leafIdFile: String,
     treePbFile: String
-  ): Unit = {
+  ): (Array[Int], Array[Int]) = {
     val uniqueItems = (trainSample.item lazyZip trainSample.category)
       .map(Item(_, _))
       .distinctBy(_.itemId)
@@ -195,6 +221,7 @@ class TreeInit(seqLen: Int, minSeqLen: Int, splitForEval: Boolean, splitRatio: D
       treeCodes = codes,
       stat = Some(stat.toMap)
     )
+    (ids, codes)
   }
 }
 
@@ -248,7 +275,7 @@ object TreeInit {
     stat: mutable.HashMap[Int, Int],
     train: Boolean
   ): Unit = {
-    val sb = new StringBuilder
+    val sb = new mutable.StringBuilder
     val users = userInteraction.keys.toArray
     users.foreach { user =>
       val items = userInteraction(user)
@@ -279,12 +306,10 @@ object TreeInit {
           stat(targetItem) = stat.getOrElse(targetItem, 0) + 1
           i += 1
         }
-
       } else if (!train && items.length > minSeqLen + 1) {
         val arr = Array.fill[Int](seqLen - minSeqLen)(0) ++ items
         val splitPoint = math.ceil((items.length - minSeqLen) * splitRatio).toInt
         val consumed = userConsumed(user).toSet
-
         sb ++= s"user_$user"
         var hasNew = false
         var i = splitPoint

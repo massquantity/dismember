@@ -12,21 +12,19 @@ class JTMTest extends AnyFlatSpec {
   Engine.setCoreNumber(numThread)
   val prefix = s"${filePath("jtm")}/data/"
   val jtm = JTM(
-    modelName = "DIN",
-    gap = 1,
+    dataPath = prefix + "train_data.csv",
+    treePath = prefix + "example_tree.bin",
+    modelPath = prefix + "example_model.bin",
+    gap = 2,
     seqLen = 10,
     hierarchical = false,
     minLevel = 0,
-    numThreads = numThread
-  )
-  jtm.load(
-    prefix + "train_data.csv",
-    prefix + "tree_pb_data.txt",
-    prefix + "model.bin"
+    numThreads = numThread,
+    useMask = true
   )
   val projection = jtm.optimize()
   val treeMeta = TreeUtil.getTreeMeta(jtm)
-  TreeUtil.writeTree(jtm, projection, prefix + "jtm_tree_data.txt")
+  TreeUtil.writeTree(jtm, projection, prefix + "jtm_tree.bin")
 
   "Final projection" should "have correct leaf size" in {
     assert(projection.size == treeMeta.leafNum)

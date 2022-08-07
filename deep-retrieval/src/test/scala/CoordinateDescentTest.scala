@@ -1,5 +1,5 @@
 import com.mass.dr.dataset.LocalDataSet
-import com.mass.dr.model.LayerModel
+import com.mass.dr.model.{LayerModel, MappingOp}
 import com.mass.dr.optim.CoordinateDescent
 import com.mass.scalann.utils.Engine
 import com.mass.scalann.utils.Property.filePath
@@ -23,7 +23,7 @@ class CoordinateDescentTest extends AnyFlatSpec with Matchers {
   val initialize = true
   val splitRatio = 0.8
   val embedSize = 16
-  val beamSize = 20
+  val numCandidatePath = 20
   val numIteration = 3
   val decayFactor = 0.999
   val penaltyFactor = 3e-6
@@ -39,7 +39,7 @@ class CoordinateDescentTest extends AnyFlatSpec with Matchers {
     minSeqLen = minSeqLen,
     dataPath = dataPath,
     mappingPath = mappingPath,
-    initialize = initialize,
+    initMapping = initialize,
     splitRatio = splitRatio,
     delimiter = ","
   )
@@ -49,7 +49,7 @@ class CoordinateDescentTest extends AnyFlatSpec with Matchers {
     dataset = dataset,
     batchSize = batchSize,
     numIteration = numIteration,
-    numCandidatePath = beamSize,
+    numCandidatePath = numCandidatePath,
     numPathPerItem = numPathPerItem,
     numLayer = numLayer,
     numNode = numNode,

@@ -58,7 +58,9 @@ trait Recommender {
       if (levelInfo.candidateNodes.isEmpty) {
         levelInfo
       } else {
-        val (leafNodes, nonLeafNodes) = levelInfo.candidateNodes.partition(n => codeNodeMap(n.code).isLeaf)
+        val (leafNodes, nonLeafNodes) = levelInfo.candidateNodes.partition {
+          n => codeNodeMap(n.code).isLeaf
+        }
         val newLeafNodes =
           if (leafNodes.nonEmpty) {
             leafNodes ++: levelInfo.leafNodes

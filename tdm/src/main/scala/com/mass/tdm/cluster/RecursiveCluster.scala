@@ -4,7 +4,7 @@ import java.io._
 import java.util.concurrent.ForkJoinPool
 
 import scala.collection.mutable
-import scala.util.Using
+import scala.util.{Random, Using}
 
 import com.mass.clustering.SpectralClustering
 import com.mass.scalann.utils.{FileReader => DistFileReader}
@@ -14,31 +14,27 @@ import org.apache.log4j.{Level, Logger}
 import smile.clustering.{KMeans, PartitionClustering}
 
 class RecursiveCluster(
-    embedPath: String,
-    outputTreePath: String,
+    ids: Array[Int],
+    embeddings: Array[Array[Double]],
     parallel: Boolean,
     numThreads: Int,
-    delimiter: String = ",",
-    threshold: Int = 256,
-    clusterIterNum: Int = 10,
-    clusterType: String = "kmeans") {
+    clusterIterNum: Int,
+    clusterType: String) {
   import RecursiveCluster._
   Logger.getLogger("smile").setLevel(Level.ERROR)
-  require(threshold >= 4, "threshold should be no less than 4")
   require(clusterType == "kmeans" || clusterType == "spectral",
     s"clusterType must be one of ('kmeans', 'spectral')")
   if (clusterType == "spectral") {
     require(!parallel, "spectral clustering does not support parallel mode.")
   }
 
-  val (ids, embeddings): (Array[Int], Array[Array[Double]]) = readFile(embedPath, delimiter)
-  val codes: Array[Int] = Array.fill[Int](ids.length)(0)
-
-  def run(): Unit = {
+  def run(outputTreePath: String): (Array[Int], Array[Int]) = {
+    val threshold = 256
+    val codes = Array.fill[Int](ids.length)(0)
     if (parallel) {
-      trainParallel(0, ids.indices.toArray)
+      trainParallel(0, ids.indices.toArray, codes, threshold)
     } else {
-      train(0, ids.indices.toArray)
+      train(0, ids.indices.toArray, codes, threshold)
     }
 
     TreeBuilder.build(
@@ -46,20 +42,21 @@ class RecursiveCluster(
       treeIds = ids,
       treeCodes = codes
     )
+    (ids, codes)
   }
 
-  def train(pcode: Int, index: Array[Int]): Unit = {
+  def train(pcode: Int, index: Array[Int], codes: Array[Int], threshold: Int): Unit = {
     if (index.length <= threshold) {
       miniBatch(pcode, index, codes, embeddings, clusterIterNum, clusterType)
     } else {
       val (leftCode, rightCode) = (2 * pcode + 1, 2 * pcode + 2)
       val (leftIndex, rightIndex) = cluster(index, embeddings, clusterIterNum, clusterType)
-      train(leftCode, leftIndex)
-      train(rightCode, rightIndex)
+      train(leftCode, leftIndex, codes, threshold)
+      train(rightCode, rightIndex, codes, threshold)
     }
   }
 
-  def trainParallel(pcode: Int, index: Array[Int]): Unit = {
+  def trainParallel(pcode: Int, index: Array[Int], codes: Array[Int], threshold: Int): Unit = {
     // val pool = ForkJoinPool.commonPool()
     val pool = new ForkJoinPool(numThreads)
     val task = new ForkJoinProcess(
@@ -77,6 +74,53 @@ class RecursiveCluster(
 }
 
 object RecursiveCluster {
+
+  def apply(
+    numItem: Int,
+    embedSize: Int,
+    parallel: Boolean,
+    numThreads: Int,
+    clusterIterNum: Int,
+    clusterType: String
+  ): RecursiveCluster = {
+    val ids = (1 to numItem).toArray
+    val embeddings = generateEmbeddings(numItem, embedSize)
+    new RecursiveCluster(
+      ids,
+      embeddings,
+      parallel,
+      numThreads,
+      clusterIterNum,
+      clusterType
+    )
+  }
+
+  def apply(
+    embedPath: String,
+    parallel: Boolean,
+    numThreads: Int,
+    clusterIterNum: Int,
+    clusterType: String
+  ): RecursiveCluster = {
+    val (ids, embeddings) = readFile(embedPath, ",")
+    new RecursiveCluster(
+      ids,
+      embeddings,
+      parallel,
+      numThreads,
+      clusterIterNum,
+      clusterType
+    )
+  }
+
+  val generateEmbeddings: (Int, Int) => Array[Array[Double]] = (numItem, embedSize) => {
+    val embeds =
+      for {
+        _ <- 1 to numItem
+        _ <- 1 to embedSize
+      } yield Random.nextDouble()
+    embeds.toArray.sliding(embedSize, embedSize).toArray
+  }
 
   def readFile(embedPath: String, delimiter: String): (Array[Int], Array[Array[Double]]) = {
     val fileReader = DistFileReader(embedPath)

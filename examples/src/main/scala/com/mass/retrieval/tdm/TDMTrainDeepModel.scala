@@ -5,7 +5,7 @@ import com.mass.scalann.optim.Adam
 import com.mass.scalann.utils.{Engine, Property}
 import com.mass.scalann.utils.Property.getOrStop
 import com.mass.tdm.dataset.LocalDataSet
-import com.mass.tdm.model.TDM
+import com.mass.tdm.model.{DeepFM, DIN, TDM}
 import com.mass.tdm.optim.LocalOptimizer
 import org.apache.log4j.{Level, Logger}
 import scopt.OptionParser
@@ -20,7 +20,7 @@ object TDMTrainDeepModel {
     val defaultParams = Params()
     val parser = new OptionParser[Params]("TrainDeepModel") {
       opt[String]("tdmConfFile")
-        .text(s"TDM config file path, default path is tdm.conf from resource folder")
+        .text(s"TDM config file path, default path is `tdm.conf` from resource folder")
         .action((x, c) => c.copy(tdmConfFile = x))
     }
 
@@ -31,12 +31,12 @@ object TDMTrainDeepModel {
   }
 
   def run(params: Params): Unit = {
-    val conf = Property.readConf(path = params.tdmConfFile, prefix = "model", print = true)
+    val conf = Property.readConf(params.tdmConfFile, "model", "tdm", print = true)
     Property.configLocal(conf)
 
-    val deepModel = getOrStop(conf, "deep_model").toLowerCase
+    val dlModelName = getOrStop(conf, "deep_model").toLowerCase
     val seqLen = getOrStop(conf, "seq_len").toInt
-    val useMask = if (deepModel == "din") true else false
+    val useMask = if (dlModelName == "din") true else false
 
     val totalBatchSize = getOrStop(conf, "total_batch_size").toInt
     val totalEvalBatchSize = getOrStop(conf, "total_eval_batch_size").toInt
@@ -56,7 +56,7 @@ object TDMTrainDeepModel {
     val numIteration = conf.getOrElse("iteration_number", "100").toInt
     val progressInterval = conf.getOrElse("show_progress_interval", "1").toInt
     val topk = conf.getOrElse("topk_number", "10").toInt
-    val candidateNum = conf.getOrElse("candidate_num_per_layer", "20").toInt
+    val candidateNum = conf.getOrElse("beam_size", "20").toInt
 
     val modelPath = getOrStop(conf, "model_path")
     val embedPath = getOrStop(conf, "embed_path")
@@ -74,15 +74,19 @@ object TDMTrainDeepModel {
       startSampleLevel = startSampleLevel,
       tolerance = tolerance,
       numThreads = numThreads,
-      useMask = useMask)
+      useMask = useMask
+    )
+    val dlModel =
+      if (dlModelName == "din") {
+        DIN.buildModel[Float](embedSize)
+      } else if (dlModelName == "deepfm") {
+        DeepFM.buildModel(seqLen, embedSize)
+      } else {
+        throw new IllegalArgumentException("DeepModel name should either be DeepFM or DIN")
+      }
 
-    val tdmModel = TDM(
-      featSeqLen = seqLen,
-      embedSize = embedSize,
-      deepModel = deepModel)
-
-    val optimizer = new LocalOptimizer(
-      model = tdmModel.getModel,
+    val optimizer = LocalOptimizer(
+      model = dlModel,
       dataset = dataset,
       criterion = BCECriterionWithLogits(),
       optimMethod = Adam[Float](learningRate = learningRate),
@@ -90,12 +94,12 @@ object TDMTrainDeepModel {
       progressInterval = progressInterval,
       topk = topk,
       candidateNum = candidateNum,
-      useMask = useMask)
-
+      useMask = useMask
+    )
     optimizer.optimize()
 
-    TDM.saveModel(modelPath, embedPath, tdmModel)
-
+    val tdmModel = TDM(dlModel, dlModelName)
+    TDM.saveModel(modelPath, embedPath, dlModel, embedSize)
     recommend(tdmModel)
   }
 

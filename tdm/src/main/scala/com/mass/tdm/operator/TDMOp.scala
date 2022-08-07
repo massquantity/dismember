@@ -41,6 +41,7 @@ object TDMOp {
 
   private def buildTree(pbFilePath: String): TDMTree = {
     require(pbFilePath != "", "must initialize tree first...")
+    println(s"load tree from $pbFilePath")
     val singletonTree = TDMTree(pbFilePath)
     singletonTree
   }

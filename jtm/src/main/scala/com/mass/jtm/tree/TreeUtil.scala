@@ -20,7 +20,7 @@ object TreeUtil {
   }
 
   private[jtm] def duplicateModel(modelPath: String, num: Int): Array[Module[Float]] = {
-    val loadedModel = Serialization.loadModel(modelPath)
+    val loadedModel = Serialization.loadModel[Float](modelPath)
     val weights: Array[Tensor[Float]] = Util.getAndClearWeightBias(loadedModel.parameters())
     val models: Array[Module[Float]] = (1 to num).toArray.map { _ =>
       val m = loadedModel.cloneModule()

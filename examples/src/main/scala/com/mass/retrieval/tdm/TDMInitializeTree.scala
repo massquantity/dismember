@@ -16,7 +16,7 @@ object TDMInitializeTree {
     val defaultParams = Params()
     val parser = new OptionParser[Params]("InitializeTree") {
       opt[String]("tdmConfFile")
-        .text(s"TDM config file path, default path is tdm.conf from resource folder")
+        .text(s"TDM config file path, default path is `tdm.conf` from resource folder")
         .action((x, c) => c.copy(tdmConfFile = x))
     }
 
@@ -27,7 +27,7 @@ object TDMInitializeTree {
   }
 
   def run(params: Params): Unit = {
-    val conf = Property.readConf(path = params.tdmConfFile, prefix = "init", print = true)
+    val conf = Property.readConf(params.tdmConfFile, "init", "tdm", print = true)
 
     val tree = new TreeInit(
       seqLen = getOrStop(conf, "seq_len").toInt,

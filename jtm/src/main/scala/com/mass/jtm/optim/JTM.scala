@@ -4,12 +4,15 @@ import com.mass.scalann.utils.Engine
 import org.apache.log4j.Logger
 
 class JTM(
-    override val modelName: String,
+    override val dataPath: String,
+    override val treePath: String,
+    override val modelPath: String,
     override val gap: Int,
     override val seqLen: Int,
     override val hierarchical: Boolean,
     override val minLevel: Int,
-    override val numThreads: Int) extends TreeLearning {
+    override val numThreads: Int,
+    override val useMask: Boolean) extends TreeLearning {
   val logger: Logger = Logger.getLogger(getClass)
 
   // When num of nodes in one level is smaller than numThreads,
@@ -57,7 +60,7 @@ class JTM(
                 )
               }.toMap
             }
-          ).toArray
+          )
         }
       val levelEnd = System.nanoTime()
       logger.info(f"level $level assign time:  ${(levelEnd - levelStart) / 1e9d}%.6fs")
@@ -69,20 +72,26 @@ class JTM(
 object JTM {
 
   def apply(
-    modelName: String,
+    dataPath: String,
+    treePath: String,
+    modelPath: String,
     gap: Int,
     seqLen: Int,
     hierarchical: Boolean,
     minLevel: Int,
-    numThreads: Int
+    numThreads: Int,
+    useMask: Boolean
   ): JTM = {
     new JTM(
-      modelName,
+      dataPath,
+      treePath,
+      modelPath,
       gap,
       seqLen,
       hierarchical,
       minLevel,
       numThreads,
+      useMask
     )
   }
 }

@@ -19,6 +19,7 @@ object Engine {
     require(n > 0, "Engine.init: core number is smaller than zero")
     physicalCoreNum = n
     initThreadPool(n)
+    System.setProperty("scala.concurrent.context.numThreads", s"$n")
   }
 
   def model: ThreadPool = {
@@ -43,5 +44,4 @@ object Engine {
     }
     _model.setMKLThread(MKL.getMklNumThreads)
   }
-
 }

@@ -4,17 +4,18 @@ import com.mass.scalann.Module
 import com.mass.scalann.nn.{Add, Concat, EmbeddingShare, FM, Input, Linear, ReLU, Reshape}
 import com.mass.scalann.nn.graphnn.Graph
 import com.mass.tdm.operator.TDMOp
+import com.mass.tdm.paddingIdx
 
 object DeepFM {
 
-  def buildModel(featSeqLen: Int, embedSize: Int, paddingIdx: Int): Module[Float] = {
+  def buildModel(featSeqLen: Int, embedSize: Int): Module[Float] = {
 
     val totalLen = featSeqLen + 1
     val numIndex = (math.pow(2, TDMOp.tree.getMaxLevel + 1) - 1).toInt
     val inputItem = Input[Float]()
     val inputSeq = Input[Float]()
 
-    val embedding = EmbeddingShare[Float](numIndex, embedSize, paddingIdx = paddingIdx)
+    val embedding = EmbeddingShare[Float](numIndex, embedSize, paddingIdx)
       .inputs(inputItem, inputSeq)
     val itemFlatten = Reshape[Float](Array(embedSize))
       .inputs(Seq((embedding, 0)))

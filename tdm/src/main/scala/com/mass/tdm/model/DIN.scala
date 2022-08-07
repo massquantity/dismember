@@ -7,10 +7,11 @@ import com.mass.scalann.Module
 import com.mass.scalann.nn._
 import com.mass.scalann.nn.graphnn.Graph
 import com.mass.tdm.operator.TDMOp
+import com.mass.tdm.paddingIdx
 
 object DIN {
 
-  def buildModel[@specialized(Float, Double) T: ClassTag](embedSize: Int, paddingIdx: Int)(
+  def buildModel[@specialized(Float, Double) T: ClassTag](embedSize: Int)(
       implicit ev: TensorNumeric[T]): Module[T] = {
 
     val numIndex = (math.pow(2, TDMOp.tree.getMaxLevel + 1) - 1).toInt
@@ -18,7 +19,7 @@ object DIN {
     val inputSeq = Input[T]()
     val inputMask = Input[T]()
 
-    val embedding = EmbeddingShare[T](numIndex, embedSize, paddingIdx = paddingIdx)
+    val embedding = EmbeddingShare[T](numIndex, embedSize, paddingIdx)
       .inputs(inputItem, inputSeq)
     val item = Identity[T]()
       .inputs(Seq((embedding, 0)))

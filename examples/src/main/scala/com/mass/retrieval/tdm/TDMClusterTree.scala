@@ -17,7 +17,7 @@ object TDMClusterTree {
     val defaultParams = Params()
     val parser = new OptionParser[Params]("ClusterTree") {
       opt[String]("tdmConfFile")
-        .text(s"TDM config file path, default path is tdm.conf from resource folder")
+        .text(s"TDM config file path, default path is `tdm.conf` from resource folder")
         .action((x, c) => c.copy(tdmConfFile = x))
     }
 
@@ -28,18 +28,23 @@ object TDMClusterTree {
   }
 
   def run(params: Params): Unit = {
-    val conf = Property.readConf(path = params.tdmConfFile, prefix = "cluster", print = true)
+    val conf = Property.readConf(params.tdmConfFile, "cluster", "tdm", print = true)
     Property.configLocal(conf)
 
-    val model = new RecursiveCluster(
-      embedPath = getOrStop(conf, "embed_path"),
-      outputTreePath = getOrStop(conf, "tree_protobuf_path"),
-      parallel = conf.getOrElse("parallel", "true").toBoolean,
-      numThreads = Engine.coreNumber(),
-      clusterIterNum = conf.getOrElse("cluster_num", "10").toInt,
-      clusterType = conf.getOrElse("cluster_type", "kmeans")
-    )
+    val embedPath = getOrStop(conf, "embed_path")
+    val parallel = conf.getOrElse("parallel", "true").toBoolean
+    val numThreads = Engine.coreNumber()
+    val clusterIterNum = conf.getOrElse("cluster_num", "10").toInt
+    val outputTreePath = getOrStop(conf, "tree_protobuf_path")
+    val clusterType = conf.getOrElse("cluster_type", "kmeans")
 
-    time(model.run(), "cluster")
+    val model = RecursiveCluster(
+      embedPath = embedPath,
+      parallel = parallel,
+      numThreads = numThreads,
+      clusterIterNum = clusterIterNum,
+      clusterType = clusterType
+    )
+    time(model.run(outputTreePath), s"tree $clusterType clustering")
   }
 }

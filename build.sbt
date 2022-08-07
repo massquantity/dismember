@@ -29,7 +29,7 @@ lazy val otm = (project in file("otm"))
   .settings(name := "otm")
   .settings(commonSettings)
   .settings(libraryDependencies ++= commonDependencies)
-  .dependsOn(scalann)
+  .dependsOn(scalann, tdm, jtm)
 
 lazy val `deep-retrieval` = (project in file("deep-retrieval"))
   .settings(name := "deep-retrieval")
@@ -62,6 +62,8 @@ lazy val commonSettings = Seq(
     "-Vtype-diffs"
   ),
   resolvers ++= Resolver.sonatypeOssRepos("releases") :+ Resolver.typesafeRepo("releases"),
+  makeBatScripts                 := Nil,
+  Compile / mainClass            := None,
   fork                           := true,
   Test / parallelExecution       := false,
   ThisBuild / parallelExecution  := false,

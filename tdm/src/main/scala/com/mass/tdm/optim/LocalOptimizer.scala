@@ -1,5 +1,7 @@
 package com.mass.tdm.optim
 
+import scala.collection.mutable
+
 import com.mass.scalann.{Criterion, Module}
 import com.mass.scalann.optim.{OptimMethod, Trigger}
 import com.mass.scalann.tensor.Tensor
@@ -187,18 +189,18 @@ class LocalOptimizer(
   }
 
   private def reportProgress(
-      dataset: LocalDataSet,
-      models: Array[Module[Float]],
-      criterions: Array[Criterion[Float]],
-      topk: Int,
-      candidateNum: Int,
-      state: Table,
-      dataCount: Int,
-      iterationTime: Long,
-      epochTime: Long,
-      trainLoss: Double): Unit = {
-
-    val progressInfo = new StringBuilder
+    dataset: LocalDataSet,
+    models: Array[Module[Float]],
+    criterions: Array[Criterion[Float]],
+    topk: Int,
+    candidateNum: Int,
+    state: Table,
+    dataCount: Int,
+    iterationTime: Long,
+    epochTime: Long,
+    trainLoss: Double
+  ): Unit = {
+    val progressInfo = new mutable.StringBuilder
     progressInfo ++= f"Epoch ${state[Int]("epoch") + 1} train time: ${epochTime / 1e9d}%.4fs, "
     progressInfo ++= s"count/total: $dataCount/${dataset.trainSize}, "
     progressInfo ++= f"Iteration ${state[Int]("trainIter")} time: ${iterationTime / 1e9d}%.4fs, "
@@ -211,11 +213,37 @@ class LocalOptimizer(
       criterions,
       topk,
       candidateNum,
-      state,
       useMask
     )
     val evalEnd = System.nanoTime()
     progressInfo ++= f"\teval time: ${(evalEnd - evalStart) / 1e9d}%.4fs, Metrics: $evalResult\n"
     logger.info(progressInfo.toString)
+  }
+}
+
+object LocalOptimizer {
+
+  def apply(
+    model: Module[Float],
+    dataset: LocalDataSet,
+    criterion: Criterion[Float],
+    optimMethod: OptimMethod[Float],
+    numIteration: Int,
+    progressInterval: Int,
+    topk: Int,
+    candidateNum: Int,
+    useMask: Boolean
+  ): LocalOptimizer = {
+    new LocalOptimizer(
+      model,
+      dataset,
+      criterion,
+      optimMethod,
+      numIteration,
+      progressInterval,
+      topk,
+      candidateNum,
+      useMask
+    )
   }
 }

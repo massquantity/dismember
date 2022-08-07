@@ -81,7 +81,7 @@ class LocalOptimizer(
         epochTime += (layerTrainTime + reRankTrainTime)
         dataCount += batch.getLength
         iter += 1
-        if (iter % progressInterval == 0 || !miniBatchIter.hasNext) {
+        if (!miniBatchIter.hasNext || (progressInterval > 0 && iter % progressInterval == 0)) {
           if (epoch > reRankStoppingEpoch) {
             logger.info(s"Rerank training stopped in epoch $epoch")
           }

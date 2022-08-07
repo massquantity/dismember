@@ -151,7 +151,7 @@ object Utils {
       }
     }
 
-    def medIdx(p1: Int, p2: Int, p3: Int) = {
+    def medIdx(p1: Int, p2: Int, p3: Int): Int = {
       if (elems(p1) < elems(p2)) {
         if (elems(p2) < elems(p3)) p2 else if (elems(p1) < elems(p3)) p3 else p1
       } else {
