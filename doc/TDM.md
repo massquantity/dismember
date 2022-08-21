@@ -6,7 +6,7 @@ TDM has three major steps:
 + Train deep model
 + Cluster tree
 
-The various generated files during these steps will be located in the paths specified in `tdm.conf` files.
+The various generated files during these steps will be located in the paths specified in [`tdm.conf`](https://github.com/massquantity/dismember/blob/main/configs/tdm.conf) files.
 
 The first step is Initializing tree:
 

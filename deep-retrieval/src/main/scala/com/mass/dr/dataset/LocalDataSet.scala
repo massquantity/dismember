@@ -9,6 +9,7 @@ import com.mass.dr.model.MappingOp.{initItemPathMapping, loadMapping}
 import com.mass.scalann.utils.DataUtil
 import com.mass.scalann.utils.{FileReader => DistFileReader}
 import org.apache.commons.lang3.math.NumberUtils
+import org.apache.log4j.Logger
 
 class LocalDataSet(
     numLayer: Int,
@@ -25,18 +26,19 @@ class LocalDataSet(
     delimiter: String) {
   import LocalDataSet._
   require(seqLen > 0 && minSeqLen > 0 && seqLen >= minSeqLen)
+  val logger: Logger = Logger.getLogger(getClass)
 
   private val initData: Array[InitSample] = readFile(dataPath, delimiter)
 
-  // if mapping doesn't exist, initialize randomly
   lazy val (itemIdMapping, itemPathMapping) =
-    if (initMapping || !Files.isRegularFile(Paths.get(mappingPath))) {
+    if (initMapping) {
       val uniqueItems = initData.map(_.item).distinct
       val idMapping = uniqueItems.zipWithIndex.toMap
       val pathMapping = initItemPathMapping(uniqueItems.length, numLayer, numNode, numPathPerItem)
       (idMapping, pathMapping)
     } else {
-      println(s"load mapping from $mappingPath")
+      logger.info(s"load mapping from $mappingPath")
+      require(Files.isRegularFile(Paths.get(mappingPath)), s"$mappingPath is not a valid file")
       loadMapping(mappingPath)
     }
 

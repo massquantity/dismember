@@ -16,11 +16,12 @@ class LayerModel(
   require(numLayer >= 2, "number of layers must be at least 2")
 
   private[dr] val model = buildModel()
-  lazy val parameters = model.adjustParameters()
   lazy val embedParams: Tensor[Double] = model.fetchModuleParameters("embedding", "weight")
   lazy val linearParams: IndexedSeq[Seq[Tensor[Double]]] = (1 to numLayer).map { i =>
     model.fetchModuleParameters(s"linear_$i", Seq("weight", "bias"))
   }
+
+  def getParameters: (Tensor[Double], Tensor[Double]) = model.adjustParameters()
 
   private def buildModel(): Graph[Double] = {
     val input = Seq.fill(numLayer)(Input())
@@ -68,7 +69,7 @@ class LayerModel(
     (models, gradients)
   }
 
-  def inference(inputSeq: Seq[Int], rank: Int): Array[Double] = {
+  def inference(inputSeq: Seq[Int], rank: Int): Seq[Double] = {
     val output = Tensor[Double](numNode)
     val linearWeight = linearParams(rank).head
     val linearBias = linearParams(rank).last
@@ -83,7 +84,7 @@ class LayerModel(
     val inputEmbed = Tensor(inputData.toArray, Array(inputSeq.length * embedSize))
     output.addmv(0.0, 1.0, linearWeight, inputEmbed)
     output.add(linearBias)
-    output.storage().array()
+    output.storage().array().toSeq
   }
 
   def inferenceWithWeight(): Tensor[Double] = ???

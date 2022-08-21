@@ -10,11 +10,12 @@ class RerankModel(numItem: Int, seqLen: Int, embedSize: Int) extends Serializabl
   import RerankModel.extractCandidates
 
   private[dr] val model = buildModel()
-  lazy val parameters = model.adjustParameters()
   lazy val embedParams = model.fetchModuleParameters("embedding", "weight")
   lazy val linearParams = model.fetchModuleParameters("linear", Seq("weight", "bias"))
   val softmaxWeights = Tensor[Double](numItem, embedSize).randn(0.0, 0.05)
   val softmaxBiases = Tensor[Double](numItem).zero()
+
+  def getParameters: (Tensor[Double], Tensor[Double]) = model.adjustParameters()
 
   private def buildModel(): Graph[Double] = {
     val flattenSize = seqLen * embedSize
@@ -39,14 +40,14 @@ class RerankModel(numItem: Int, seqLen: Int, embedSize: Int) extends Serializabl
     model.backward(input, gradOutput).toTensor
   }
 
-  def inference(candidateItems: Seq[Int], inputSeq: Seq[Int]): Array[Double] = {
+  def inference(candidateItems: Seq[Int], inputSeq: Seq[Int]): Seq[Double] = {
     val output = Tensor[Double](candidateItems.length)
     val userVector = inferenceUserVector(inputSeq)
     val candidateWeights = extractCandidates(candidateItems, softmaxWeights, embedSize)
     val candidateBiases = extractCandidates(candidateItems, softmaxBiases)
     output.addmv(0.0, 1.0, candidateWeights, userVector)
     output.add(candidateBiases)
-    output.storage().array()
+    output.storage().array().toSeq
   }
 
   def inferenceUserVector(inputSeq: Seq[Int]): Tensor[Double] = {

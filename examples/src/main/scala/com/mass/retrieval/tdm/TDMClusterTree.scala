@@ -1,50 +1,38 @@
 package com.mass.retrieval.tdm
 
+import cats.implicits._
 import com.mass.scalann.utils.{Engine, Property}
 import com.mass.scalann.utils.Property.getOrStop
 import com.mass.tdm.cluster.RecursiveCluster
-import com.mass.tdm.utils.Utils.time
-import org.apache.log4j.{Level, Logger}
-import scopt.OptionParser
+import com.monovore.decline._
 
-object TDMClusterTree {
+object TDMClusterTree extends CommandApp(
+  name = "ClusterTree",
+  header = "TDM using cluster to get a new tree",
+  main = {
+    val fileOpt = Opts.option[String](
+      long = "tdmConfFile",
+      help = "TDM config file path, default path is `tdm.conf` from resource folder",
+      metavar = "file"
+    ).withDefault("fromResource")
+    val quietOpt = Opts.flag("quiet", "Whether to be quiet.").orFalse
 
-  case class Params(tdmConfFile: String = "fromResource")
+    (fileOpt, quietOpt).mapN { (tdmConfFile, quiet) =>
+      val conf = Property.readConf(tdmConfFile, "cluster", "tdm", print = !quiet)
+      Property.configLocal(conf)
+      val params = getParameters(conf, "cluster") match {
+        case p: ClusterTreeParams => p
+        case _ => throw new IllegalArgumentException("wrong param type")
+      }
 
-  def main(args: Array[String]): Unit = {
-    Logger.getLogger("com.mass").setLevel(Level.INFO)
-
-    val defaultParams = Params()
-    val parser = new OptionParser[Params]("ClusterTree") {
-      opt[String]("tdmConfFile")
-        .text(s"TDM config file path, default path is `tdm.conf` from resource folder")
-        .action((x, c) => c.copy(tdmConfFile = x))
-    }
-
-    parser.parse(args, defaultParams) match {
-      case Some(params) => run(params)
-      case _ => sys.exit(1)
+      val model = RecursiveCluster(
+        embedPath = params.embedPath,
+        parallel = params.parallel,
+        numThreads = params.numThreads,
+        clusterIterNum = params.clusterIterNum,
+        clusterType = params.clusterType
+      )
+      showTime(model.run(params.outputTreePath), s"tree ${params.clusterType} clustering")
     }
   }
-
-  def run(params: Params): Unit = {
-    val conf = Property.readConf(params.tdmConfFile, "cluster", "tdm", print = true)
-    Property.configLocal(conf)
-
-    val embedPath = getOrStop(conf, "embed_path")
-    val parallel = conf.getOrElse("parallel", "true").toBoolean
-    val numThreads = Engine.coreNumber()
-    val clusterIterNum = conf.getOrElse("cluster_num", "10").toInt
-    val outputTreePath = getOrStop(conf, "tree_protobuf_path")
-    val clusterType = conf.getOrElse("cluster_type", "kmeans")
-
-    val model = RecursiveCluster(
-      embedPath = embedPath,
-      parallel = parallel,
-      numThreads = numThreads,
-      clusterIterNum = clusterIterNum,
-      clusterType = clusterType
-    )
-    time(model.run(outputTreePath), s"tree $clusterType clustering")
-  }
-}
+)

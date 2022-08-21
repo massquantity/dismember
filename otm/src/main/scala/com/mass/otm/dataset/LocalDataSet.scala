@@ -10,6 +10,7 @@ import com.mass.otm.{encoding, paddingIdx, upperLog2}
 import com.mass.scalann.utils.{FileReader => DistFileReader}
 import com.mass.tdm.utils.Serialization.loadBothMapping
 import org.apache.commons.lang3.math.NumberUtils
+import org.apache.log4j.Logger
 
 class LocalDataSet(
     dataPath: String,
@@ -24,16 +25,17 @@ class LocalDataSet(
     dataMode: String) {
   import LocalDataSet._
   require(seqLen > 0 && minSeqLen > 0 && seqLen >= minSeqLen)
+  val logger: Logger = Logger.getLogger(getClass)
 
   private val rand = new Random(seed)
   private val initData: Array[InitSample] = readFile(dataPath)
 
-  // if mapping doesn't exist, initialize randomly
   lazy val (itemIdMapping, idItemMapping) =
-    if (initMapping || !Files.isRegularFile(Paths.get(mappingPath))) {
+    if (initMapping) {
       initializeMapping(initData, leafInitMode, rand)
     } else {
-      println(s"load mapping from $mappingPath")
+      logger.info(s"load mapping from $mappingPath")
+      require(Files.isRegularFile(Paths.get(mappingPath)), s"$mappingPath is not a valid file")
       loadBothMapping(mappingPath)
     }
   lazy val allNodes = getAllNodes(idItemMapping.keys.toSeq)

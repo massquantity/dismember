@@ -1,49 +1,44 @@
 package com.mass.retrieval.tdm
 
+import cats.implicits._
 import com.mass.scalann.utils.Property
-import com.mass.scalann.utils.Property.getOrStop
 import com.mass.tdm.tree.TreeInit
-import org.apache.log4j.{Level, Logger}
-import scopt.OptionParser
+import com.monovore.decline._
 
-object TDMInitializeTree {
+object TDMInitializeTree extends CommandApp(
+  name = "InitializeTree",
+  header = "TDM tree initialization",
+  main = {
+    val fileOpt = Opts.option[String](
+      long = "tdmConfFile",
+      help = "TDM config file path, default path is `tdm.conf` from resource folder",
+      metavar = "file"
+    ).withDefault("fromResource")
+    val quietOpt = Opts.flag("quiet", "Whether to be quiet.").orFalse
 
-  case class Params(tdmConfFile: String = "fromResource")
+    (fileOpt, quietOpt).mapN { (tdmConfFile, quiet) =>
+      val conf = Property.readConf(tdmConfFile, "init", "tdm", print = !quiet)
+      val params = getParameters(conf, "init") match {
+        case p: InitTreeParams => p
+        case _ => throw new IllegalArgumentException("wrong param type")
+      }
 
-  def main(args: Array[String]): Unit = {
-    Logger.getLogger("com.mass").setLevel(Level.INFO)
+      val tree = new TreeInit(
+        seqLen = params.seqLen,
+        minSeqLen = params.minSeqLen,
+        splitForEval = params.splitForEval,
+        splitRatio = params.splitRatio
+      )
 
-    val defaultParams = Params()
-    val parser = new OptionParser[Params]("InitializeTree") {
-      opt[String]("tdmConfFile")
-        .text(s"TDM config file path, default path is `tdm.conf` from resource folder")
-        .action((x, c) => c.copy(tdmConfFile = x))
-    }
-
-    parser.parse(args, defaultParams) match {
-      case Some(params) => run(params)
-      case _ => sys.exit(1)
+      tree.generate(
+        dataFile = params.dataPath,
+        trainFile = params.trainPath,
+        evalFile = params.evalPath,
+        statFile = params.statPath,
+        leafIdFile = params.leafIdPath,
+        treePbFile = params.treePbPath,
+        userConsumedFile = params.userConsumedPath
+      )
     }
   }
-
-  def run(params: Params): Unit = {
-    val conf = Property.readConf(params.tdmConfFile, "init", "tdm", print = true)
-
-    val tree = new TreeInit(
-      seqLen = getOrStop(conf, "seq_len").toInt,
-      minSeqLen = getOrStop(conf, "min_seq_len").toInt,
-      splitForEval = conf.getOrElse("split_for_eval", "false").toBoolean,
-      splitRatio = conf.getOrElse("split_ratio", "0.8").toDouble
-    )
-
-    tree.generate(
-      dataFile = getOrStop(conf, "data_path"),
-      trainFile = getOrStop(conf, "train_path"),
-      evalFile = conf.get("eval_path"),
-      statFile = getOrStop(conf, "stat_path"),
-      leafIdFile = getOrStop(conf, "leaf_id_path"),
-      treePbFile = getOrStop(conf, "tree_protobuf_path"),
-      userConsumedFile = conf.get("user_consumed_path")
-    )
-  }
-}
+)

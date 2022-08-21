@@ -5,7 +5,7 @@ OTM has two major steps:
 + Train deep model
 + Tree construction
 
-The various generated files during these steps will be located in the paths specified in `otm.conf` files.
+The various generated files during these steps will be located in the paths specified in [`otm.conf`](https://github.com/massquantity/dismember/blob/main/configs/otm.conf) files.
 
 The first step is training the deep model, and this step also includes the tree initialization:
 

@@ -11,12 +11,12 @@ lazy val root = (project in file("."))
 lazy val scalann = (project in file("scalann"))
   .settings(name := "scalann")
   .settings(commonSettings)
-  .settings(libraryDependencies ++= commonDependencies ++ dlDependencies)
+  .settings(libraryDependencies ++= dlDependencies)
 
 lazy val tdm = (project in file("tdm"))
   .settings(name := "tdm")
   .settings(commonSettings)
-  .settings(libraryDependencies ++= commonDependencies ++ tdmDependencies)
+  .settings(libraryDependencies ++= tdmDependencies)
   .dependsOn(scalann)
 
 lazy val jtm = (project in file("jtm"))
@@ -41,7 +41,7 @@ lazy val examples = (project in file("examples"))
   .enablePlugins(JavaAppPackaging, JavaServerAppPackaging)
   .settings(name := "examples")
   .settings(commonSettings)
-  .settings(libraryDependencies ++= commonDependencies)
+  .settings(libraryDependencies ++= exampleDependencies)
   .dependsOn(scalann, tdm, jtm, otm, `deep-retrieval`)
 
 lazy val commonSettings = Seq(
