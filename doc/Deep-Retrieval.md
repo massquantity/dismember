@@ -5,7 +5,7 @@ Deep Retrieval has two major steps:
 + Train deep model
 + Update mapping by Coordinate Descent
 
-The various generated files during these steps will be located in the paths specified in `deep-retrieval.conf` files.
+The various generated files during these steps will be located in the paths specified in [`deep-retrieval.conf`](https://github.com/massquantity/dismember/blob/main/configs/deep-retrieval.conf) files.
 
 The first step is training the deep model, and this step will also initialize the mapping:
 

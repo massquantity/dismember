@@ -10,10 +10,6 @@ object Dependencies {
     "com.thesamet.scalapb" %% "scalapb-runtime" % "0.10.11"
   )
 
-  val scopt = Seq(
-    "com.github.scopt" %% "scopt" % "4.0.1"
-  )
-
   val commonMath = Seq(
     "org.apache.commons" % "commons-math3" % "3.6.1"
   )
@@ -36,10 +32,14 @@ object Dependencies {
     "org.apache.hadoop" % "hadoop-common" % "3.3.1"
   )
 
-  val commonDependencies = scalaTest ++ scalapb ++ scopt ++ commonMath
+  val decline = "com.monovore" %% "decline" % "2.3.0"
 
-  val dlDependencies = mklLinux ++ hadoop
+  val commonDependencies = scalaTest ++ scalapb ++ commonMath
 
-  val tdmDependencies = smile ++ blasLinux
+  val dlDependencies = commonDependencies ++ mklLinux ++ hadoop
+
+  val tdmDependencies = commonDependencies ++ smile ++ blasLinux
+
+  val exampleDependencies = commonDependencies :+ decline
 
 }

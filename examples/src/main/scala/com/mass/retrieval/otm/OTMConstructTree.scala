@@ -1,61 +1,45 @@
 package com.mass.retrieval.otm
 
+import cats.implicits._
 import com.mass.otm.tree.TreeConstruction
-import com.mass.scalann.utils.{Engine, Property}
-import com.mass.scalann.utils.Property.getOrStop
+import com.mass.retrieval.tdm.showTime
+import com.mass.scalann.utils.Property
 import com.mass.tdm.utils.Serialization
-import org.apache.log4j.{Level, Logger}
-import scopt.OptionParser
+import com.monovore.decline._
 
-object OTMConstructTree {
+object OTMConstructTree extends CommandApp(
+  name = "ConstructTree",
+  header = "OTM tree construction",
+  main = {
+    val fileOpt = Opts.option[String](
+      long = "otmConfFile",
+      help = "OTM config file path, default path is `otm.conf` from resource folder",
+      metavar = "file"
+    ).withDefault("fromResource")
+    val quietOpt = Opts.flag("quiet", "Whether to be quiet.").orFalse
 
-  case class Params(otmConfFile: String = "fromResource")
+    (fileOpt, quietOpt).mapN { (otmConfFile, quiet) =>
+      val conf = Property.readConf(otmConfFile, "tree", "otm", print = !quiet)
+      Property.configLocal(conf)
+      val params = getParameters(conf, "tree") match {
+        case p: TreeConstructionParams => p
+        case _ => throw new IllegalArgumentException("wrong param type")
+      }
 
-  def main(args: Array[String]): Unit = {
-    Logger.getLogger("com.mass").setLevel(Level.INFO)
-
-    val defaultParams = Params()
-    val parser = new OptionParser[Params]("ConstructTree") {
-      opt[String]("otmConfFile")
-        .text(s"OTM config file path, default path is `otm.conf` from resource folder")
-        .action((x, c) => c.copy(otmConfFile = x))
-    }
-
-    parser.parse(args, defaultParams) match {
-      case Some(params) => run(params)
-      case _ => sys.exit(1)
+      val tree = TreeConstruction(
+        dataPath = params.dataPath,
+        modelPath = params.modelPath,
+        mappingPath = params.mappingPath,
+        gap = params.gap,
+        labelNum = params.labelNum,
+        minSeqLen = params.minSeqLen,
+        seqLen = params.seqLen,
+        splitRatio = params.splitRatio,
+        numThreads = params.numThreads,
+        useMask = params.useMask
+      )
+      val resultMapping= showTime(tree.run(), s"OTM tree construction")
+      Serialization.saveMapping(params.mappingPath, resultMapping)
     }
   }
-
-  def run(params: Params): Unit = {
-    val conf = Property.readConf(params.otmConfFile, "tree", "otm", print = true)
-    Property.configLocal(conf)
-
-    val dataPath = getOrStop(conf, "data_path")
-    val modelPath = getOrStop(conf, "model_path")
-    val mappingPath = getOrStop(conf, "mapping_path")
-    val deepModelName = getOrStop(conf, "deep_model").toLowerCase
-    val useMask = if (deepModelName == "din") true else false
-    val gap = getOrStop(conf, "gap").toInt
-    val labelNum = getOrStop(conf, "label_num").toInt
-    val seqLen = getOrStop(conf, "seq_len").toInt
-    val minSeqLen = getOrStop(conf, "min_seq_len").toInt
-    val splitRatio = getOrStop(conf, "split_ratio").toDouble
-    val numThreads = Engine.coreNumber()
-
-    val tree = TreeConstruction(
-      dataPath = dataPath,
-      modelPath = modelPath,
-      mappingPath = mappingPath,
-      gap = gap,
-      labelNum = labelNum,
-      minSeqLen = minSeqLen,
-      seqLen = seqLen,
-      splitRatio = splitRatio,
-      numThreads = numThreads,
-      useMask = useMask
-    )
-    val resultMapping = tree.run()
-    Serialization.saveMapping(mappingPath, resultMapping)
-  }
-}
+)

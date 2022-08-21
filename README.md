@@ -47,7 +47,7 @@ $ mkdir tasks
 $ tar -zxf examples/target/universal/examples-0.1.0.tgz -C tasks --strip-components 1
 ```
 
-The `dismember/tasks/` folder should look like this:
+At this point the `dismember/tasks/` folder should look like this:
 
 ```
 bin/

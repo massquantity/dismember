@@ -104,7 +104,7 @@ Same as `TDM - Train model configs.`
 | model.min_seq_len            | 2                               | Minimum length of item sequence consumed by a user.          |
 | model.split_ratio            | 0.8                             | Set the ratio of data to split for eval data.                |
 | model.leaf_init_mode         | random                          | Tree initialization mode, either be "random" or "category". "category" means using item category information as described in TDM paper. |
-| model.initialize_mapping     | true                            | If set to true, will initialize tree according to "model.leaf_init_mode". If set to false, will load tree from "model.mapping_path". Note that if "model.mapping_path" is not a valid file, tree will be initialized. |
+| model.initialize_mapping     | true                            | If set to true, will initialize tree according to "model.leaf_init_mode". If set to false, will load tree from "model.mapping_path". |
 | model.mapping_path           | dismember/data/otm_mapping.txt  | File path for Item to leaf node mapping. Since according to the paper, a tree can be represented as item-node mapping, so this parameter can be also be considered as the tree file path. |
 | model.label_num              | 5                               | Number of labels in one sample, since OTM supports multiple labels. |
 | model.target_mode            | pseudo                          | Target construction mode, either be "pseudo" or "normal". "pseudo" denotes optimal pseudo target in the paper, whereas "normal" denotes "OTM(-OptEst)" described in experiments of the paper. |
@@ -152,7 +152,7 @@ Note: OTM uses same mechanism for tree construction as in JTM, so parameters are
 | model.seq_len                | 10                              | Length of item sequence previously consumed by a user.       |
 | model.min_seq_len            | 2                               | Minimum length of item sequence consumed by a user.          |
 | model.split_ratio            | 0.8                             | Set the ratio of data to split for eval data.                |
-| model.initialize_mapping     | true                            | If set to true, will initialize item-path mapping randomly. If set to false, will load mapping from "model.mapping_path". Note that if "model.mapping_path" is not a valid file, mapping will also be initialized randomly. |
+| model.initialize_mapping     | true                            | If set to true, will initialize item-path mapping randomly. If set to false, will load mapping from "model.mapping_path". |
 
 ## Deep Retrieval - Coordinate Descent configs
 
@@ -170,7 +170,7 @@ Note: OTM uses same mechanism for tree construction as in JTM, so parameters are
 | cd.seq_len            | 10                              | Length of item sequence previously consumed by a user.       |
 | cd.min_seq_len        | 2                               | Minimum length of item sequence consumed by a user.          |
 | cd.split_ratio        | 0.8                             | Set the ratio of data to split for eval data.                |
-| cd.initialize_mapping | true                            | If set to true, will initialize item-path mapping randomly. If set to false, will load mapping from "cd.mapping_path". Note that if "cd.mapping_path" is not a valid file, mapping will also be initialized randomly. |
+| cd.initialize_mapping | true                            | If set to true, will initialize item-path mapping randomly. If set to false, will load mapping from "cd.mapping_path". |
 | cd.candidate_path_num | 20                              | Number of candidate paths computed before coordinate descent. It's the hyper-parameter "S" in the paper. |
 | cd.iteration_num      | 3                               | Number of iterations in coordinate descent.                  |
 | cd.decay_factor       | 0.999                           | Decay factor in streaming training. It's the hyper-parameter "η" in the paper. |
