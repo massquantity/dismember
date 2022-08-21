@@ -2,7 +2,7 @@ package com.mass.dr.model
 
 import java.io.{BufferedInputStream, ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
 
-import com.mass.dr.paddingIdx
+import com.mass.dr.{paddingIdx, sigmoid}
 import com.mass.scalann.utils.{FileReader => DistFileReader, FileWriter => DistFileWriter}
 import org.apache.hadoop.io.IOUtils
 
@@ -14,7 +14,6 @@ class DeepRetrieval(
     numLayer: Int,
     seqLen: Int,
     embedSize: Int) extends Serializable with CandidateSearcher {
-  import DeepRetrieval._
 
   def recommend(
     sequence: Seq[Int],
@@ -60,8 +59,6 @@ object DeepRetrieval {
       embedSize
     )
   }
-
-  val sigmoid = (logit: Double) => 1.0 / (1 + java.lang.Math.exp(-logit))
 
   def saveModel(model: DeepRetrieval, modelPath: String): Unit = {
     val fileWriter = DistFileWriter(modelPath)

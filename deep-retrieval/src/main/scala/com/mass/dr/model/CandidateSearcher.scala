@@ -1,6 +1,6 @@
 package com.mass.dr.model
 
-import com.mass.dr.Path
+import com.mass.dr.{softmax, Path}
 
 trait CandidateSearcher {
   import CandidateSearcher.{PathScore, PathInfo}
@@ -34,7 +34,8 @@ trait CandidateSearcher {
     val paths = Seq.range(0, model.numLayer).foldLeft(initValue) { (pathInfos, i) =>
       val offset = model.numItem + i * model.numNode
       val candidatePaths = pathInfos.flatMap { pi =>
-        model.inference(pi.intermediateInput, i)
+        val probs = softmax(model.inference(pi.intermediateInput, i))
+        probs
           .zipWithIndex
           .map { case (prob, node) =>
             PathInfo(

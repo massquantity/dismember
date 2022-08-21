@@ -71,7 +71,7 @@ class LocalOptimizer(
           if (epoch <= reRankStoppingEpoch) {
             val reRankStart = System.nanoTime()
             val reRankLoss = trainRerank(batch)
-            val (reRankWeights, reRankGradients) = reRankModel.parameters
+            val (reRankWeights, reRankGradients) = reRankModel.getParameters
             reRankOptimizer.optimize(_ => (reRankLoss, reRankGradients), reRankWeights)
             (reRankLoss, System.nanoTime() - reRankStart)
           } else {
@@ -161,7 +161,7 @@ class LocalOptimizer(
   }
 
   private def syncGradients(syncNum: Int): (Tensor[Double], Tensor[Double]) = {
-    val (totalLayerWeights, totalLayerGradients) = layerModel.parameters
+    val (totalLayerWeights, totalLayerGradients) = layerModel.getParameters
     val gradLength = totalLayerGradients.nElement()
     val syncGradTaskSize = gradLength / numThread
     val syncGradExtraSize = gradLength % numThread

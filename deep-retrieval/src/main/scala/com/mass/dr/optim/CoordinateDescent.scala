@@ -50,7 +50,7 @@ class CoordinateDescent(
       v <- dataset.idItemMapping.keys
     } {
       itemPathMapping(v) = if (itemOccurrence.contains(v)) {
-        List.range(0, numPathPerItem).foldRight[(List[DRPath], Double)]((Nil, 1e-5)) {
+        List.range(0, numPathPerItem).foldRight[(List[DRPath], Double)]((Nil, 0.0)) {
           case (j, (selectedPath, partialSum)) =>
             if (t > 1) {
               val lastItemPath = itemPathMapping(v)(j)
@@ -64,7 +64,7 @@ class CoordinateDescent(
               val size = pathSize.getOrElse(n.path, 0)
               val penalty = penaltyFactor * penaltyFunc(size, penaltyPolyOrder)
               val nv = itemOccurrence(v)
-              (n.path, nv * (math.log(n.prob + partialSum) - math.log(partialSum)) - penalty)
+              (n.path, nv * (math.log1p(n.prob + partialSum) - math.log1p(partialSum)) - penalty)
             }
             val (maxPath, score) = incrementalGain.maxBy(_._2)
             pathSize(maxPath) = pathSize.getOrElse(maxPath, 0) + 1
