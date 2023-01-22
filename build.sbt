@@ -1,7 +1,11 @@
 import Dependencies._
 
-ThisBuild / version := "0.1.0"
+ThisBuild / version := "0.2.0"
 ThisBuild / scalaVersion := "2.13.8"
+ThisBuild / githubWorkflowSbtCommand := "sbt -mem 4096"
+ThisBuild / githubWorkflowArtifactUpload := false
+ThisBuild / githubWorkflowPublishTargetBranches := Seq()
+ThisBuild / githubWorkflowUseSbtThinClient := false
 
 lazy val root = (project in file("."))
   .settings(name := "dismember")
