@@ -21,7 +21,7 @@ Currently, the repository contains the following modules:
 
 + Linux platform
 + Scala 2.13
-+ [sbt](https://www.scala-sbt.org/) ~= 1.7.1
++ [sbt](https://www.scala-sbt.org/) ~= 1.8.2
 
 ## Data
 
