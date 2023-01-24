@@ -1,23 +1,30 @@
+import java.io.File
+import java.nio.file.{Files, Paths}
+
 import com.mass.scalann.utils.Engine
 import com.mass.scalann.utils.Property.filePath
 import com.mass.tdm.tree.TreeInit
+import org.apache.commons.io.FileUtils
 import org.apache.log4j.{Level, Logger}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class TreeInitTest extends AnyFlatSpec with Matchers {
+class TreeInitSpec extends AnyFlatSpec with Matchers {
 
   Logger.getLogger("com.mass").setLevel(Level.INFO)
   Engine.setCoreNumber(8)
 
+  val dataPath = s"${filePath("tdm")}/data/example_data.csv"
+  val testPath = s"${filePath("tdm")}/test_path"
+  FileUtils.forceMkdir(new File(testPath))
+
   "Tree initialization" should "construct tree correctly" in {
-    val dataPath = s"${filePath("tdm")}/data/data.csv"
-    val trainPath = s"${filePath("tdm")}/data/train_data.csv"
-    val evalPath = s"${filePath("tdm")}/data/eval_data.csv"
-    val statPath = s"${filePath("tdm")}/data/stat_data.txt"
-    val leafIdPath = s"${filePath("tdm")}/data/leaf_id_data.txt"
-    val treePath = s"${filePath("tdm")}/data/tdm_tree.bin"
-    val userConsumedPath = s"${filePath("tdm")}/data/user_consumed.txt"
+    val trainPath = s"$testPath/train_data.csv"
+    val evalPath = s"$testPath/eval_data.csv"
+    val statPath = s"$testPath/stat_data.txt"
+    val leafIdPath = s"$testPath/leaf_id_data.txt"
+    val treePath = s"$testPath/tdm_tree.bin"
+    val userConsumedPath = s"$testPath/user_consumed.txt"
 
     val tree = new TreeInit(
       seqLen = 10,
@@ -35,8 +42,12 @@ class TreeInitTest extends AnyFlatSpec with Matchers {
       userConsumedFile = Some(userConsumedPath)
     )
     val minCode = getMinCode(codes)
+
     ids.length shouldEqual codes.length
-    all (codes.toSeq) should be >= minCode
+    all(codes.toSeq) should be >= minCode
+    assert(Files.exists(Paths.get(treePath)))
+
+    FileUtils.deleteDirectory(FileUtils.getFile(testPath))
   }
 
   def getMinCode(treeCodes: Array[Int]): Int = {
