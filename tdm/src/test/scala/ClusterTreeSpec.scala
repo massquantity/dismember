@@ -6,7 +6,7 @@ import org.apache.log4j.{Level, Logger}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class ClusterTreeTest extends AnyFlatSpec with Matchers {
+class ClusterTreeSpec extends AnyFlatSpec with Matchers {
 
   Logger.getLogger("com.mass").setLevel(Level.INFO)
   Engine.setCoreNumber(8)
@@ -24,7 +24,7 @@ class ClusterTreeTest extends AnyFlatSpec with Matchers {
     val (ids, codes) = time(model.run(treePath), "tree kmeans clustering")
     val minCode = getMinCode(codes)
     ids.length shouldEqual codes.length
-    all (codes.toSeq) should be >= minCode
+    all(codes.toSeq) should be >= minCode
   }
 
   "Tree spectral clustering" should "construct tree correctly" in {
@@ -39,7 +39,7 @@ class ClusterTreeTest extends AnyFlatSpec with Matchers {
     val (ids, codes) = time(model.run(treePath), "tree spectral clustering")
     val minCode = getMinCode(codes)
     ids.length shouldEqual codes.length
-    all (codes.toSeq) should be >= minCode
+    all(codes.toSeq) should be >= minCode
   }
 
   def getMinCode(treeCodes: Array[Int]): Int = {
