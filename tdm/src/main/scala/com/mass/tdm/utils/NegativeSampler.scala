@@ -17,7 +17,8 @@ class NegativeSampler(
     withProb: Boolean,
     startSampleLevel: Int,
     tolerance: Int,
-    numThreads: Int) extends Serializable {
+    numThreads: Int
+) extends Serializable {
   require(tree.initialized, "tree hasn't been initialized...")
   require(startSampleLevel > 0, s"start sample level should be at least 1, got $startSampleLevel")
 
@@ -29,13 +30,12 @@ class NegativeSampler(
 
   def initParallel(): this.type = {
     if (withProb) {
-      levelProbDistributions =
-        for {
-          _ <- 0 until numThreads
-          level <- 0 until totalLevel
-          generator = new MersenneTwister(System.nanoTime())
-          (codes, probs) = levelProbs(level)
-        } yield new EnumeratedIntegerDistribution(generator, codes, probs)
+      levelProbDistributions = for {
+        _ <- 0 until numThreads
+        level <- 0 until totalLevel
+        generator = new MersenneTwister(System.nanoTime())
+        (codes, probs) = levelProbs(level)
+      } yield new EnumeratedIntegerDistribution(generator, codes, probs)
     }
     computeSampleUnit()
     initialized = true
@@ -45,9 +45,12 @@ class NegativeSampler(
   private def computeSampleUnit(): Unit = {
     val _layerNegCounts = layerNegCounts.split(",")
     require(_layerNegCounts.length >= totalLevel, "Not enough negative sample layers")
-    require(_layerNegCounts.zipWithIndex.forall { case (num, i) =>
-      num.toInt < math.pow(2, i).toInt
-    }, "Num of negative samples must not exceed max numbers in current layer")
+    require(
+      _layerNegCounts.zipWithIndex.forall { case (num, i) =>
+        num.toInt < math.pow(2, i).toInt
+      },
+      "Num of negative samples must not exceed max numbers in current layer"
+    )
 
     negNumPerLayer = _layerNegCounts.take(totalLevel).map(_.toDouble.toInt)
     // positive(one per layer) + negative nums, exclude root node
@@ -63,12 +66,13 @@ class NegativeSampler(
     (codes, probs)
   }
 
-  /**
-   *
-   * @param itemIds consumed items of one user
-   * @param threadId specific thread id
-   * @return Tuple2(sampled ids, sampled labels)
-   */
+  /** @param itemIds
+    *   consumed items of one user
+    * @param threadId
+    *   specific thread id
+    * @return
+    *   Tuple2(sampled ids, sampled labels)
+    */
   def sample(itemIds: Seq[Int], threadId: Int): (Seq[Int], Seq[Float]) = {
     val (itemCodes, _) = tree.idToCode(itemIds.toArray)
     val allPathNodes: Seq[List[TreeNode]] = tree.pathNodes(itemCodes)
@@ -123,8 +127,10 @@ class NegativeSampler(
       t += 1
     }
     if (hasSampled.size < negNum) {
-      println(s"level $level exceed tolerance, possible cause is " +
-        s"popular items with high sampling probabilities")
+      println(
+        s"level $level exceed tolerance, possible cause is " +
+          s"popular items with high sampling probabilities"
+      )
       val levelStart = (math.pow(2, level) - 1).toInt
       val levelEnd = levelStart * 2 + 1
       while (hasSampled.size < negNum) {

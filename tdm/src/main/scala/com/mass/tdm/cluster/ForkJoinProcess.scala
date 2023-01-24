@@ -2,7 +2,7 @@ package com.mass.tdm.cluster
 
 import java.util.concurrent.{ForkJoinTask, RecursiveAction}
 
-import RecursiveCluster.{miniBatch, cluster}
+import com.mass.tdm.cluster.RecursiveCluster.{cluster, miniBatch}
 
 class ForkJoinProcess(
     pcode: Int,
@@ -11,7 +11,8 @@ class ForkJoinProcess(
     embeddings: Array[Array[Double]],
     threshold: Int,
     clusterIterNum: Int,
-    clusterType: String) extends RecursiveAction {
+    clusterType: String
+) extends RecursiveAction {
 
   override def compute(): Unit = {
     if (index.length <= threshold) {

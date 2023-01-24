@@ -16,7 +16,8 @@ object Utils {
 
   // Note this algorithm is inplace
   def argSort[@specialized(Int, Long, Float, Double) T](elems: Array[T], indices: Array[Int])(
-      implicit order: T => Ordered[T]): Unit = {
+      implicit order: T => Ordered[T]
+  ): Unit = {
 
     sort(0, elems.length)
 
@@ -129,7 +130,8 @@ object Utils {
   def argPartition[@specialized(Int, Long, Float, Double) T](
       elems: Array[T],
       position: Int,
-      indices: Array[Int])(implicit order: T => Ordered[T]): Unit = {
+      indices: Array[Int]
+  )(implicit order: T => Ordered[T]): Unit = {
 
     selectSort(elems, position)
 

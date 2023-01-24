@@ -1,7 +1,7 @@
 package com.mass.tdm.model
 
 import com.mass.scalann.Module
-import com.mass.scalann.nn.{Add, Concat, EmbeddingShare, FM, Input, Linear, ReLU, Reshape}
+import com.mass.scalann.nn._
 import com.mass.scalann.nn.graphnn.Graph
 import com.mass.tdm.operator.TDMOp
 import com.mass.tdm.paddingIdx

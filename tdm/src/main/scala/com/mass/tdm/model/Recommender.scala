@@ -9,20 +9,20 @@ import com.mass.scalann.tensor.Tensor
 import com.mass.scalann.tensor.TensorNumeric.NumericFloat
 import com.mass.scalann.utils.Table
 import com.mass.tdm.protobuf.tree.Node
-import com.mass.tdm.tree.TDMTree
 import com.mass.tdm.tree.DistTree.TreeNode
+import com.mass.tdm.tree.TDMTree
 
 trait Recommender {
   import Recommender._
 
   def recommendItems(
-    sequence: Array[Int],
-    model: Module[Float],
-    tree: TDMTree,
-    topk: Int,
-    candidateNum: Int,
-    useMask: Boolean,
-    consumedItems: Option[Seq[Int]] = None
+      sequence: Array[Int],
+      model: Module[Float],
+      tree: TDMTree,
+      topk: Int,
+      candidateNum: Int,
+      useMask: Boolean,
+      consumedItems: Option[Seq[Int]] = None
   ): Array[Int] = {
     // If a user has consumed many items, the candidate number may be large.
     val (_candidateNum, _consumedItems) = consumedItems match {
@@ -38,19 +38,20 @@ trait Recommender {
   }
 
   private[model] def _recommend(
-    sequence: Array[Int],
-    model: Module[Float],
-    tree: TDMTree,
-    candidateNum: Int,
-    useMask: Boolean,
-    consumedItems: Set[Int],
+      sequence: Array[Int],
+      model: Module[Float],
+      tree: TDMTree,
+      candidateNum: Int,
+      useMask: Boolean,
+      consumedItems: Set[Int]
   ): Array[(Int, Float)] = {
     val codeNodeMap = tree.codeNodeMap
     // binary tree with 2 child => candidateNum * 2
     val modelInputs = duplicateSequence(sequence, tree, useMask, candidateNum * 2)
     val (levelStartCode, level) = getLevelStart(candidateNum)
     val levelEndCode = levelStartCode * 2 + 1
-    val initCandidates = Vector.range(levelStartCode, levelEndCode)
+    val initCandidates = Vector
+      .range(levelStartCode, levelEndCode)
       .filter(codeNodeMap.contains)
       .map(i => TreeNodePred(i, codeNodeMap(i), 0.0f))
     val initValue = LevelInfo(initCandidates, Nil)
@@ -58,8 +59,8 @@ trait Recommender {
       if (levelInfo.candidateNodes.isEmpty) {
         levelInfo
       } else {
-        val (leafNodes, nonLeafNodes) = levelInfo.candidateNodes.partition {
-          n => codeNodeMap(n.code).isLeaf
+        val (leafNodes, nonLeafNodes) = levelInfo.candidateNodes.partition { n =>
+          codeNodeMap(n.code).isLeaf
         }
         val newLeafNodes =
           if (leafNodes.nonEmpty) {
@@ -72,18 +73,19 @@ trait Recommender {
         } else {
           val beamNodes =
             if (nonLeafNodes.length > candidateNum) {
-              nonLeafNodes.sorted(
-                new Ordering[TreeNodePred] {
-                  override def compare(x: TreeNodePred, y: TreeNodePred): Int = {
-                    y.pred.compareTo(x.pred)
+              nonLeafNodes
+                .sorted(
+                  new Ordering[TreeNodePred] {
+                    override def compare(x: TreeNodePred, y: TreeNodePred): Int = {
+                      y.pred.compareTo(x.pred)
+                    }
                   }
-                }
-              ).take(candidateNum)
+                )
+                .take(candidateNum)
             } else {
               nonLeafNodes
             }
-          val childrenNodes = beamNodes
-            .view
+          val childrenNodes = beamNodes.view
             .flatMap(n => View(2 * n.code + 1, 2 * n.code + 2))
             .filter(codeNodeMap.contains)
             .map(i => TreeNode(i, codeNodeMap(i)))
@@ -98,9 +100,7 @@ trait Recommender {
       }
     }
 
-    finalLevelInfo
-      .leafNodes
-      .view
+    finalLevelInfo.leafNodes.view
       .filterNot(i => consumedItems.contains(i.node.id))
       .map(i => Tuple2(i.node.id, i.pred))
       .toArray
@@ -118,9 +118,9 @@ object Recommender {
     def buildInputs(targetNodes: Array[TreeNode]): Table
 
     def narrowInputRange(
-      targetNodes: Array[TreeNode],
-      targetItem: Tensor[Int],
-      seqItems: Tensor[Int]
+        targetNodes: Array[TreeNode],
+        targetItem: Tensor[Int],
+        seqItems: Tensor[Int]
     ): (Tensor[Int], Tensor[Int]) = {
       val num = targetNodes.length
       0 until num foreach { i =>
@@ -132,7 +132,8 @@ object Recommender {
 
   private class SeqModelInputs(
       targetItem: Tensor[Int],
-      seqItems: Tensor[Int]) extends ModelInputs {
+      seqItems: Tensor[Int]
+  ) extends ModelInputs {
 
     override def buildInputs(targetNodes: Array[TreeNode]): Table = {
       val (item, seq) = narrowInputRange(targetNodes, targetItem, seqItems)
@@ -144,7 +145,8 @@ object Recommender {
       targetItem: Tensor[Int],
       seqItems: Tensor[Int],
       masks: Tensor[Int],
-      maskLen: Int) extends ModelInputs {
+      maskLen: Int
+  ) extends ModelInputs {
 
     override def buildInputs(targetNodes: Array[TreeNode]): Table = {
       val num = targetNodes.length
@@ -159,7 +161,8 @@ object Recommender {
       sequence: Array[Int],
       tree: TDMTree,
       useMask: Boolean,
-      candidateLen: Int): ModelInputs = {
+      candidateLen: Int
+  ): ModelInputs = {
     val seqLen = sequence.length
     // dummy targets for later setting value
     val targets = new Array[Int](candidateLen)

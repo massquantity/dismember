@@ -2,9 +2,8 @@ package com.mass.tdm.dataset
 
 import java.util.concurrent.atomic.AtomicInteger
 
-import com.mass.scalann.utils.{FileReader => DistFileReader}
-import com.mass.scalann.utils.DataUtil
-import com.mass.tdm.dataset.TDMSample.{TDMTrainSample, TDMEvalSample}
+import com.mass.scalann.utils.{DataUtil, FileReader => DistFileReader}
+import com.mass.tdm.dataset.TDMSample.{TDMEvalSample, TDMTrainSample}
 import com.mass.tdm.encoding
 import com.mass.tdm.operator.TDMOp
 
@@ -21,7 +20,8 @@ class LocalDataSet(
     startSampleLevel: Int = 1,
     tolerance: Int = 20,
     numThreads: Int = 1,
-    useMask: Boolean = true) {
+    useMask: Boolean = true
+) {
   import LocalDataSet._
   require(startSampleLevel > 0, s"start sample level should be at least 1, got $startSampleLevel")
 
@@ -63,8 +63,9 @@ class LocalDataSet(
 
     new Iterator[MiniBatch] {
       private val _miniBatch = if (train) trainMiniBatch else evalMiniBatch
-      private val _batchSize =  if (train) trainBatchSize else evalBatchSize
-      private val numTargetsPerBatch = if (expandBatch) _miniBatch.numTargetsPerBatch else _batchSize
+      private val _batchSize = if (train) trainBatchSize else evalBatchSize
+      private val numTargetsPerBatch =
+        if (expandBatch) _miniBatch.numTargetsPerBatch else _batchSize
       private val index = new AtomicInteger(0)
 
       override def hasNext: Boolean = {
@@ -114,7 +115,7 @@ object LocalDataSet {
       startSampleLevel: Int = 1,
       tolerance: Int = 20,
       numThreads: Int = 1,
-      useMask: Boolean = true
+      useMask: Boolean
   ): LocalDataSet = {
     new LocalDataSet(
       trainPath,
@@ -129,7 +130,8 @@ object LocalDataSet {
       startSampleLevel,
       tolerance,
       numThreads,
-      useMask)
+      useMask
+    )
   }
 
   def readFile[T](path: String, seqLen: Int, f: (scala.io.Source, Int) => T): T = {

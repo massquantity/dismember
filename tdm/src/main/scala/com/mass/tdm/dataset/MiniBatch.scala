@@ -9,7 +9,8 @@ class MiniBatch(
     val originalDataSize: Int,
     layerNegCounts: String,
     startSampleLevel: Int,
-    useMask: Boolean) extends Serializable {
+    useMask: Boolean
+) extends Serializable {
   import MiniBatch._
 
   private var offset: Int = -1
@@ -21,12 +22,16 @@ class MiniBatch(
   private def computeSampleUnit(): Int = {
     val _layerNegCounts = layerNegCounts.split(",")
     require(_layerNegCounts.length >= TDMOp.tree.maxLevel + 1, "Not enough negative sample layers")
-    require(_layerNegCounts.zipWithIndex.forall { case (num, i) =>
-      num.toInt < math.pow(2, i).toInt
-    }, "Num of negative samples must not exceed max numbers in current layer")
+    require(
+      _layerNegCounts.zipWithIndex.forall { case (num, i) =>
+        num.toInt < math.pow(2, i).toInt
+      },
+      "Num of negative samples must not exceed max numbers in current layer"
+    )
 
     // positive(one per layer) + negative nums, exclude root node
-    val negNumPerLayer = _layerNegCounts.slice(startSampleLevel, TDMOp.tree.maxLevel + 1).map(_.toInt)
+    val negNumPerLayer =
+      _layerNegCounts.slice(startSampleLevel, TDMOp.tree.maxLevel + 1).map(_.toInt)
     negNumPerLayer.length + negNumPerLayer.sum
   }
 
@@ -42,10 +47,10 @@ class MiniBatch(
   }
 
   def convert(
-    data: Array[TDMSample],
-    threadOffset: Int,
-    threadLen: Int,
-    threadId: Int,
+      data: Array[TDMSample],
+      threadOffset: Int,
+      threadLen: Int,
+      threadId: Int
   ): TransformedBatch = {
     val targetItems = Seq.range(threadOffset, threadOffset + threadLen).map(data(_).target)
     val (itemCodes, labels) = sampleNegative(targetItems, threadId)
@@ -63,7 +68,7 @@ class MiniBatch(
       SeqTransformedBatch(
         Tensor(itemCodes.toArray, itemShape),
         Tensor(itemSeqs.toArray, itemSeqShape),
-        Tensor(labels.toArray, labelShape),
+        Tensor(labels.toArray, labelShape)
       )
     } else {
       val masks =
@@ -77,7 +82,7 @@ class MiniBatch(
         Tensor(itemCodes.toArray, itemShape),
         Tensor(itemSeqs.toArray, itemSeqShape),
         Tensor(labels.toArray, labelShape),
-        masks,
+        masks
       )
     }
   }
@@ -92,16 +97,15 @@ object MiniBatch {
 
   sealed trait TransformedBatch extends Product with Serializable
 
-  case class SeqTransformedBatch(
-    items: Tensor[Int],
-    sequence: Tensor[Int],
-    labels: Tensor[Float]) extends TransformedBatch
+  case class SeqTransformedBatch(items: Tensor[Int], sequence: Tensor[Int], labels: Tensor[Float])
+      extends TransformedBatch
 
   case class MaskTransformedBatch(
-    items: Tensor[Int],
-    sequence: Tensor[Int],
-    labels: Tensor[Float],
-    masks: Tensor[Int]) extends TransformedBatch
+      items: Tensor[Int],
+      sequence: Tensor[Int],
+      labels: Tensor[Float],
+      masks: Tensor[Int]
+  ) extends TransformedBatch
 
   def sampleNegative(targetItemIds: Seq[Int], threadId: Int): (Seq[Int], Seq[Float]) = {
     val (itemCodes, labels) = TDMOp.sampler.sample(targetItemIds, threadId)
@@ -110,10 +114,10 @@ object MiniBatch {
   }
 
   def transform(
-    data: Array[TDMSample],
-    offset: Int,
-    length: Int,
-    sampledNodesNumPerTarget: Int,
+      data: Array[TDMSample],
+      offset: Int,
+      length: Int,
+      sampledNodesNumPerTarget: Int
   ): (Seq[Int], Array[Int]) = {
     val copiedSeqs = Seq.range(offset, offset + length) flatMap { i =>
       val (featItems, _) = TDMOp.tree.idToCode(data(i).sequence)
@@ -123,11 +127,11 @@ object MiniBatch {
   }
 
   def transformWithMask(
-    data: Array[TDMSample],
-    offset: Int,
-    length: Int,
-    sampledNodesNumPerTarget: Int,
-    seqLen: Int,
+      data: Array[TDMSample],
+      offset: Int,
+      length: Int,
+      sampledNodesNumPerTarget: Int,
+      seqLen: Int
   ): (Seq[Int], Array[Int]) = {
     val (copiedSeqs, masks) = (
       for {

@@ -30,10 +30,10 @@ object TDM {
   }
 
   def saveModel(
-    modelPath: String,
-    embedPath: String,
-    model: Module[Float],
-    embedSize: Int
+      modelPath: String,
+      embedPath: String,
+      model: Module[Float],
+      embedSize: Int
   ): Unit = {
     model.clearState()
     Serialization.saveModel[Float](modelPath, model)
@@ -42,8 +42,7 @@ object TDM {
 
   def loadModel(modelPath: String, modelName: String): TDM = {
     val name = modelName.toLowerCase
-    require(name == "din" || name == "deepfm",
-      "DeepModel name should either be DeepFM or DIN")
+    require(name == "din" || name == "deepfm", "DeepModel name should either be DeepFM or DIN")
     val dlModel = Serialization.loadModel[Float](modelPath)
     val useMask = if (name == "din") true else false
     new TDM(dlModel, useMask)

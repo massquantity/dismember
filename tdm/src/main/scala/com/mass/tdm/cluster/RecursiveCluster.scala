@@ -19,11 +19,14 @@ class RecursiveCluster(
     parallel: Boolean,
     numThreads: Int,
     clusterIterNum: Int,
-    clusterType: String) {
+    clusterType: String
+) {
   import RecursiveCluster._
   Logger.getLogger("smile").setLevel(Level.ERROR)
-  require(clusterType == "kmeans" || clusterType == "spectral",
-    s"clusterType must be one of ('kmeans', 'spectral')")
+  require(
+    clusterType == "kmeans" || clusterType == "spectral",
+    s"clusterType must be one of ('kmeans', 'spectral')"
+  )
   if (clusterType == "spectral") {
     require(!parallel, "spectral clustering does not support parallel mode.")
   }
@@ -76,12 +79,12 @@ class RecursiveCluster(
 object RecursiveCluster {
 
   def apply(
-    numItem: Int,
-    embedSize: Int,
-    parallel: Boolean,
-    numThreads: Int,
-    clusterIterNum: Int,
-    clusterType: String
+      numItem: Int,
+      embedSize: Int,
+      parallel: Boolean,
+      numThreads: Int,
+      clusterIterNum: Int,
+      clusterType: String
   ): RecursiveCluster = {
     val ids = (1 to numItem).toArray
     val embeddings = generateEmbeddings(numItem, embedSize)
@@ -96,11 +99,11 @@ object RecursiveCluster {
   }
 
   def apply(
-    embedPath: String,
-    parallel: Boolean,
-    numThreads: Int,
-    clusterIterNum: Int,
-    clusterType: String
+      embedPath: String,
+      parallel: Boolean,
+      numThreads: Int,
+      clusterIterNum: Int,
+      clusterType: String
   ): RecursiveCluster = {
     val (ids, embeddings) = readFile(embedPath, ",")
     new RecursiveCluster(
@@ -125,21 +128,23 @@ object RecursiveCluster {
   def readFile(embedPath: String, delimiter: String): (Array[Int], Array[Array[Double]]) = {
     val fileReader = DistFileReader(embedPath)
     val inputStream = fileReader.open()
-    val lines = Using.resource(new BufferedReader(new InputStreamReader(inputStream))) { reader =>
-      Iterator.continually(reader.readLine()).takeWhile(_ != null).toArray
-    }.map(_.split(delimiter))
+    val lines = Using
+      .resource(new BufferedReader(new InputStreamReader(inputStream))) { reader =>
+        Iterator.continually(reader.readLine()).takeWhile(_ != null).toArray
+      }
+      .map(_.split(delimiter))
     val ids = lines.map(_.head.trim.toInt)
     val embeds = lines.map(_.tail.map(_.trim.toDouble))
     (ids, embeds)
   }
 
   def miniBatch(
-    pcode: Int,
-    index: Array[Int],
-    codes: Array[Int],
-    embeddings: Array[Array[Double]],
-    clusterIterNum: Int,
-    clusterType: String
+      pcode: Int,
+      index: Array[Int],
+      codes: Array[Int],
+      embeddings: Array[Array[Double]],
+      clusterIterNum: Int,
+      clusterType: String
   ): Unit = {
     val queue = mutable.Queue[(Int, Array[Int])](Tuple2(pcode, index))
     while (queue.nonEmpty) {
@@ -167,16 +172,16 @@ object RecursiveCluster {
   // choose one centroid to compute and sort according to distance,
   // then split into two subsets.
   def cluster(
-    index: Array[Int],
-    embeddings: Array[Array[Double]],
-    clusterIterNum: Int,
-    clusterType: String
+      index: Array[Int],
+      embeddings: Array[Array[Double]],
+      clusterIterNum: Int,
+      clusterType: String
   ): (Array[Int], Array[Int]) = {
     val embedPartial = index.map(embeddings(_))
     val (centroid, matrix) = clusterType match {
       case "kmeans" =>
-        val kmeansModel: KMeans = PartitionClustering.run(
-          clusterIterNum, () => KMeans.fit(embedPartial, 2))
+        val kmeansModel: KMeans =
+          PartitionClustering.run(clusterIterNum, () => KMeans.fit(embedPartial, 2))
         (kmeansModel.centroids.head, embedPartial)
       case "spectral" =>
         val clusterResult = SpectralClustering.fit(embedPartial, 2, 1.0, clusterIterNum)
