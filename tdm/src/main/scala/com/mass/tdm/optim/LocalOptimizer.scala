@@ -5,11 +5,11 @@ import scala.collection.mutable
 import com.mass.scalann.{Criterion, Module}
 import com.mass.scalann.optim.{OptimMethod, Trigger}
 import com.mass.scalann.tensor.Tensor
+import com.mass.scalann.tensor.TensorNumeric.NumericFloat
 import com.mass.scalann.utils.{Engine, Table, Util}
 import com.mass.tdm.dataset.{LocalDataSet, MiniBatch}
-import com.mass.tdm.evaluation.Evaluator
-import com.mass.scalann.tensor.TensorNumeric.NumericFloat
 import com.mass.tdm.dataset.MiniBatch.{MaskTransformedBatch, SeqTransformedBatch, TransformedBatch}
+import com.mass.tdm.evaluation.Evaluator
 import org.apache.log4j.Logger
 
 class LocalOptimizer(
@@ -21,7 +21,8 @@ class LocalOptimizer(
     progressInterval: Int,
     topk: Int,
     candidateNum: Int,
-    useMask: Boolean) {
+    useMask: Boolean
+) {
   val logger: Logger = Logger.getLogger(getClass)
 
   private val workingModels: Array[Module[Float]] = {
@@ -136,45 +137,51 @@ class LocalOptimizer(
   }
 
   def trainBatch(miniBatch: Array[TransformedBatch]): Double = {
-    val lossSum = Engine.default.invokeAndWait(
-      (0 until realParallelism).map { i => () =>
-        val localModel = workingModels(i)
-        localModel.zeroGradParameters()
-        localModel.training()
-        val localCriterion = workingCriterions(i)
-        val (inputs, labels) = miniBatch(i) match {
-          case m: SeqTransformedBatch =>
-            (Table(m.items, m.sequence), m.labels)
-          case m: MaskTransformedBatch =>
-            (Table(m.items, m.sequence, m.masks), m.labels)
+    val lossSum = Engine.default
+      .invokeAndWait(
+        (0 until realParallelism).map { i => () =>
+          val localModel = workingModels(i)
+          localModel.zeroGradParameters()
+          localModel.training()
+          val localCriterion = workingCriterions(i)
+          val (inputs, labels) = miniBatch(i) match {
+            case m: SeqTransformedBatch =>
+              (Table(m.items, m.sequence), m.labels)
+            case m: MaskTransformedBatch =>
+              (Table(m.items, m.sequence, m.masks), m.labels)
+          }
+          val outputs = localModel.forward(inputs).toTensor
+          val localLoss = localCriterion.forward(outputs, labels).toDouble
+          val gradients = localCriterion.backward(outputs, labels)
+          localModel.backward(inputs, gradients)
+          localLoss
         }
-        val outputs = localModel.forward(inputs).toTensor
-        val localLoss = localCriterion.forward(outputs, labels).toDouble
-        val gradients = localCriterion.backward(outputs, labels)
-        localModel.backward(inputs, gradients)
-        localLoss
-      }
-    ).sum
+      )
+      .sum
     lossSum / realParallelism
   }
 
   private def syncGradients(): Unit = {
     Engine.default.invokeAndWait(
-      (0 until syncGradParallelNum).map(tid => () => {
-        val offset = tid * syncGradTaskSize + math.min(tid, syncGradExtraTask)
-        val length = syncGradTaskSize + (if (tid < syncGradExtraTask) 1 else 0)
-        var i = 0
-        while (i < realParallelism) {
-          if (i == 0) {
-            totalGradients.narrow(0, offset, length)
-              .copy(workingGradients(i).narrow(0, offset, length))
-          } else {
-            totalGradients.narrow(0, offset, length)
-              .add(workingGradients(i).narrow(0, offset, length))
+      (0 until syncGradParallelNum).map(tid =>
+        () => {
+          val offset = tid * syncGradTaskSize + math.min(tid, syncGradExtraTask)
+          val length = syncGradTaskSize + (if (tid < syncGradExtraTask) 1 else 0)
+          var i = 0
+          while (i < realParallelism) {
+            if (i == 0) {
+              totalGradients
+                .narrow(0, offset, length)
+                .copy(workingGradients(i).narrow(0, offset, length))
+            } else {
+              totalGradients
+                .narrow(0, offset, length)
+                .add(workingGradients(i).narrow(0, offset, length))
+            }
+            i += 1
           }
-          i += 1
         }
-      })
+      )
     )
     totalGradients.div(realParallelism.toFloat)
   }
@@ -189,16 +196,16 @@ class LocalOptimizer(
   }
 
   private def reportProgress(
-    dataset: LocalDataSet,
-    models: Array[Module[Float]],
-    criterions: Array[Criterion[Float]],
-    topk: Int,
-    candidateNum: Int,
-    state: Table,
-    dataCount: Int,
-    iterationTime: Long,
-    epochTime: Long,
-    trainLoss: Double
+      dataset: LocalDataSet,
+      models: Array[Module[Float]],
+      criterions: Array[Criterion[Float]],
+      topk: Int,
+      candidateNum: Int,
+      state: Table,
+      dataCount: Int,
+      iterationTime: Long,
+      epochTime: Long,
+      trainLoss: Double
   ): Unit = {
     val progressInfo = new mutable.StringBuilder
     progressInfo ++= f"Epoch ${state[Int]("epoch") + 1} train time: ${epochTime / 1e9d}%.4fs, "
@@ -224,15 +231,15 @@ class LocalOptimizer(
 object LocalOptimizer {
 
   def apply(
-    model: Module[Float],
-    dataset: LocalDataSet,
-    criterion: Criterion[Float],
-    optimMethod: OptimMethod[Float],
-    numIteration: Int,
-    progressInterval: Int,
-    topk: Int,
-    candidateNum: Int,
-    useMask: Boolean
+      model: Module[Float],
+      dataset: LocalDataSet,
+      criterion: Criterion[Float],
+      optimMethod: OptimMethod[Float],
+      numIteration: Int,
+      progressInterval: Int,
+      topk: Int,
+      candidateNum: Int,
+      useMask: Boolean
   ): LocalOptimizer = {
     new LocalOptimizer(
       model,

@@ -21,10 +21,10 @@ object TreeBuilder {
   case class Item(id: Int, code: Int)
 
   def build(
-    outputTreePath: String,
-    treeIds: Array[Int],
-    treeCodes: Array[Int],
-    stat: Option[Map[Int, Int]] = None
+      outputTreePath: String,
+      treeIds: Array[Int],
+      treeCodes: Array[Int],
+      stat: Option[Map[Int, Int]] = None
   ): Unit = {
     val offset = math.max(0, treeIds.max) + 1
     val log2 = (n: Int) => math.floor(math.log(n) / math.log(2)).toInt
@@ -84,8 +84,10 @@ object TreeBuilder {
       val meta = TreeMeta(maxLevel, partIds)
       val metaKV = KVItem(toByteString("tree_meta"), meta.toByteString)
       writeKV(metaKV, writer)
-      logger.info(s"item num: ${treeIds.length}, tree level: $maxLevel, " +
-        s"leaf code start: ${leafCodes.min}, leaf code end: ${leafCodes.max}")
+      logger.info(
+        s"item num: ${treeIds.length}, tree level: $maxLevel, " +
+          s"leaf code start: ${leafCodes.min}, leaf code end: ${leafCodes.max}"
+      )
     } match {
       case Success(_) =>
         output.close()
@@ -143,9 +145,9 @@ object TreeBuilder {
   }
 
   def computeNodeOccurrence(
-    items: Array[Item],
-    stat: Map[Int, Int],
-    maxLevel: Int
+      items: Array[Item],
+      stat: Map[Int, Int],
+      maxLevel: Int
   ): Map[Int, Float] = {
     val res = mutable.Map.empty[Int, Float]
     items foreach { case Item(id, code) =>

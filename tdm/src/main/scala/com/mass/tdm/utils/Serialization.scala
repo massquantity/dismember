@@ -15,10 +15,12 @@ object Serialization {
   def saveEmbeddings[T](path: String, model: Module[T], embedSize: Int): Unit = {
     val numItems = (math.pow(2, TDMOp.tree.getMaxLevel + 1) - 1).toInt
     val embedTensor = model.parameters()._1.head
-    require(embedTensor.size().sameElements(Array(numItems, embedSize)),
+    require(
+      embedTensor.size().sameElements(Array(numItems, embedSize)),
       s"embedding size doesn't match, " +
         s"require: ${Array(numItems, embedSize).mkString("Array(", ", ", ")")}, " +
-        s"found: ${embedTensor.size().mkString("Array(", ", ", ")")}")
+        s"found: ${embedTensor.size().mkString("Array(", ", ", ")")}"
+    )
 
     val embeddings = embedTensor.storage().array()
     val idCodeMap = TDMOp.tree.getIdCodeMap

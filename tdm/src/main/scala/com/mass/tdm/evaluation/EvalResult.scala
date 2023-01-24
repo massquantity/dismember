@@ -1,11 +1,12 @@
 package com.mass.tdm.evaluation
 
-private[tdm] class EvalResult (
+private[tdm] class EvalResult(
     private[evaluation] var loss: Double = 0.0,
     private[evaluation] var precision: Double = 0.0,
     private[evaluation] var recall: Double = 0.0,
     private[evaluation] var ndcg: Double = 0.0,
-    private[evaluation] var count: Int = 0) extends Serializable {
+    private[evaluation] var count: Int = 0
+) extends Serializable {
 
   def +(other: EvalResult): EvalResult = {
     this.loss += other.loss
@@ -24,8 +25,8 @@ private[tdm] class EvalResult (
 
   override def toString: String = {
     f"{eval loss: ${loss / count}%.4f, " +
-    f"precision: ${precision / count}%.6f, " +
-    f"recall: ${recall / count}%.6f, " +
-    f"ndcg: ${ndcg / count}%.6f}"
+      f"precision: ${precision / count}%.6f, " +
+      f"recall: ${recall / count}%.6f, " +
+      f"ndcg: ${ndcg / count}%.6f}"
   }
 }

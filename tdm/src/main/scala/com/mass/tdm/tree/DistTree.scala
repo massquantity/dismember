@@ -94,10 +94,11 @@ object DistTree {
   private def multiPut(
       map: mutable.Map[Int, Node],
       keys: ArrayBuffer[Int],
-      values: ArrayBuffer[Node]): Unit = {
+      values: ArrayBuffer[Node]
+  ): Unit = {
 
-    keys.zip(values) foreach {
-      case (k: Int, v: Node) => map(k) = v
+    keys.zip(values) foreach { case (k: Int, v: Node) =>
+      map(k) = v
     }
   }
 }

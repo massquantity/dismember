@@ -24,12 +24,12 @@ object TDMOp {
   }
 
   private def init(
-    pbFilePath: String,
-    layerNegCounts: String,
-    withProb: Boolean = true,
-    startSampleLevel: Int = 1,
-    tolerance: Int = 20,
-    numThreads: Int
+      pbFilePath: String,
+      layerNegCounts: String,
+      withProb: Boolean = true,
+      startSampleLevel: Int = 1,
+      tolerance: Int = 20,
+      numThreads: Int
   ): Unit = {
     _pbFilePath = pbFilePath
     _layerNegCounts = layerNegCounts
@@ -59,12 +59,12 @@ object TDMOp {
   }
 
   def apply(
-    pbFilePath: String = "",
-    layerNegCounts: String = "",
-    withProb: Boolean = true,
-    startSampleLevel: Int = 1,
-    tolerance: Int = 20,
-    numThreads: Int = 1
+      pbFilePath: String = "",
+      layerNegCounts: String = "",
+      withProb: Boolean = true,
+      startSampleLevel: Int = 1,
+      tolerance: Int = 20,
+      numThreads: Int = 1
   ): Unit = {
     init(
       pbFilePath,
@@ -75,16 +75,18 @@ object TDMOp {
       numThreads
     )
     require(tree.initialized && sampler.initialized, "not properly initialized yet...")
-    logger.info(s"item num: ${tree.getIds.length}, tree level: ${tree.getMaxLevel}, " +
-      s"generated node number for one target: ${sampler.layerSum}")
+    logger.info(
+      s"item num: ${tree.getIds.length}, tree level: ${tree.getMaxLevel}, " +
+        s"generated node number for one target: ${sampler.layerSum}"
+    )
   }
 
   def partialApply(pbFilePath: String)(
-    layerNegCounts: String,
-    withProb: Boolean = true,
-    startSampleLevel: Int = 1,
-    tolerance: Int = 20,
-    numThreads: Int
+      layerNegCounts: String,
+      withProb: Boolean = true,
+      startSampleLevel: Int = 1,
+      tolerance: Int = 20,
+      numThreads: Int
   ): Unit = {
     init(
       pbFilePath,
@@ -95,7 +97,9 @@ object TDMOp {
       numThreads
     )
     require(tree.initialized && sampler.initialized, "not properly initialized yet...")
-    logger.info(s"item num: ${tree.getIds.length}, tree level: ${tree.getMaxLevel}, " +
-      s"generated node number for one target: ${sampler.layerSum}")
+    logger.info(
+      s"item num: ${tree.getIds.length}, tree level: ${tree.getMaxLevel}, " +
+        s"generated node number for one target: ${sampler.layerSum}"
+    )
   }
 }

@@ -11,8 +11,9 @@ import com.mass.tdm.paddingIdx
 
 object DIN {
 
-  def buildModel[@specialized(Float, Double) T: ClassTag](embedSize: Int)(
-      implicit ev: TensorNumeric[T]): Module[T] = {
+  def buildModel[@specialized(Float, Double) T: ClassTag](
+      embedSize: Int
+  )(implicit ev: TensorNumeric[T]): Module[T] = {
 
     val numIndex = (math.pow(2, TDMOp.tree.getMaxLevel + 1) - 1).toInt
     val inputItem = Input[T]()

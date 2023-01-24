@@ -14,8 +14,8 @@ sealed trait TDMSample extends Product with Serializable {
 object TDMSample {
 
   case class TDMTrainSample(
-    override val sequence: Array[Int],
-    override val target: Int
+      override val sequence: Array[Int],
+      override val target: Int
   ) extends TDMSample {
 
     override val labels: Array[Int] = null
@@ -29,9 +29,9 @@ object TDMSample {
   }
 
   case class TDMEvalSample(
-    override val sequence: Array[Int],
-    override val labels: Array[Int],
-    override val user: Int
+      override val sequence: Array[Int],
+      override val labels: Array[Int],
+      override val user: Int
   ) extends TDMSample {
 
     override val target: Int = labels.head
