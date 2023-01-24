@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: ['**']
-  push:
-    branches: ['**']
+    branches: main
+  schedule:
+    - cron:  '11 11 * * 2,4,6'
   workflow_dispatch:
 
 env:
@@ -45,4 +45,4 @@ jobs:
           key: ${{ runner.os }}-sbt-cache-v2-${{ hashFiles('**/*.sbt') }}-${{ hashFiles('project/build.properties') }}
 
       - name: Build project
-        run: sbt -mem 4096 ++${{ matrix.scala }} "testOnly *TdmModelTrainSpec*"
+        run: sbt -mem 4096 ++${{ matrix.scala }} "testOnly *ClusterTreeSpec*"
