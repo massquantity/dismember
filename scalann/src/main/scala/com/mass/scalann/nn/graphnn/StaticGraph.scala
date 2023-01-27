@@ -8,8 +8,9 @@ import com.mass.scalann.tensor.TensorNumeric
 
 class StaticGraph[T: ClassTag](
     private val _inputs: Seq[ModuleNode[T]],
-    private val _outputs: Seq[ModuleNode[T]])(
-    implicit ev: TensorNumeric[T]) extends Graph[T](_inputs, _outputs) {
+    private val _outputs: Seq[ModuleNode[T]]
+)(implicit ev: TensorNumeric[T])
+    extends Graph[T](_inputs, _outputs) {
 
   private val forwardExecution = forwardGraph.topologicalSort().reverse
   private var backwardExecution: Array[Node[AbstractModule[Activity, Activity, T]]] = _

@@ -22,18 +22,18 @@ object Activity {
     val buffer = if (classTag[D] == classTag[Table]) {
       Table()
     } else if (classTag[D] == classTag[Tensor[_]]) {
-       if (classTag[Int] == classTag[T]) {
-         import com.mass.scalann.tensor.TensorNumeric.NumericInt
-         Tensor[Int]()
+      if (classTag[Int] == classTag[T]) {
+        import com.mass.scalann.tensor.TensorNumeric.NumericInt
+        Tensor[Int]()
       } else if (classTag[Long] == classTag[T]) {
-         import com.mass.scalann.tensor.TensorNumeric.NumericLong
-         Tensor[Long]()
+        import com.mass.scalann.tensor.TensorNumeric.NumericLong
+        Tensor[Long]()
       } else if (classTag[Float] == classTag[T]) {
-         import com.mass.scalann.tensor.TensorNumeric.NumericFloat
-         Tensor[Float]()
+        import com.mass.scalann.tensor.TensorNumeric.NumericFloat
+        Tensor[Float]()
       } else if (classTag[Double] == classTag[T]) {
-         import com.mass.scalann.tensor.TensorNumeric.NumericDouble
-         Tensor[Double]()
+        import com.mass.scalann.tensor.TensorNumeric.NumericDouble
+        Tensor[Double]()
       } else {
         throw new IllegalArgumentException("Type T activity is not supported")
       }

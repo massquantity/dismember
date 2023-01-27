@@ -1,14 +1,15 @@
 package com.mass.scalann.utils
 
-import scala.collection.mutable
-import scala.collection.Set
+import scala.collection.{mutable, Set}
 
 import com.mass.scalann.nn.abstractnn.Activity
 import com.mass.scalann.tensor.{Tensor, TensorNumeric}
 
 class Table(
     private val state: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any](),
-    private var topIndex: Int = 0) extends Serializable with Activity {
+    private var topIndex: Int = 0
+) extends Serializable
+    with Activity {
 
   private[scalann] def this(data: Array[Any]) = {
     this(new mutable.HashMap[Any, Any](), 0)
@@ -134,7 +135,7 @@ object Table {
     table
   }
 
-  def load(path : String) : Table = {
+  def load(path: String): Table = {
     File.load[Table](path)
   }
 }

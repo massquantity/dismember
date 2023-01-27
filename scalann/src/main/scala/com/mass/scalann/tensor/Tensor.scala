@@ -116,8 +116,12 @@ trait Tensor[T] extends Serializable with TensorMath[T] with Activity {
 
   def set(other: Tensor[T]): Tensor[T]
 
-  def set(storage: Storage[T], storageOffset: Int = 0, sizes: Array[Int] = null,
-          strides: Array[Int] = null): Tensor[T]
+  def set(
+      storage: Storage[T],
+      storageOffset: Int = 0,
+      sizes: Array[Int] = null,
+      strides: Array[Int] = null
+  ): Tensor[T]
 
   def set(): Tensor[T]
 
@@ -167,39 +171,58 @@ object MklDnnType extends TensorType
 
 object Tensor {
 
-  def apply[@specialized(Float, Double) T: ClassTag]()(
-    implicit ev: TensorNumeric[T]): Tensor[T] = new DenseTensor[T]()
+  def apply[@specialized(Float, Double) T: ClassTag]()(implicit ev: TensorNumeric[T]): Tensor[T] =
+    new DenseTensor[T]()
 
-  def apply[@specialized(Float, Double) T: ClassTag](d1: Int)(
-    implicit ev: TensorNumeric[T]): Tensor[T] = new DenseTensor[T](d1)
+  def apply[@specialized(Float, Double) T: ClassTag](d1: Int)(implicit
+      ev: TensorNumeric[T]
+  ): Tensor[T] = new DenseTensor[T](d1)
 
-  def apply[@specialized(Float, Double) T: ClassTag](d1: Int, d2: Int)(
-    implicit ev: TensorNumeric[T]): Tensor[T] = new DenseTensor[T](d1, d2)
+  def apply[@specialized(Float, Double) T: ClassTag](d1: Int, d2: Int)(implicit
+      ev: TensorNumeric[T]
+  ): Tensor[T] = new DenseTensor[T](d1, d2)
 
-  def apply[@specialized(Float, Double) T: ClassTag](d1: Int, d2: Int, d3: Int)(
-    implicit ev: TensorNumeric[T]): Tensor[T] = new DenseTensor[T](d1, d2, d3)
+  def apply[@specialized(Float, Double) T: ClassTag](d1: Int, d2: Int, d3: Int)(implicit
+      ev: TensorNumeric[T]
+  ): Tensor[T] = new DenseTensor[T](d1, d2, d3)
 
-  def apply[@specialized(Float, Double) T: ClassTag](dims: Int*)(
-      implicit ev: TensorNumeric[T]): Tensor[T] = {
-    new DenseTensor[T](new ArrayStorage[T](new Array[T](dims.product)), 0,
-      dims.toArray, DenseTensor.size2Stride(dims.toArray), dims.length)
+  def apply[@specialized(Float, Double) T: ClassTag](
+      dims: Int*
+  )(implicit ev: TensorNumeric[T]): Tensor[T] = {
+    new DenseTensor[T](
+      new ArrayStorage[T](new Array[T](dims.product)),
+      0,
+      dims.toArray,
+      DenseTensor.size2Stride(dims.toArray),
+      dims.length
+    )
   }
 
-  def apply[@specialized(Float, Double) T: ClassTag](sizes: Array[Int])(
-      implicit ev: TensorNumeric[T]): Tensor[T] =
-    new DenseTensor(new ArrayStorage[T](new Array[T](sizes.product)), 0,
-      sizes.clone(), DenseTensor.size2Stride(sizes.clone()), sizes.length)
+  def apply[@specialized(Float, Double) T: ClassTag](
+      sizes: Array[Int]
+  )(implicit ev: TensorNumeric[T]): Tensor[T] =
+    new DenseTensor(
+      new ArrayStorage[T](new Array[T](sizes.product)),
+      0,
+      sizes.clone(),
+      DenseTensor.size2Stride(sizes.clone()),
+      sizes.length
+    )
 
-  def apply[@specialized(Float, Double) T: ClassTag](storage: Storage[T])(
-      implicit ev: TensorNumeric[T]): Tensor[T] = {
+  def apply[@specialized(Float, Double) T: ClassTag](
+      storage: Storage[T]
+  )(implicit ev: TensorNumeric[T]): Tensor[T] = {
     require(storage.isInstanceOf[ArrayStorage[_]], "Only support array storage in this operaiton")
     new DenseTensor(storage.asInstanceOf[ArrayStorage[T]])
   }
 
-  def apply[@specialized(Float, Double) T: ClassTag](data: Array[T], shape: Array[Int])(
-      implicit ev: TensorNumeric[T]): Tensor[T] = {
-    require(shape.product == data.length,
-      s"shape total size ${shape.product} doesn't match data length ${data.length}")
+  def apply[@specialized(Float, Double) T: ClassTag](data: Array[T], shape: Array[Int])(implicit
+      ev: TensorNumeric[T]
+  ): Tensor[T] = {
+    require(
+      shape.product == data.length,
+      s"shape total size ${shape.product} doesn't match data length ${data.length}"
+    )
     new DenseTensor[T]().set(Storage[T](data), storageOffset = 0, sizes = shape)
   }
 
@@ -207,15 +230,18 @@ object Tensor {
       storage: Storage[T],
       storageOffset: Int,
       size: Array[Int] = null,
-      stride: Array[Int] = null)(implicit ev: TensorNumeric[T]): Tensor[T] = {
+      stride: Array[Int] = null
+  )(implicit ev: TensorNumeric[T]): Tensor[T] = {
     new DenseTensor(storage.asInstanceOf[ArrayStorage[T]], storageOffset, size, stride)
   }
 
-  def apply[@specialized(Float, Double) T: ClassTag](other: Tensor[T])(
-    implicit ev: TensorNumeric[T]): Tensor[T] = new DenseTensor(other)
+  def apply[@specialized(Float, Double) T: ClassTag](other: Tensor[T])(implicit
+      ev: TensorNumeric[T]
+  ): Tensor[T] = new DenseTensor(other)
 
-  def arange[@specialized(Float, Double) T: ClassTag](xmin: Int, xmax: Int, step: Int = 1)(
-      implicit ev: TensorNumeric[T]): Tensor[T] = {
+  def arange[@specialized(Float, Double) T: ClassTag](xmin: Int, xmax: Int, step: Int = 1)(implicit
+      ev: TensorNumeric[T]
+  ): Tensor[T] = {
     val size = math.floor((xmax - xmin) / step).toInt.abs
     Tensor((xmin until xmax by step).map(ev.fromType(_)).toArray, Array(size))
     // DenseTensor.arange[T](xmin, xmax, step)
@@ -225,8 +251,8 @@ object Tensor {
       sizes: Array[Int],
       mean: Double,
       stdev: Double,
-      seed: Long = System.nanoTime())(
-      implicit ev: TensorNumeric[T]): Tensor[T] = {
+      seed: Long = System.nanoTime()
+  )(implicit ev: TensorNumeric[T]): Tensor[T] = {
 
     val generator = new RandomDataGenerator()
     generator.reSeed(seed)
@@ -243,11 +269,11 @@ object Tensor {
   }
 
   def rand[@specialized(Float, Double) T: ClassTag](
-    sizes: Array[Int],
-    lowerBound: Double,
-    upperBound: Double,
-    seed: Long = System.nanoTime())(
-    implicit ev: TensorNumeric[T]): Tensor[T] = {
+      sizes: Array[Int],
+      lowerBound: Double,
+      upperBound: Double,
+      seed: Long = System.nanoTime()
+  )(implicit ev: TensorNumeric[T]): Tensor[T] = {
 
     val generator = new RandomDataGenerator()
     generator.reSeed(seed)
@@ -267,7 +293,8 @@ object Tensor {
       sizes: Array[Int],
       lowerBound: Int,
       upperBound: Int,
-      seed: Long = System.nanoTime()): Tensor[Int] = {
+      seed: Long = System.nanoTime()
+  ): Tensor[Int] = {
 
     val generator = new RandomDataGenerator()
     generator.reSeed(seed)
@@ -284,10 +311,11 @@ object Tensor {
   }
 
   def randLong(
-    sizes: Array[Int],
-    lowerBound: Int,
-    upperBound: Int,
-    seed: Long = System.nanoTime()): Tensor[Long] = {
+      sizes: Array[Int],
+      lowerBound: Int,
+      upperBound: Int,
+      seed: Long = System.nanoTime()
+  ): Tensor[Long] = {
 
     val generator = new RandomDataGenerator()
     generator.reSeed(seed)
@@ -303,7 +331,9 @@ object Tensor {
     res
   }
 
-  def unique[T: ClassTag](tensor: Tensor[T])(implicit ev: TensorNumeric[T]): (Tensor[T], Tensor[Int]) = {
+  def unique[T: ClassTag](
+      tensor: Tensor[T]
+  )(implicit ev: TensorNumeric[T]): (Tensor[T], Tensor[Int]) = {
     require(tensor.isContiguous, "unqiue only supports contiguous tensor")
     require(tensor.dim() == 1, "unique only supports 1D tensor")
     val array = tensor.storage().array()

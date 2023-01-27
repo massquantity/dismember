@@ -10,11 +10,11 @@ object Property {
   val logger: Logger = Logger.getLogger(getClass)
 
   def readConf(
-    path: String,
-    prefix: String,
-    name: String,
-    truncate: Boolean = true,
-    print: Boolean
+      path: String,
+      prefix: String,
+      name: String,
+      truncate: Boolean = true,
+      print: Boolean
   ): Map[String, String] = {
     val fileSource = path match {
       case "fromResource" =>
@@ -64,8 +64,10 @@ object Property {
   }
 
   def getOrStop(conf: Map[String, String], key: String): String = {
-    conf.getOrElse(key, throw new IllegalArgumentException(
-      s"failed to read parameter: $key in conf file"))
+    conf.getOrElse(
+      key,
+      throw new IllegalArgumentException(s"failed to read parameter: $key in conf file")
+    )
   }
 
   def fileExists(path: String): Boolean = {

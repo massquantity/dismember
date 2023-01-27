@@ -5,11 +5,9 @@ import scala.reflect.ClassTag
 import com.mass.scalann.nn.abstractnn.TensorModule
 import com.mass.scalann.tensor.{Tensor, TensorNumeric}
 
-class Linear[T: ClassTag](
-    val inputSize: Int,
-    val outputSize: Int,
-    val withBias: Boolean = true)(implicit ev: TensorNumeric[T])
-    extends TensorModule[T] {
+class Linear[T: ClassTag](val inputSize: Int, val outputSize: Int, val withBias: Boolean = true)(
+    implicit ev: TensorNumeric[T]
+) extends TensorModule[T] {
 
   val weight: Tensor[T] = Tensor[T](outputSize, inputSize).randn(0.0, 0.05)
   val bias: Tensor[T] = if (withBias) Tensor[T](outputSize).zero() else null
@@ -134,7 +132,8 @@ object Linear {
   def apply[@specialized(Float, Double) T: ClassTag](
       inputSize: Int,
       outputSIze: Int,
-      withBias: Boolean = true)(implicit ev: TensorNumeric[T]): Linear[T] = {
+      withBias: Boolean = true
+  )(implicit ev: TensorNumeric[T]): Linear[T] = {
     new Linear[T](inputSize, outputSIze, withBias)
   }
 }

@@ -5,8 +5,9 @@ import scala.reflect.ClassTag
 import com.mass.scalann.nn.abstractnn.AbstractCriterion
 import com.mass.scalann.tensor.{Tensor, TensorNumeric}
 
-class CrossEntropyCriterion[T: ClassTag](val sizeAverage: Boolean = true)(
-    implicit ev: TensorNumeric[T]) extends AbstractCriterion[T] {
+class CrossEntropyCriterion[T: ClassTag](val sizeAverage: Boolean = true)(implicit
+    ev: TensorNumeric[T]
+) extends AbstractCriterion[T] {
 
   private val logSoftMax = new LogSoftMax[T]()
   private val crossEntropy = new ClassNLLCriterion[T](sizeAverage, logProbAsInput = true)
@@ -27,8 +28,9 @@ class CrossEntropyCriterion[T: ClassTag](val sizeAverage: Boolean = true)(
 }
 
 object CrossEntropyCriterion {
-  def apply[@specialized(Float, Double) T: ClassTag](sizeAverage: Boolean = true)(
-      implicit ev: TensorNumeric[T]): CrossEntropyCriterion[T] = {
+  def apply[@specialized(Float, Double) T: ClassTag](
+      sizeAverage: Boolean = true
+  )(implicit ev: TensorNumeric[T]): CrossEntropyCriterion[T] = {
     new CrossEntropyCriterion[T](sizeAverage)
   }
 }

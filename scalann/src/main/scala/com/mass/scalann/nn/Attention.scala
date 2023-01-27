@@ -11,8 +11,9 @@ import com.mass.scalann.nn.graphnn.Graph
 class Attention[T: ClassTag](
     embedSize: Int,
     useScale: Boolean = false,
-    linearTransform: Boolean = false)(
-    implicit ev: TensorNumeric[T]) extends AbstractModule[Table, Tensor[T], T] {
+    linearTransform: Boolean = false
+)(implicit ev: TensorNumeric[T])
+    extends AbstractModule[Table, Tensor[T], T] {
 
   private val queryLayer = if (linearTransform) {
     Linear(embedSize, embedSize, withBias = false)
@@ -74,8 +75,8 @@ object Attention {
   def apply[@specialized(Float, Double) T: ClassTag](
       embedSize: Int,
       useScale: Boolean = false,
-      linearTransform: Boolean = false)(
-      implicit ev: TensorNumeric[T]): Attention[T] = {
+      linearTransform: Boolean = false
+  )(implicit ev: TensorNumeric[T]): Attention[T] = {
     new Attention[T](embedSize, useScale, linearTransform)
   }
 }

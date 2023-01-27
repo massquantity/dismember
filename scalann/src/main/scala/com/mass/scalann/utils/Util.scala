@@ -49,8 +49,9 @@ object Util {
     partition(arr, lo, hi)
   }
 
-  def getAndClearWeightBias[T: ClassTag](parameters: (Array[Tensor[T]], Array[Tensor[T]]))(
-      implicit ev: TensorNumeric[T]): Array[Tensor[T]] = {
+  def getAndClearWeightBias[T: ClassTag](
+      parameters: (Array[Tensor[T]], Array[Tensor[T]])
+  )(implicit ev: TensorNumeric[T]): Array[Tensor[T]] = {
     if (parameters._1.nonEmpty) {
       val weightBias = new Array[Tensor[T]](parameters._1.length)
       val firstStorage = Storage(parameters._1.head.storage().array())
@@ -75,8 +76,7 @@ object Util {
     }
   }
 
-  def clearTensor[T: ClassTag](tensors: Array[Tensor[T]])
-    (implicit ev: TensorNumeric[T]): Unit = {
+  def clearTensor[T: ClassTag](tensors: Array[Tensor[T]])(implicit ev: TensorNumeric[T]): Unit = {
     var i = 0
     while (i < tensors.length) {
       if (tensors(i) != null) {
@@ -87,7 +87,8 @@ object Util {
   }
 
   def putWeightBias[T: ClassTag](broadcastWeightBias: Array[Tensor[T]], localModel: Module[T])(
-      implicit ev: TensorNumeric[T]): Unit = {
+      implicit ev: TensorNumeric[T]
+  ): Unit = {
     val localWeightBias = localModel.parameters()._1
     var i = 0
     while (i < localWeightBias.length) {
@@ -98,8 +99,9 @@ object Util {
     }
   }
 
-  def initGradWeightBias[T: ClassTag](broadcastWeightBias: Array[Tensor[T]],
-      localModel: Module[T])(implicit ev: TensorNumeric[T]): Unit = {
+  def initGradWeightBias[T: ClassTag](broadcastWeightBias: Array[Tensor[T]], localModel: Module[T])(
+      implicit ev: TensorNumeric[T]
+  ): Unit = {
     val (localWeightBias, localGradWeightBias) = localModel.parameters()
     // init gradient with a compacted storage
     val storage = Storage[T](localGradWeightBias.map(_.nElement()).sum)
@@ -113,8 +115,9 @@ object Util {
     }
   }
 
-  def cloneParameters[T: ClassTag](parameters: Array[Tensor[T]])(
-      implicit ev: TensorNumeric[T]): Array[Tensor[T]] = {
+  def cloneParameters[T: ClassTag](
+      parameters: Array[Tensor[T]]
+  )(implicit ev: TensorNumeric[T]): Array[Tensor[T]] = {
     if (parameters == null) return null
     if (parameters.isEmpty) return Array.empty
 
@@ -126,8 +129,7 @@ object Util {
     val resultStorage = {
       if (isCompacted) {
         val tmp = Storage[T](length)
-        System.arraycopy(first.storage().array(), first.storageOffset(),
-          tmp.array(), 0, length)
+        System.arraycopy(first.storage().array(), first.storageOffset(), tmp.array(), 0, length)
         tmp
       } else {
         null

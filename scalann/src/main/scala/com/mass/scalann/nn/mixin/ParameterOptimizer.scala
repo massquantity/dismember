@@ -25,19 +25,18 @@ trait ParameterOptimizer[T] {
   protected val gradWeights: Tensor[T]
   protected val gradBiases: Tensor[T]
 
-  protected def updateParameters(inputVecs: Tensor[T], lossGrad: Tensor[T])(
-      implicit ev: TensorNumeric[T]): Unit = {
+  protected def updateParameters(inputVecs: Tensor[T], lossGrad: Tensor[T])(implicit
+      ev: TensorNumeric[T]
+  ): Unit = {
     computeParameterGrad(inputVecs, lossGrad)
     optimize(weights, gradWeights, "weight", timestep)
     optimize(biases, gradBiases, "bias", timestep)
     timestep += 1
   }
 
-  private def optimize(
-      parameter: Tensor[T],
-      gradient: Tensor[T],
-      name: String,
-      timestep: Int)(implicit ev: TensorNumeric[T]): Unit = {
+  private def optimize(parameter: Tensor[T], gradient: Tensor[T], name: String, timestep: Int)(
+      implicit ev: TensorNumeric[T]
+  ): Unit = {
     val vName = name + "_v"
     val hName = name + "_h"
     val denomName = name + "_denom"
@@ -63,8 +62,9 @@ trait ParameterOptimizer[T] {
     state(denomName) = denom
   }
 
-  private def computeParameterGrad(inputVecs: Tensor[T], lossGrad: Tensor[T])(
-      implicit ev: TensorNumeric[T]): Unit = {
+  private def computeParameterGrad(inputVecs: Tensor[T], lossGrad: Tensor[T])(implicit
+      ev: TensorNumeric[T]
+  ): Unit = {
     val (weightGradInput, biasGradInput) = computeParameterGradInput(inputVecs, lossGrad)
     val gradWeightsData = gradWeights.storage().array()
     val gradBiasesData = gradBiases.storage().array()
@@ -72,13 +72,25 @@ trait ParameterOptimizer[T] {
     var i = 0
     while (i < numElem) {
       val index = sampledItems(i)
-      ev.axpy(embedSize, ev.one, weightGradInput, i * embedSize, 1, gradWeightsData, index * embedSize, 1)
+      ev.axpy(
+        embedSize,
+        ev.one,
+        weightGradInput,
+        i * embedSize,
+        1,
+        gradWeightsData,
+        index * embedSize,
+        1
+      )
       gradBiasesData(index) = ev.plus(biasGradInput(i), gradBiasesData(index))
       i += 1
     }
   }
 
-  protected def computeParameterGradInput(inputVecs: Tensor[T], lossGrad: Tensor[T]): (Array[T], Array[T])
+  protected def computeParameterGradInput(
+      inputVecs: Tensor[T],
+      lossGrad: Tensor[T]
+  ): (Array[T], Array[T])
 
   def clearOptimizerState(): Unit = {
     state.clear()
@@ -87,10 +99,8 @@ trait ParameterOptimizer[T] {
 
 object ParameterOptimizer {
 
-  def initState[T: ClassTag](
-    weights: Tensor[T],
-    biases: Tensor[T])(
-    implicit ev: TensorNumeric[T]
+  def initState[T: ClassTag](weights: Tensor[T], biases: Tensor[T])(implicit
+      ev: TensorNumeric[T]
   ): Table = {
     val state = Table()
     state("weight_v") = Tensor[T]().resizeAs(weights).zero()
@@ -102,9 +112,8 @@ object ParameterOptimizer {
     state
   }
 
-  def createTensor[T: ClassTag](
-    size: Array[Int])(
-    implicit ev: TensorNumeric[T]
+  def createTensor[T: ClassTag](size: Array[Int])(implicit
+      ev: TensorNumeric[T]
   ): Tensor[T] = {
     Tensor[T](size).zero()
   }

@@ -5,8 +5,11 @@ import scala.reflect.ClassTag
 import com.mass.scalann.nn.abstractnn.AbstractCriterion
 import com.mass.scalann.tensor.{Tensor, TensorNumeric}
 
-class ClassNLLCriterion[@specialized(Float, Double) T: ClassTag](sizeAverage: Boolean = true,
-  logProbAsInput: Boolean = true)(implicit ev: TensorNumeric[T]) extends AbstractCriterion[T] {
+class ClassNLLCriterion[@specialized(Float, Double) T: ClassTag](
+    sizeAverage: Boolean = true,
+    logProbAsInput: Boolean = true
+)(implicit ev: TensorNumeric[T])
+    extends AbstractCriterion[T] {
 
   private val lowerBound: T = ev.fromType(1e-8)
   private val upperBound: T = ev.minus(ev.one, lowerBound)
@@ -97,8 +100,10 @@ class ClassNLLCriterion[@specialized(Float, Double) T: ClassTag](sizeAverage: Bo
 }
 
 object ClassNLLCriterion {
-  def apply[@specialized(Float, Double) T: ClassTag](sizeAverage: Boolean = true,
-    logProbAsInput: Boolean = true)(implicit ev: TensorNumeric[T]): ClassNLLCriterion[T] = {
+  def apply[@specialized(Float, Double) T: ClassTag](
+      sizeAverage: Boolean = true,
+      logProbAsInput: Boolean = true
+  )(implicit ev: TensorNumeric[T]): ClassNLLCriterion[T] = {
     new ClassNLLCriterion[T](sizeAverage, logProbAsInput)
   }
 }

@@ -39,7 +39,7 @@ object Engine {
     }
 
     val modelPoolSize = 1
-    if(_model == null || _model.getPoolSize != modelPoolSize) {
+    if (_model == null || _model.getPoolSize != modelPoolSize) {
       _model = new ThreadPool(modelPoolSize)
     }
     _model.setMKLThread(MKL.getMklNumThreads)

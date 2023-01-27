@@ -5,7 +5,8 @@ import java.util
 import scala.reflect._
 
 private[tensor] class ArrayStorage[@specialized(Double, Float) T: ClassTag](
-    private[tensor] var values: Array[T]) extends Storage[T] {
+    private[tensor] var values: Array[T]
+) extends Storage[T] {
 
   override def apply(index: Int): T = values(index)
 
@@ -17,8 +18,12 @@ private[tensor] class ArrayStorage[@specialized(Double, Float) T: ClassTag](
 
   override def array(): Array[T] = values
 
-  override def copy(source: Storage[T], offset: Int, sourceOffset: Int,
-      length: Int): ArrayStorage.this.type = {
+  override def copy(
+      source: Storage[T],
+      offset: Int,
+      sourceOffset: Int,
+      length: Int
+  ): ArrayStorage.this.type = {
     source match {
       case s: ArrayStorage[T] =>
         System.arraycopy(s.values, sourceOffset, this.values, offset, length)
@@ -35,16 +40,14 @@ private[tensor] class ArrayStorage[@specialized(Double, Float) T: ClassTag](
   override def fill(value: T, offset: Int, length: Int): this.type = {
 
     value match {
-      case v: Double => util.Arrays.fill(values.asInstanceOf[Array[Double]],
-        offset, offset + length, v)
-      case v: Float => util.Arrays.fill(values.asInstanceOf[Array[Float]],
-        offset, offset + length, v)
-      case v: Int => util.Arrays.fill(values.asInstanceOf[Array[Int]],
-        offset, offset + length, v)
-      case v: Long => util.Arrays.fill(values.asInstanceOf[Array[Long]],
-        offset, offset + length, v)
-      case v: Short => util.Arrays.fill(values.asInstanceOf[Array[Short]],
-        offset, offset + length, v)
+      case v: Double =>
+        util.Arrays.fill(values.asInstanceOf[Array[Double]], offset, offset + length, v)
+      case v: Float =>
+        util.Arrays.fill(values.asInstanceOf[Array[Float]], offset, offset + length, v)
+      case v: Int => util.Arrays.fill(values.asInstanceOf[Array[Int]], offset, offset + length, v)
+      case v: Long => util.Arrays.fill(values.asInstanceOf[Array[Long]], offset, offset + length, v)
+      case v: Short =>
+        util.Arrays.fill(values.asInstanceOf[Array[Short]], offset, offset + length, v)
       case _ => throw new IllegalArgumentException
     }
 

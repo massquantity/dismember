@@ -10,8 +10,10 @@ class Embedding[T: ClassTag](
     val nIndex: Int,
     val embedSize: Int,
     val paddingIdx: Int = -1,
-    val embedWeight: Option[Tensor[T]] = None)(
-    implicit ev: TensorNumeric[T]) extends TensorModule[T] with LookupTable[T] {
+    val embedWeight: Option[Tensor[T]] = None
+)(implicit ev: TensorNumeric[T])
+    extends TensorModule[T]
+    with LookupTable[T] {
 
   val weight: Tensor[T] = embedWeight match {
     case Some(embed) => embed
@@ -37,8 +39,18 @@ class Embedding[T: ClassTag](
     val weightData = weight.storage().array()
     val weightOffset = weight.storageOffset()
 
-    embeddingLookup(numElem, inputData, inputOffset, outputData, outputOffset,
-      weightData, weightOffset, embedSize, nIndex, paddingIdx)
+    embeddingLookup(
+      numElem,
+      inputData,
+      inputOffset,
+      outputData,
+      outputOffset,
+      weightData,
+      weightOffset,
+      embedSize,
+      nIndex,
+      paddingIdx
+    )
 
     if (input.dim() == 2) {
       output = output.view(batchSize, input.size(1), embedSize)
@@ -66,8 +78,18 @@ class Embedding[T: ClassTag](
     val gradOutputData = _gradOutput.storage().array()
     val gradOutputOffset = _gradOutput.storageOffset()
 
-    updateEmbeddings(numElem, inputData, inputOffset, gradOutputData, gradOutputOffset,
-      gradWeightData, gradWeightOffset, embedSize, paddingIdx, scaleW)
+    updateEmbeddings(
+      numElem,
+      inputData,
+      inputOffset,
+      gradOutputData,
+      gradOutputOffset,
+      gradWeightData,
+      gradWeightOffset,
+      embedSize,
+      paddingIdx,
+      scaleW
+    )
 
   }
 
@@ -87,8 +109,8 @@ object Embedding {
       nIndex: Int,
       nOutput: Int,
       paddingIdx: Int = -1,
-      embedWeight: Option[Tensor[T]] = None)(
-      implicit ev: TensorNumeric[T]): Embedding[T] = {
+      embedWeight: Option[Tensor[T]] = None
+  )(implicit ev: TensorNumeric[T]): Embedding[T] = {
     new Embedding[T](nIndex, nOutput, paddingIdx, embedWeight)
   }
 }

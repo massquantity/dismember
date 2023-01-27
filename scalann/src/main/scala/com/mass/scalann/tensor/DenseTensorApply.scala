@@ -34,10 +34,11 @@ object DenseTensorApply {
     }
   }
 
-  def apply2[T](tensor1: Tensor[T], tensor2: Tensor[T],
-    func: TensorFunc4[T]): Unit = {
-    require(tensor1.nElement() == tensor2.nElement(),
-      s"inconsistent tensor size: ${tensor1.nElement()} == ${tensor2.nElement()}")
+  def apply2[T](tensor1: Tensor[T], tensor2: Tensor[T], func: TensorFunc4[T]): Unit = {
+    require(
+      tensor1.nElement() == tensor2.nElement(),
+      s"inconsistent tensor size: ${tensor1.nElement()} == ${tensor2.nElement()}"
+    )
 
     if (tensor1.isEmpty) {
       return
@@ -59,18 +60,30 @@ object DenseTensorApply {
     var tensor2Offset = tensor2.storageOffset()
 
     var adjacent = false
-    if (tensor1.nDimension == 1 && tensor2.nDimension == 1 && tensor1.stride(0) == 1 &&
-      tensor2.stride(0) == 1) {
+    if (
+      tensor1.nDimension == 1
+      && tensor2.nDimension == 1
+      && tensor1.stride(0) == 1
+      && tensor2.stride(0) == 1
+    ) {
       adjacent = true
     }
     if (tensor1.nDimension == 2 && tensor2.nDimension == 2) {
-      if (tensor1.stride(1) == 1 && tensor2.stride(1) == 1 && tensor1.stride(0) == tensor1.size(1)
-        && tensor2.stride(0) == tensor2.size(1)) {
+      if (
+        tensor1.stride(1) == 1
+        && tensor2.stride(1) == 1
+        && tensor1.stride(0) == tensor1.size(1)
+        && tensor2.stride(0) == tensor2.size(1)
+      ) {
         adjacent = true
       }
 
-      if (tensor1.stride(0) == 1 && tensor2.stride(0) == 1 && tensor1.stride(1) == tensor1.size(0)
-        && tensor2.stride(1) == tensor2.size(0)) {
+      if (
+        tensor1.stride(0) == 1
+        && tensor2.stride(0) == 1
+        && tensor1.stride(1) == tensor1.size(0)
+        && tensor2.stride(1) == tensor2.size(0)
+      ) {
         adjacent = true
       }
     }
@@ -95,8 +108,12 @@ object DenseTensorApply {
     var i2 = 0
     while (!hasFinished) {
       while (i1 < largestSize1 && i2 < largestSize2) {
-        func(tensor1Data, tensor1Offset + i1 * tensor1Stride, tensor2Data,
-          tensor2Offset + i2 * tensor2Stride)
+        func(
+          tensor1Data,
+          tensor1Offset + i1 * tensor1Stride,
+          tensor2Data,
+          tensor2Offset + i2 * tensor2Stride
+        )
         i1 = i1 + 1
         i2 = i2 + 1
       }
@@ -155,7 +172,12 @@ object DenseTensorApply {
     counter
   }
 
-  def updateCounter[T](tensor: Tensor[T], counter: Array[Int], offset: Int, dim: Int): (Boolean, Int) = {
+  def updateCounter[T](
+      tensor: Tensor[T],
+      counter: Array[Int],
+      offset: Int,
+      dim: Int
+  ): (Boolean, Int) = {
     if (dim == -1) {
       return (true, offset)
     }

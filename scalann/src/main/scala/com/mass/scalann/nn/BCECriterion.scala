@@ -5,16 +5,19 @@ import scala.reflect.ClassTag
 import com.mass.scalann.nn.abstractnn.AbstractCriterion
 import com.mass.scalann.tensor.{Tensor, TensorNumeric}
 
-class BCECriterion[@specialized(Float, Double) T: ClassTag](sizeAverage: Boolean = true)(
-    implicit ev: TensorNumeric[T]) extends AbstractCriterion[T] {
+class BCECriterion[@specialized(Float, Double) T: ClassTag](sizeAverage: Boolean = true)(implicit
+    ev: TensorNumeric[T]
+) extends AbstractCriterion[T] {
 
   private val eps = 1e-12
   val buffer: Tensor[T] = Tensor[T]()
 
   override def updateOutput(input: Tensor[T], target: Tensor[T]): T = {
-    require(input.size().sameElements(target.size()),
+    require(
+      input.size().sameElements(target.size()),
       s"input size should be equal to target size, but got input size: ${input.size().toSeq}," +
-        s" target size: ${target.size().toSeq}")
+        s" target size: ${target.size().toSeq}"
+    )
 
     var sum = 0.0
     // y * log(x)
@@ -41,8 +44,9 @@ class BCECriterion[@specialized(Float, Double) T: ClassTag](sizeAverage: Boolean
 }
 
 object BCECriterion {
-  def apply[@specialized(Float, Double) T: ClassTag](sizeAverage: Boolean = true)(
-      implicit ev: TensorNumeric[T]): BCECriterion[T] = {
+  def apply[@specialized(Float, Double) T: ClassTag](
+      sizeAverage: Boolean = true
+  )(implicit ev: TensorNumeric[T]): BCECriterion[T] = {
     new BCECriterion[T](sizeAverage)
   }
 }

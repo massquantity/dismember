@@ -9,8 +9,9 @@ import com.mass.scalann.tensor.{Tensor, TensorNumeric}
 // https://www.tensorflow.org/api_docs/python/tf/nn/sigmoid_cross_entropy_with_logits
 // https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/Loss.cpp
 // binary_cross_entropy_with_logits
-class BCECriterionWithLogits[@specialized(Float, Double) T: ClassTag](
-    sizeAverage: Boolean = true)(implicit ev: TensorNumeric[T]) extends AbstractCriterion[T] {
+class BCECriterionWithLogits[@specialized(Float, Double) T: ClassTag](sizeAverage: Boolean = true)(
+    implicit ev: TensorNumeric[T]
+) extends AbstractCriterion[T] {
 
   private var buffer: Array[T] = _
   private var buffer2: Array[T] = _
@@ -86,8 +87,9 @@ class BCECriterionWithLogits[@specialized(Float, Double) T: ClassTag](
 }
 
 object BCECriterionWithLogits {
-  def apply[@specialized(Float, Double) T: ClassTag](sizeAverage: Boolean = true)(
-      implicit ev: TensorNumeric[T]): BCECriterionWithLogits[T] = {
+  def apply[@specialized(Float, Double) T: ClassTag](
+      sizeAverage: Boolean = true
+  )(implicit ev: TensorNumeric[T]): BCECriterionWithLogits[T] = {
     new BCECriterionWithLogits[T](sizeAverage)
   }
 }

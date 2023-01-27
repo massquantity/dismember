@@ -25,8 +25,11 @@ class MatMul[T: ClassTag](transB: Boolean = false)(implicit ev: TensorNumeric[T]
       output.resize(ma.size(0), mb.size(1))
       output.addmm(ev.zero, ev.one, ma, mb)
     } else {
-      require(ma.dim() == mb.dim(), s"input tensors should be with same dimension," +
-        s"but got ${ma.dim()} ${mb.dim()}")
+      require(
+        ma.dim() == mb.dim(),
+        s"input tensors should be with same dimension," +
+          s"but got ${ma.dim()} ${mb.dim()}"
+      )
 
       if (transB) {
         mb = mb.transpose(1, 2)
@@ -75,8 +78,9 @@ class MatMul[T: ClassTag](transB: Boolean = false)(implicit ev: TensorNumeric[T]
 }
 
 object MatMul {
-  def apply[@specialized(Float, Double) T: ClassTag](transB: Boolean = false)(
-      implicit ev: TensorNumeric[T]): MatMul[T] = {
+  def apply[@specialized(Float, Double) T: ClassTag](
+      transB: Boolean = false
+  )(implicit ev: TensorNumeric[T]): MatMul[T] = {
     new MatMul[T](transB)
   }
 }

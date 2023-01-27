@@ -24,7 +24,8 @@ trait LookupTable[T] {
       weightOffset: Int,
       embedSize: Int,
       numIndex: Int,
-      paddingIdx: Int): Unit = {
+      paddingIdx: Int
+  ): Unit = {
 
     val invalidIndices = ListBuffer.empty[String]
     var i = 0
@@ -35,7 +36,7 @@ trait LookupTable[T] {
         System.arraycopy(zeroArray, 0, outputData, _outputOffset, embedSize)
       } else if (index >= 0 && index < numIndex && index != paddingIdx) {
         val offset1 = index * embedSize + weightOffset
-      //  println(weightData.length, offset1, outputData.length, _outputOffset, embedSize)
+        //  println(weightData.length, offset1, outputData.length, _outputOffset, embedSize)
         System.arraycopy(weightData, offset1, outputData, _outputOffset, embedSize)
       } else {
         invalidIndices += s"\t ${i / embedSize}    ${i % embedSize}     $index"
@@ -62,7 +63,8 @@ trait LookupTable[T] {
       gradWeightOffset: Int,
       embedSize: Int,
       paddingIdx: Int,
-      scaleW: Double)(implicit ev: TensorNumeric[T]): Unit = {
+      scaleW: Double
+  )(implicit ev: TensorNumeric[T]): Unit = {
 
     var i = 0
     while (i < numElem) {
@@ -78,7 +80,8 @@ trait LookupTable[T] {
           1,
           gradWeightData,
           offset2,
-          1)
+          1
+        )
       }
       i += 1
     }

@@ -6,7 +6,8 @@ object DenseTensorDimApply {
       tensor1: DenseTensor[T],
       tensor2: Tensor[T],
       _dim: Int,
-      func: (Array[T], Int, Int, Int, Array[T], Int, Int, Int) => Unit): Unit = {
+      func: (Array[T], Int, Int, Int, Array[T], Int, Int, Int) => Unit
+  ): Unit = {
 
     require(_dim >= 0 && _dim < tensor1.nDimension, "invalid dimension")
     require(tensor1.nDimension == tensor2.nDimension, "inconsistent tensor sizes")

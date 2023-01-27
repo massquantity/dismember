@@ -35,7 +35,8 @@ class CrossEntropyTest extends AnyFlatSpec {
 
   "CrossEntropyCriterion backward" should "output expected values as in PyTorch" in {
     val gradInput = crossEntropy.backward(input2, target2)
-    val expectedGradInput = Array(-1.2219e-06,  1.2422e-06, 3.2672e-01, -3.2672e-01, 1.3055e-02, -1.3055e-02)
+    val expectedGradInput =
+      Array(-1.2219e-06, 1.2422e-06, 3.2672e-01, -3.2672e-01, 1.3055e-02, -1.3055e-02)
     assert(gradInput.size() === input2.size())
     gradInput.storage().array().zip(expectedGradInput) foreach { case (a, b) =>
       assert(math.abs(a - b) < 1e-4)

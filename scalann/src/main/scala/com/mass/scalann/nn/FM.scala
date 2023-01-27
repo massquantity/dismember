@@ -78,8 +78,7 @@ class FM[T: ClassTag]()(implicit ev: TensorNumeric[T]) extends TensorModule[T] {
 }
 
 object FM {
-  def apply[@specialized(Float, Double) T: ClassTag]()(
-      implicit ev: TensorNumeric[T]): FM[T] = {
+  def apply[@specialized(Float, Double) T: ClassTag]()(implicit ev: TensorNumeric[T]): FM[T] = {
     new FM[T]()
   }
 }
