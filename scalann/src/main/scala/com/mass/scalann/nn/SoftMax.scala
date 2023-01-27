@@ -66,8 +66,9 @@ class SoftMax[T: ClassTag](implicit ev: TensorNumeric[T]) extends TensorModule[T
 }
 
 object SoftMax {
-  def apply[@specialized(Float, Double) T: ClassTag]()(
-      implicit ev: TensorNumeric[T]): SoftMax[T] = {
+  def apply[@specialized(Float, Double) T: ClassTag]()(implicit
+      ev: TensorNumeric[T]
+  ): SoftMax[T] = {
     new SoftMax[T]()
   }
 }

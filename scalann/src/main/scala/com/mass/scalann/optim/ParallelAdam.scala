@@ -11,14 +11,16 @@ class ParallelAdam[@specialized(Float, Double) T: ClassTag](
     var beta1: Double = 0.9,
     var beta2: Double = 0.999,
     var epsilon: Double = 1e-8,
-    var parallelNum: Int = Engine.coreNumber())(implicit ev: TensorNumeric[T])
+    var parallelNum: Int = Engine.coreNumber()
+)(implicit ev: TensorNumeric[T])
     extends OptimMethod[T] {
 
   @transient private var ones: Tensor[T] = _
 
   override def optimize(
       feval: Tensor[T] => (T, Tensor[T]),
-      parameter: Tensor[T]): (Tensor[T], Array[T]) = {
+      parameter: Tensor[T]
+  ): (Tensor[T], Array[T]) = {
     val lr = this.learningRate
     val lrd = this.learningRateDecay
     val beta1 = this.beta1
@@ -37,7 +39,7 @@ class ParallelAdam[@specialized(Float, Double) T: ClassTag](
       ones = Tensor[T]().resize(taskSize + 1).fill(ev.one)
     }
 
-    (0 until parallelNum).foreach{tid =>
+    (0 until parallelNum).foreach { tid =>
       if (state.get[Tensor[T]](s"s$tid").isEmpty) {
         state(s"s$tid") = Tensor[T]()
         state(s"r$tid") = Tensor[T]()
@@ -45,18 +47,33 @@ class ParallelAdam[@specialized(Float, Double) T: ClassTag](
       }
     }
 
-    Engine.default.invokeAndWait((0 until parallelNum).map(tid => () => {
-      val offset = tid * taskSize + math.min(tid, extraTask)
-      val length = taskSize + (if (tid < extraTask) 1 else 0)
-      val curDfdx = dfdx.narrow(0, offset, length)
-      val curParam = parameter.narrow(0, offset, length)
-      val curOnes = ones.narrow(0, 0, length)
-      val _s = state.get[Tensor[T]](s"s$tid").get.resizeAs(curParam)
-      val _r = state.get[Tensor[T]](s"r$tid").get.resizeAs(curParam)
-      val _denom = state.get[Tensor[T]](s"denom$tid").get.resizeAs(curParam)
-      ParallelAdam.updateFrame(_s, _r, _denom, clr, curDfdx, curParam, beta1,
-        beta2, timestep, curOnes, eps)
-    }))
+    Engine.default.invokeAndWait(
+      (0 until parallelNum).map(tid =>
+        () => {
+          val offset = tid * taskSize + math.min(tid, extraTask)
+          val length = taskSize + (if (tid < extraTask) 1 else 0)
+          val curDfdx = dfdx.narrow(0, offset, length)
+          val curParam = parameter.narrow(0, offset, length)
+          val curOnes = ones.narrow(0, 0, length)
+          val _s = state.get[Tensor[T]](s"s$tid").get.resizeAs(curParam)
+          val _r = state.get[Tensor[T]](s"r$tid").get.resizeAs(curParam)
+          val _denom = state.get[Tensor[T]](s"denom$tid").get.resizeAs(curParam)
+          ParallelAdam.updateFrame(
+            _s,
+            _r,
+            _denom,
+            clr,
+            curDfdx,
+            curParam,
+            beta1,
+            beta2,
+            timestep,
+            curOnes,
+            eps
+          )
+        }
+      )
+    )
 
     state("evalCounter") = timestep
     (parameter, Array(fx))
@@ -64,7 +81,8 @@ class ParallelAdam[@specialized(Float, Double) T: ClassTag](
 
   override def loadFromTable(config: Table): this.type = {
     this.learningRate = config.get[Double]("learningRate").getOrElse(this.learningRate)
-    this.learningRateDecay = config.get[Double]("learningRateDecay").getOrElse(this.learningRateDecay)
+    this.learningRateDecay =
+      config.get[Double]("learningRateDecay").getOrElse(this.learningRateDecay)
     this.beta1 = config.get[Double]("beta1").getOrElse(this.beta1)
     this.beta2 = config.get[Double]("beta2").getOrElse(this.beta2)
     this.epsilon = config.get[Double]("Epsilon").getOrElse(this.epsilon)
@@ -80,9 +98,19 @@ class ParallelAdam[@specialized(Float, Double) T: ClassTag](
 }
 
 object ParallelAdam {
-  private[optim] def updateFrame[T: ClassTag](_s: Tensor[T], _r: Tensor[T], _denom: Tensor[T],
-      clr: Double, dfdx: Tensor[T], parameter: Tensor[T], beta1: Double, beta2: Double,
-      timestep: Int, ones: Tensor[T], eps: Double)(implicit ev: TensorNumeric[T]): Unit = {
+  private[optim] def updateFrame[T: ClassTag](
+      _s: Tensor[T],
+      _r: Tensor[T],
+      _denom: Tensor[T],
+      clr: Double,
+      dfdx: Tensor[T],
+      parameter: Tensor[T],
+      beta1: Double,
+      beta2: Double,
+      timestep: Int,
+      ones: Tensor[T],
+      eps: Double
+  )(implicit ev: TensorNumeric[T]): Unit = {
 
     _s.mul(ev.fromType[Double](beta1)).add(ev.fromType[Double](1 - beta1), dfdx)
     _denom.cmul(dfdx, dfdx)

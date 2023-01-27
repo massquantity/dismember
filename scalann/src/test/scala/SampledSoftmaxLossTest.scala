@@ -9,7 +9,8 @@ class SampledSoftmaxLossTest extends AnyFlatSpec {
   val numSampled = 4
   val numClasses = 200
   val learningRate = 7e-3
-  val inputVecs: Tensor[Double] = Tensor[Double](batchSize, embedSize).rand(-0.05, 0.05, seed = 2022)
+  val inputVecs: Tensor[Double] =
+    Tensor[Double](batchSize, embedSize).rand(-0.05, 0.05, seed = 2022)
   val weights: Tensor[Double] = Tensor[Double](numClasses, embedSize).randn(0.0, 0.01, seed = 2022)
   val biases: Tensor[Double] = Tensor[Double](numClasses).zero()
   val positiveItems: Array[Int] = Array(0, 1, 3, 2, 77, 101)
@@ -22,8 +23,11 @@ class SampledSoftmaxLossTest extends AnyFlatSpec {
     List(8, 99, 100, 12)
   )
   // positive + negative items
-  val sampledItems: Array[Int] = positiveItems zip negativeItems flatMap { case (pos, negs) => pos :: negs }
-  val targetTensor: Tensor[Double] = Tensor[Int](positiveItems, Array(batchSize)).asInstanceOf[Tensor[Double]]
+  val sampledItems: Array[Int] = positiveItems zip negativeItems flatMap { case (pos, negs) =>
+    pos :: negs
+  }
+  val targetTensor: Tensor[Double] =
+    Tensor[Int](positiveItems, Array(batchSize)).asInstanceOf[Tensor[Double]]
   val sampledSoftmax: SampledSoftmaxLoss[Double] = SampledSoftmaxLoss[Double](
     numSampled = numSampled,
     numClasses = numClasses,

@@ -10,10 +10,9 @@ import com.mass.scalann.nn.graphnn.Graph.ModuleNode
 import com.mass.scalann.tensor.{Tensor, TensorNumeric}
 import com.mass.scalann.utils.Table
 
-abstract class Graph[T: ClassTag](
-    val inputs: Seq[ModuleNode[T]],
-    val outputs: Seq[ModuleNode[T]])(
-    implicit ev: TensorNumeric[T]) extends AbstractModule[Activity, Activity, T] {
+abstract class Graph[T: ClassTag](val inputs: Seq[ModuleNode[T]], val outputs: Seq[ModuleNode[T]])(
+    implicit ev: TensorNumeric[T]
+) extends AbstractModule[Activity, Activity, T] {
 
   protected val modules = new ArrayBuffer[AbstractModule[Activity, Activity, T]]()
 
@@ -184,7 +183,7 @@ abstract class Graph[T: ClassTag](
     this
   }
 
-  override def clearState() : this.type = {
+  override def clearState(): this.type = {
     super.clearState()
     modules.foreach(_.clearState())
     this
@@ -211,15 +210,14 @@ object Graph {
 
   def apply[@specialized(Float, Double) T: ClassTag](
       input: Seq[ModuleNode[T]],
-      output: Seq[ModuleNode[T]])(
-      implicit ev: TensorNumeric[T]): Graph[T] = {
+      output: Seq[ModuleNode[T]]
+  )(implicit ev: TensorNumeric[T]): Graph[T] = {
     new StaticGraph[T](input, output)
   }
 
-  def apply[@specialized(Float, Double) T: ClassTag](
-      input: ModuleNode[T],
-      output: ModuleNode[T])(
-      implicit ev: TensorNumeric[T]): Graph[T] = {
+  def apply[@specialized(Float, Double) T: ClassTag](input: ModuleNode[T], output: ModuleNode[T])(
+      implicit ev: TensorNumeric[T]
+  ): Graph[T] = {
     new StaticGraph[T](Seq(input), Seq(output))
   }
 }

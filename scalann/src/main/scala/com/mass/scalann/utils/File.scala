@@ -4,7 +4,7 @@ import java.io._
 import java.net.URI
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream, FileSystem, Path}
+import org.apache.hadoop.fs.{FileSystem, FSDataInputStream, FSDataOutputStream, Path}
 import org.apache.hadoop.io.IOUtils
 
 object File {
@@ -27,16 +27,14 @@ object File {
     }
   }
 
-  def saveBytes(bytes: Array[Byte], fileName: String, isOverwrite: Boolean = false) : Unit = {
+  def saveBytes(bytes: Array[Byte], fileName: String, isOverwrite: Boolean = false): Unit = {
     var fw: FileWriter = null
     var out: OutputStream = null
-    var objFile: ObjectOutputStream = null
     try {
       fw = FileWriter(fileName)
       out = fw.create(isOverwrite)
       IOUtils.copyBytes(new ByteArrayInputStream(bytes), out, 1024, true)
     } finally {
-      if (null != objFile) objFile.close()
       if (null != out) out.close()
       if (null != fw) fw.close()
     }
@@ -100,12 +98,12 @@ object File {
   def load[T](fileName: String): T = {
     var fr: FileReader = null
     var in: InputStream = null
-    val objFile: ObjectInputStream = null
+    var objFile: ObjectInputStream = null
     try {
       fr = FileReader(fileName)
       in = fr.open()
       val bis = new BufferedInputStream(in)
-      val objFile = new ObjectInputStream(bis)
+      objFile = new ObjectInputStream(bis)
       objFile.readObject().asInstanceOf[T]
     } finally {
       if (null != in) in.close()
@@ -114,10 +112,9 @@ object File {
     }
   }
 
-  def readBytes[T](fileName : String) : Array[Byte] = {
+  def readBytes(fileName: String): Array[Byte] = {
     var fr: FileReader = null
     var in: InputStream = null
-    var objFile: ObjectInputStream = null
     try {
       fr = FileReader(fileName)
       in = fr.open()
@@ -127,7 +124,6 @@ object File {
     } finally {
       if (null != in) in.close()
       if (null != fr) fr.close()
-      if (null != objFile) objFile.close()
     }
   }
 
@@ -146,7 +142,6 @@ object File {
       if (null != fs) fs.close()
     }
   }
-
 }
 
 class FileReader(fileName: String) {

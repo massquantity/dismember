@@ -7,8 +7,8 @@ import com.mass.scalann.tensor.{Tensor, TensorNumeric}
 
 // -1 means inferring shape of one dimension,
 // also assumes first dimension is batch size, thus excluded.
-class Reshape[T: ClassTag](val size: Array[Int])(
-    implicit ev: TensorNumeric[T]) extends TensorModule[T] {
+class Reshape[T: ClassTag](val size: Array[Int])(implicit ev: TensorNumeric[T])
+    extends TensorModule[T] {
 
   require(size.count(_ != -1) >= size.length - 1, "only one dim is allowed to infer")
   private var inplace: Boolean = true
@@ -24,10 +24,12 @@ class Reshape[T: ClassTag](val size: Array[Int])(
       val index = size.indexOf(-1) + 1
       newSize(index) = totalSize / concreteSize
     } else {
-      require(size.product == inputSize.product,
+      require(
+        size.product == inputSize.product,
         s"reshape size must match original total size, " +
           s"reshape: ${size.mkString(" ")}, " +
-          s"inputSize: ${inputSize.mkString(" ")}")
+          s"inputSize: ${inputSize.mkString(" ")}"
+      )
     }
   }
 

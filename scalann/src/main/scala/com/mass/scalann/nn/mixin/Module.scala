@@ -6,8 +6,9 @@ import com.mass.scalann.tensor.{Tensor, TensorNumeric}
 
 object Module {
 
-  def flatten[@specialized(Float, Double) T: ClassTag](parameters: Array[Tensor[T]])(
-      implicit ev: TensorNumeric[T]): Tensor[T] = {
+  def flatten[@specialized(Float, Double) T: ClassTag](
+      parameters: Array[Tensor[T]]
+  )(implicit ev: TensorNumeric[T]): Tensor[T] = {
     val compactedTensor = isCompact(parameters)
     if (compactedTensor != null) {
       return compactedTensor
@@ -28,8 +29,13 @@ object Module {
     var offset = 0
     // by setting parameters close together in resultStorage, the parameters in model become compact.
     while (i < parameters.length) {
-      System.arraycopy(parameters(i).storage().array(), parameters(i).storageOffset(),
-        resultStorage.array(), offset, parameters(i).nElement())
+      System.arraycopy(
+        parameters(i).storage().array(),
+        parameters(i).storageOffset(),
+        resultStorage.array(),
+        offset,
+        parameters(i).nElement()
+      )
       parameters(i).set(resultStorage, offset, parameters(i).size(), parameters(i).stride())
       offset += parameters(i).nElement()
       i += 1
@@ -38,12 +44,15 @@ object Module {
     result
   }
 
-  def isCompact[@specialized(Float, Double) T: ClassTag](parameters: Array[Tensor[T]])(
-    implicit ev: TensorNumeric[T]): Tensor[T] = {
-    require(parameters.length > 0,
+  def isCompact[@specialized(Float, Double) T: ClassTag](
+      parameters: Array[Tensor[T]]
+  )(implicit ev: TensorNumeric[T]): Tensor[T] = {
+    require(
+      parameters.length > 0,
       "The length of parameters should >= 0" +
         "parameter length" +
-        s" ${parameters.length}")
+        s" ${parameters.length}"
+    )
     var i = 1
     val storage = parameters(0).storage()
     var length = parameters(0).nElement()

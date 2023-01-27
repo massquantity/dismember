@@ -20,7 +20,7 @@ class SoftMaxTest extends AnyFlatSpec with Matchers {
   "SoftMax backward" should "output expected values as in PyTorch" in {
     val gradOut = Tensor[Double](Array(0.5, 0.1, 0.6, 0.1, 0.9, 0.6), Array(2, 3))
     val gradInput = softmax.backward(input, gradOut)
-    val expectedGradInput = Array(0.0162, -0.0179,  0.0017, -0.1115,  0.0915,  0.0200)
+    val expectedGradInput = Array(0.0162, -0.0179, 0.0017, -0.1115, 0.0915, 0.0200)
     assert(gradInput.size() === input.size())
     gradInput.storage().array().zip(expectedGradInput) foreach { case (a, b) =>
       a shouldEqual b +- 1e-4
@@ -47,7 +47,7 @@ class SoftMaxTest extends AnyFlatSpec with Matchers {
   "LogSoftMax backward" should "output expected values as in PyTorch" in {
     val gradOut = Tensor[Double](Array(0.5, 0.1, 0.6, 0.1, 0.9, 0.6), Array(2, 3))
     val gradInput = lsm.backward(input2, gradOut)
-    val expectedGradInput = Array(-0.6270,  0.0439,  0.5831, -0.2885,  0.4707, -0.1822)
+    val expectedGradInput = Array(-0.6270, 0.0439, 0.5831, -0.2885, 0.4707, -0.1822)
     assert(gradInput.size() === input2.size())
     gradInput.storage().array().zip(expectedGradInput) foreach { case (a, b) =>
       a shouldEqual b +- 1e-4

@@ -2,15 +2,16 @@ package com.mass.scalann.nn.abstractnn
 
 import scala.reflect.ClassTag
 
-import com.mass.scalann.nn.graphnn.Graph.ModuleNode
 import com.mass.scalann.nn.graphnn.Edge
+import com.mass.scalann.nn.graphnn.Graph.ModuleNode
 import com.mass.scalann.nn.mixin.Module
 import com.mass.scalann.optim.OptimMethod
 import com.mass.scalann.tensor.{Tensor, TensorDataType, TensorNumeric}
 import org.apache.commons.lang3.SerializationUtils
 
 abstract class AbstractModule[A <: Activity: ClassTag, B <: Activity: ClassTag, T: ClassTag](
-    implicit ev: TensorNumeric[T]) extends Serializable {
+    implicit ev: TensorNumeric[T]
+) extends Serializable {
 
   var output: B = Activity.allocate[B, T]()
   var gradInput: A = Activity.allocate[A, T]()
@@ -35,7 +36,7 @@ abstract class AbstractModule[A <: Activity: ClassTag, B <: Activity: ClassTag, 
 
   def updateGradInput(input: A, gradOutput: B): A
 
-  def accGradParameters(input: A, gradOutput: B): Unit = { }
+  def accGradParameters(input: A, gradOutput: B): Unit = {}
 
   def parameters(): (Array[Tensor[T]], Array[Tensor[T]]) = null
 
@@ -90,7 +91,7 @@ abstract class AbstractModule[A <: Activity: ClassTag, B <: Activity: ClassTag, 
     }
   }
 
-  final def setName(name : String) : this.type = {
+  final def setName(name: String): this.type = {
     this.name = name
     this
   }
@@ -135,7 +136,7 @@ abstract class AbstractModule[A <: Activity: ClassTag, B <: Activity: ClassTag, 
     ev.getType
   }
 
-  def release(): Unit = { }
+  def release(): Unit = {}
 
   private val namePostfix = Integer.toHexString(java.util.UUID.randomUUID().hashCode())
 
@@ -163,13 +164,17 @@ abstract class AbstractModule[A <: Activity: ClassTag, B <: Activity: ClassTag, 
     val (weightParameters, gradParameters) = this.parameters()
 
     // maybe null if not weights in this module.
-    require(weightParameters != null && weightParameters.length > 0,
-      s"model ${this.getName} doesn't have any trainable parameters.")
+    require(
+      weightParameters != null && weightParameters.length > 0,
+      s"model ${this.getName} doesn't have any trainable parameters."
+    )
 
     // If some gradParameters did not allocated storage, allocate it
-    require(weightParameters.length == gradParameters.length,
-      "weights and gradient number are not match")
-    weightParameters.zip(gradParameters).foreach { case(w, g) =>
+    require(
+      weightParameters.length == gradParameters.length,
+      "weights and gradient number are not match"
+    )
+    weightParameters.zip(gradParameters).foreach { case (w, g) =>
       g.resizeAs(w)
     }
     (Module.flatten[T](weightParameters), Module.flatten[T](gradParameters))

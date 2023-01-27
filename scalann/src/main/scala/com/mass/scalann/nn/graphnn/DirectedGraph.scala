@@ -45,7 +45,7 @@ class DirectedGraph[T](val source: Node[T], val reverse: Boolean = false) extend
         val nextNodes = if (!reverse) node.nextNodes else node.prevNodes
         // to preserve order
         val nodesSet = mutable.LinkedHashSet.from(nextNodes)
-        for (n <- nodesSet; if !visited.contains(n) && !stack.contains(n)) {
+        for (n <- nodesSet if !visited.contains(n) && !stack.contains(n)) {
           stack.push(n)
         }
         node
@@ -67,7 +67,7 @@ class DirectedGraph[T](val source: Node[T], val reverse: Boolean = false) extend
         visited.add(node)
         val nextNodes = if (!reverse) node.nextNodes else node.prevNodes
         val nodesSet = mutable.LinkedHashSet.from(nextNodes)
-        for (n <- nodesSet; if !visited.contains(n) && !queue.contains(n)) {
+        for (n <- nodesSet if !visited.contains(n) && !queue.contains(n)) {
           queue.enqueue(n)
         }
         node

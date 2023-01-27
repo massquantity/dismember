@@ -8,15 +8,13 @@ import org.apache.commons.lang3.SerializationUtils
 
 trait OptimMethod[@specialized(Float, Double) T] extends Serializable {
 
-  var state: Table = Table(
-    "epoch" -> 0,
-    "trainIter" -> 0)
+  var state: Table = Table("epoch" -> 0, "trainIter" -> 0)
 
   def optimize(feval: Tensor[T] => (T, Tensor[T]), parameter: Tensor[T]): (Tensor[T], Array[T])
 
   def clearHistory(): Unit
 
-  def updateHyperParameter(): Unit = { }
+  def updateHyperParameter(): Unit = {}
 
   def getHyperParameter: String = ""
 
@@ -39,7 +37,7 @@ trait OptimMethod[@specialized(Float, Double) T] extends Serializable {
 
 object OptimMethod {
 
-  def load[T: ClassTag](path : String) : OptimMethod[T] = {
+  def load[T: ClassTag](path: String): OptimMethod[T] = {
     File.load[OptimMethod[T]](path)
   }
 }

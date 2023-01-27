@@ -7,13 +7,17 @@ import com.mass.scalann.tensor.{Tensor, TensorNumeric}
 import com.mass.scalann.utils.Table
 
 // element-wise add
-class Add[T: ClassTag]()(implicit ev: TensorNumeric[T]) extends AbstractModule[Table, Tensor[T], T] {
+class Add[T: ClassTag]()(implicit ev: TensorNumeric[T])
+    extends AbstractModule[Table, Tensor[T], T] {
 
   override def updateOutput(input: Table): Tensor[T] = {
     output.resizeAs(input(0)).copy(input(0))
     var i = 1
     while (i < input.length) {
-      require(input[Tensor[T]](i).isSameSizeAs(input[Tensor[T]](0)), "all inputs must have same size")
+      require(
+        input[Tensor[T]](i).isSameSizeAs(input[Tensor[T]](0)),
+        "all inputs must have same size"
+      )
       output.add(input[Tensor[T]](i))
       i += 1
     }

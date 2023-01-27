@@ -31,7 +31,8 @@ object DenseTensorBLAS {
       beta: T,
       c: Array[T],
       cOffset: Int,
-      ldc: Int)(implicit ev: TensorNumeric[T]): Unit = {
+      ldc: Int
+  )(implicit ev: TensorNumeric[T]): Unit = {
 
     val _transa = (transa == 't' || transa == 'T')
     val _transb = (transb == 't' || transb == 'T')
@@ -60,8 +61,24 @@ object DenseTensorBLAS {
       }
     }
 
-    ev.gemm(transa, transb, m, n, k, alpha, a, aOffset, _lda, b, bOffset, _ldb,
-      beta, c, cOffset, _ldc)
+    ev.gemm(
+      transa,
+      transb,
+      m,
+      n,
+      k,
+      alpha,
+      a,
+      aOffset,
+      _lda,
+      b,
+      bOffset,
+      _ldb,
+      beta,
+      c,
+      cOffset,
+      _ldc
+    )
   }
 
   /**
@@ -88,10 +105,10 @@ object DenseTensorBLAS {
       beta: T,
       y: Array[T],
       yOffset: Int,
-      incy: Int)(implicit ev: TensorNumeric[T]): Unit = {
+      incy: Int
+  )(implicit ev: TensorNumeric[T]): Unit = {
 
-    ev.gemv(trans, m, n, alpha, a, aOffset, lda, x, xOffset, incx, beta, y,
-      yOffset, incy)
+    ev.gemv(trans, m, n, alpha, a, aOffset, lda, x, xOffset, incx, beta, y, yOffset, incy)
   }
 
   /**
@@ -115,7 +132,8 @@ object DenseTensorBLAS {
       incy: Int,
       a: Array[T],
       aOffset: Int,
-      lda: Int)(implicit ev: TensorNumeric[T]): Unit = {
+      lda: Int
+  )(implicit ev: TensorNumeric[T]): Unit = {
 
     ev.ger(m, n, alpha, x, xOffset, incx, y, yOffset, incy, a, aOffset, lda)
   }

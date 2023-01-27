@@ -30,6 +30,6 @@ object Storage {
 
   def apply[T: ClassTag](size: Int): Storage[T] = new ArrayStorage[T](new Array[T](size))
 
-  def apply[@specialized(Float, Double) T: ClassTag](
-    data: Array[T]): Storage[T] = new ArrayStorage[T](data)
+  def apply[@specialized(Float, Double) T: ClassTag](data: Array[T]): Storage[T] =
+    new ArrayStorage[T](data)
 }

@@ -6,8 +6,8 @@ import com.mass.scalann.nn.abstractnn.AbstractModule
 import com.mass.scalann.tensor.{Tensor, TensorNumeric}
 import com.mass.scalann.utils.Table
 
-class Mask[T: ClassTag](useScale: Boolean = false, factor: Int = -1)(
-    implicit ev: TensorNumeric[T]) extends AbstractModule[Table, Tensor[T], T] {
+class Mask[T: ClassTag](useScale: Boolean = false, factor: Int = -1)(implicit ev: TensorNumeric[T])
+    extends AbstractModule[Table, Tensor[T], T] {
 
   private val scaleFactor = if (useScale) 1.0 / math.sqrt(factor) else 1.0
   private val maskValue = Float.MinValue
@@ -52,7 +52,7 @@ class Mask[T: ClassTag](useScale: Boolean = false, factor: Int = -1)(
       }
     }
 
-  //  gradInput[Tensor[Int]](1).resizeAs(input(1)).zero()
+    //  gradInput[Tensor[Int]](1).resizeAs(input(1)).zero()
     gradInput
   }
 
@@ -63,9 +63,9 @@ class Mask[T: ClassTag](useScale: Boolean = false, factor: Int = -1)(
 }
 
 object Mask {
-  def apply[@specialized(Float, Double) T: ClassTag](
-      useScale: Boolean = false, factor: Int = -1)(
-      implicit ev: TensorNumeric[T]): Mask[T] = {
+  def apply[@specialized(Float, Double) T: ClassTag](useScale: Boolean = false, factor: Int = -1)(
+      implicit ev: TensorNumeric[T]
+  ): Mask[T] = {
     new Mask[T](useScale, factor)
   }
 }

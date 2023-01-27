@@ -11,8 +11,10 @@ class EmbeddingShare[T: ClassTag](
     val nIndex: Int,
     val embedSize: Int,
     val paddingIdx: Int = -1,
-    val embedWeight: Option[Tensor[T]] = None)(
-    implicit ev: TensorNumeric[T]) extends AbstractModule[Table, Table, T] with LookupTable[T] {
+    val embedWeight: Option[Tensor[T]] = None
+)(implicit ev: TensorNumeric[T])
+    extends AbstractModule[Table, Table, T]
+    with LookupTable[T] {
 
   val weight: Tensor[T] = embedWeight match {
     case Some(embed) => embed
@@ -31,7 +33,8 @@ class EmbeddingShare[T: ClassTag](
       inputBuffer(i) = input[Tensor[T]](i).contiguous().asInstanceOf[Tensor[Int]]
       val batchSize = input[Tensor[T]](i).size(0)
       val numElem = inputBuffer[Tensor[T]](i).nElement()
-      output(i) = output.getOrElse[Tensor[T]](i, Tensor())
+      output(i) = output
+        .getOrElse[Tensor[T]](i, Tensor())
         .resize(Array(numElem, embedSize))
 
       val index = inputBuffer[Tensor[Int]](i).storage().array()
@@ -41,12 +44,21 @@ class EmbeddingShare[T: ClassTag](
       val weightData = weight.storage().array()
       val weightOffset = weight.storageOffset()
 
-      embeddingLookup(numElem, index, indexOffset, outputData, outputOffset,
-        weightData, weightOffset, embedSize, nIndex, paddingIdx)
+      embeddingLookup(
+        numElem,
+        index,
+        indexOffset,
+        outputData,
+        outputOffset,
+        weightData,
+        weightOffset,
+        embedSize,
+        nIndex,
+        paddingIdx
+      )
 
       if (input[Tensor[T]](i).dim() == 2) {
-        output(i) = output[Tensor[T]](i).view(
-          batchSize, input[Tensor[T]](i).size(1), embedSize)
+        output(i) = output[Tensor[T]](i).view(batchSize, input[Tensor[T]](i).size(1), embedSize)
       }
       i += 1
     }
@@ -56,8 +68,10 @@ class EmbeddingShare[T: ClassTag](
   override def updateGradInput(input: Table, gradOutput: Table): Table = {
     var i = 0
     while (i < input.length) {
-      gradInput(i) = gradInput.getOrElse[Tensor[T]](i, Tensor())
-        .resizeAs(input(i)).zero()
+      gradInput(i) = gradInput
+        .getOrElse[Tensor[T]](i, Tensor())
+        .resizeAs(input(i))
+        .zero()
       i += 1
     }
     gradInput
@@ -77,8 +91,18 @@ class EmbeddingShare[T: ClassTag](
       val gradOutputData = _gradOutput.storage().array()
       val gradOutputOffset = _gradOutput.storageOffset()
 
-      updateEmbeddings(numElem, inputData, inputOffset, gradOutputData, gradOutputOffset,
-        gradWeightData, gradWeightOffset, embedSize, paddingIdx, scaleW)
+      updateEmbeddings(
+        numElem,
+        inputData,
+        inputOffset,
+        gradOutputData,
+        gradOutputOffset,
+        gradWeightData,
+        gradWeightOffset,
+        embedSize,
+        paddingIdx,
+        scaleW
+      )
 
       i += 1
     }
@@ -100,8 +124,8 @@ object EmbeddingShare {
       nIndex: Int,
       nOutput: Int,
       paddingIdx: Int = -1,
-      embedWeight: Option[Tensor[T]] = None)(
-      implicit ev: TensorNumeric[T]): EmbeddingShare[T] = {
+      embedWeight: Option[Tensor[T]] = None
+  )(implicit ev: TensorNumeric[T]): EmbeddingShare[T] = {
     new EmbeddingShare[T](nIndex, nOutput, paddingIdx)
   }
 }

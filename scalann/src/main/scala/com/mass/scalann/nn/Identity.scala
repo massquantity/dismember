@@ -20,8 +20,9 @@ class Identity[T: ClassTag]()(implicit ev: TensorNumeric[T])
 }
 
 object Identity {
-  def apply[@specialized(Float, Double) T: ClassTag]()(
-      implicit ev: TensorNumeric[T]): Identity[T] = {
+  def apply[@specialized(Float, Double) T: ClassTag]()(implicit
+      ev: TensorNumeric[T]
+  ): Identity[T] = {
     new Identity[T]()
   }
 }

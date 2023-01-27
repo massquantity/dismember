@@ -6,8 +6,8 @@ import com.mass.scalann.nn.abstractnn.AbstractModule
 import com.mass.scalann.tensor.{Tensor, TensorNumeric}
 import com.mass.scalann.utils.Table
 
-class Concat[T: ClassTag](flatten: Boolean = false)(
-    implicit ev: TensorNumeric[T]) extends AbstractModule[Table, Tensor[T], T] {
+class Concat[T: ClassTag](flatten: Boolean = false)(implicit ev: TensorNumeric[T])
+    extends AbstractModule[Table, Tensor[T], T] {
 
   override def updateOutput(input: Table): Tensor[T] = {
     val frontSize = input[Tensor[T]](0).size().init
@@ -34,8 +34,7 @@ class Concat[T: ClassTag](flatten: Boolean = false)(
       while (j < n) {
         val inputOffset = j * inputSize
         val outputOffset = j * outputSize + dimPosition
-        System.arraycopy(inputData, inputOffset,
-          outputData, outputOffset, inputSize)
+        System.arraycopy(inputData, inputOffset, outputData, outputOffset, inputSize)
         j += 1
       }
       dimPosition += inputSize
@@ -64,8 +63,13 @@ class Concat[T: ClassTag](flatten: Boolean = false)(
       while (j < n) {
         val gradInputOffset = j * gradInputSize
         val gradOutputOffset = j * gradOutputSize + dimPosition
-        System.arraycopy(gradOutputData, gradOutputOffset,
-          gradInputData, gradInputOffset, gradInputSize)
+        System.arraycopy(
+          gradOutputData,
+          gradOutputOffset,
+          gradInputData,
+          gradInputOffset,
+          gradInputSize
+        )
         j += 1
       }
       dimPosition += gradInputSize
@@ -83,8 +87,9 @@ class Concat[T: ClassTag](flatten: Boolean = false)(
 }
 
 object Concat {
-  def apply[@specialized(Float, Double) T: ClassTag](flatten: Boolean = false)(
-      implicit ev: TensorNumeric[T]): Concat[T] = {
+  def apply[@specialized(Float, Double) T: ClassTag](
+      flatten: Boolean = false
+  )(implicit ev: TensorNumeric[T]): Concat[T] = {
     new Concat[T](flatten)
   }
 }

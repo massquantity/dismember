@@ -10,13 +10,16 @@ class Adam[@specialized(Float, Double) T: ClassTag](
     var learningRateDecay: Double = 0.0,
     var beta1: Double = 0.9,
     var beta2: Double = 0.999,
-    var epsilon: Double = 1e-8)(implicit ev: TensorNumeric[T]) extends OptimMethod[T] {
+    var epsilon: Double = 1e-8
+)(implicit ev: TensorNumeric[T])
+    extends OptimMethod[T] {
 
   @transient private var buffer: Tensor[T] = _
 
   override def optimize(
       feval: Tensor[T] => (T, Tensor[T]),
-      parameter: Tensor[T]): (Tensor[T], Array[T]) = {
+      parameter: Tensor[T]
+  ): (Tensor[T], Array[T]) = {
 
     if (buffer == null) {
       buffer = Tensor[T]()
@@ -31,13 +34,17 @@ class Adam[@specialized(Float, Double) T: ClassTag](
     var timestep = state.getOrElse[Int]("trainCounter", 0)
     val (_s, _r, _denom) = {
       if (state.get[Tensor[T]]("s").isDefined) {
-        (state.get[Tensor[T]]("s").get,
-         state.get[Tensor[T]]("r").get,
-         state.get[Tensor[T]]("denom").get.resizeAs(dfdx))
+        (
+          state.get[Tensor[T]]("s").get,
+          state.get[Tensor[T]]("r").get,
+          state.get[Tensor[T]]("denom").get.resizeAs(dfdx)
+        )
       } else {
-        (Tensor[T]().resizeAs(dfdx).zero(),
-         Tensor[T]().resizeAs(dfdx).zero(),
-         Tensor[T]().resizeAs(dfdx).zero())
+        (
+          Tensor[T]().resizeAs(dfdx).zero(),
+          Tensor[T]().resizeAs(dfdx).zero(),
+          Tensor[T]().resizeAs(dfdx).zero()
+        )
       }
     }
 
@@ -67,7 +74,8 @@ class Adam[@specialized(Float, Double) T: ClassTag](
 
   override def loadFromTable(config: Table): this.type = {
     this.learningRate = config.get[Double]("learningRate").getOrElse(this.learningRate)
-    this.learningRateDecay = config.get[Double]("learningRateDecay").getOrElse(this.learningRateDecay)
+    this.learningRateDecay =
+      config.get[Double]("learningRateDecay").getOrElse(this.learningRateDecay)
     this.beta1 = config.get[Double]("beta1").getOrElse(this.beta1)
     this.beta2 = config.get[Double]("beta2").getOrElse(this.beta2)
     this.epsilon = config.get[Double]("Epsilon").getOrElse(this.epsilon)
@@ -88,7 +96,8 @@ object Adam {
       learningRateDecay: Double = 0.0,
       beta1: Double = 0.9,
       beta2: Double = 0.999,
-      epsilon: Double = 1e-8)(implicit ev: TensorNumeric[T]): Adam[T] = {
+      epsilon: Double = 1e-8
+  )(implicit ev: TensorNumeric[T]): Adam[T] = {
     new Adam[T](learningRate, learningRateDecay, beta1, beta2, epsilon)
   }
 }

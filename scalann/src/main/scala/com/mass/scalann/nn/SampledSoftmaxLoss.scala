@@ -22,12 +22,17 @@ class SampledSoftmaxLoss[@specialized(Float, Double) T: ClassTag](
     override val weights: Tensor[T],
     override val biases: Tensor[T],
     batchMode: Boolean = false,
-    sampledValues: Option[Array[Int]] = None)(
-    implicit ev: TensorNumeric[T]) extends AbstractCriterion[T] with ParameterOptimizer[T] {
-  require(numSampled < numClasses,
-    s"numSampled $numSampled < numClasses $numClasses, try using Softmax directly.")
+    sampledValues: Option[Array[Int]] = None
+)(implicit ev: TensorNumeric[T])
+    extends AbstractCriterion[T]
+    with ParameterOptimizer[T] {
+
+  require(
+    numSampled < numClasses,
+    s"numSampled $numSampled < numClasses $numClasses, try using Softmax directly."
+  )
+  import ParameterOptimizer.{createTensor, initState}
   import SampledSoftmaxLoss.{uniformSampler, uniformSamplerBatch}
-  import ParameterOptimizer.{initState, createTensor}
 
   private val crossEntropyLoss = CrossEntropyCriterion[T]()
   private var crossEntropyGrad: Tensor[T] = _
@@ -45,19 +50,19 @@ class SampledSoftmaxLoss[@specialized(Float, Double) T: ClassTag](
     val batchSize = inputVecs.size(0)
     val labels = target.toTensor[Int].storage().array()
     sampledItems = sampledValues match {
-        case Some(s) => s
-        case None =>
-          // positive + negative items
-          if (batchMode) {
-            uniformSamplerBatch(labels, numSampled, numClasses)
-          } else {
-            uniformSampler(labels, numSampled, numClasses)
-          }
-      }
+      case Some(s) => s
+      case None =>
+        // positive + negative items
+        if (batchMode) {
+          uniformSamplerBatch(labels, numSampled, numClasses)
+        } else {
+          uniformSampler(labels, numSampled, numClasses)
+        }
+    }
     val sampledBiasEmbed = embeddingLookup(biases, sampledItems, batchSize)
     sampledWeightEmbed = embeddingLookup(weights, sampledItems, batchSize, embedSize)
     logitsBuffer = linear(inputVecs, sampledWeightEmbed, sampledBiasEmbed)
-    labelPosition = Tensor[T](batchSize).zero()  // all labels are in the first place.
+    labelPosition = Tensor[T](batchSize).zero() // all labels are in the first place.
     output = crossEntropyLoss.updateOutput(logitsBuffer, labelPosition)
     output
   }
@@ -77,10 +82,10 @@ class SampledSoftmaxLoss[@specialized(Float, Double) T: ClassTag](
   }
 
   private def embeddingLookup(
-    embedWeights: Tensor[T],
-    indices: Array[Int],
-    batchSize: Int,
-    embedSize: Int = 1
+      embedWeights: Tensor[T],
+      indices: Array[Int],
+      batchSize: Int,
+      embedSize: Int = 1
   ): Tensor[T] = {
     val weightData = embedWeights.storage().array()
     if (embedWeights.dim() == 1) {
@@ -97,10 +102,7 @@ class SampledSoftmaxLoss[@specialized(Float, Double) T: ClassTag](
     }
   }
 
-  private def linear(
-      inputVecs: Tensor[T],
-      weights: Tensor[T],
-      biases: Tensor[T]): Tensor[T] = {
+  private def linear(inputVecs: Tensor[T], weights: Tensor[T], biases: Tensor[T]): Tensor[T] = {
     val batchSize = inputVecs.size(0)
     val output = Tensor[T](batchSize, numSampled + 1)
     0 until batchSize foreach { i =>
@@ -160,8 +162,8 @@ object SampledSoftmaxLoss {
       weights: Tensor[T],
       biases: Tensor[T],
       batchMode: Boolean,
-      sampledValues: Option[Array[Int]] = None)(
-      implicit ev: TensorNumeric[T]): SampledSoftmaxLoss[T] = {
+      sampledValues: Option[Array[Int]] = None
+  )(implicit ev: TensorNumeric[T]): SampledSoftmaxLoss[T] = {
     new SampledSoftmaxLoss[T](
       numSampled,
       numClasses,
@@ -196,7 +198,11 @@ object SampledSoftmaxLoss {
     sampledResult
   }
 
-  private def uniformSamplerBatch(labels: Array[Int], numSampled: Int, numClasses: Int): Array[Int] = {
+  private def uniformSamplerBatch(
+      labels: Array[Int],
+      numSampled: Int,
+      numClasses: Int
+  ): Array[Int] = {
     val labelSet = labels.to(immutable.BitSet)
     val hasSampled = new mutable.BitSet()
     while (hasSampled.size < numSampled) {

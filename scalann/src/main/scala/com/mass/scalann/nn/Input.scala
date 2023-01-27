@@ -7,7 +7,8 @@ import com.mass.scalann.nn.graphnn.Graph.ModuleNode
 import com.mass.scalann.nn.graphnn.Node
 import com.mass.scalann.tensor.TensorNumeric
 
-class Input[T: ClassTag]()(implicit ev: TensorNumeric[T]) extends AbstractModule[Activity, Activity, T] {
+class Input[T: ClassTag]()(implicit ev: TensorNumeric[T])
+    extends AbstractModule[Activity, Activity, T] {
 
   override def updateOutput(input: Activity): Activity = {
     output = input
@@ -20,7 +21,7 @@ class Input[T: ClassTag]()(implicit ev: TensorNumeric[T]) extends AbstractModule
   }
 }
 
-object Input{
+object Input {
   def apply[T: ClassTag](name: String = null)(implicit ev: TensorNumeric[T]): ModuleNode[T] = {
     val module = new Input()
     if (name != null) {

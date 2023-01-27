@@ -41,13 +41,13 @@ trait TensorMath[T] {
 
   def add(y: Tensor[T]): Tensor[T]
 
-  def sub(y : Tensor[T]) : Tensor[T]
+  def sub(y: Tensor[T]): Tensor[T]
 
-  def sub(value : T) : Tensor[T]
+  def sub(value: T): Tensor[T]
 
   def log(): Tensor[T]
 
-  def pow(y: Tensor[T], n : T): Tensor[T]
+  def pow(y: Tensor[T], n: T): Tensor[T]
 
   def pow(n: T): Tensor[T]
 

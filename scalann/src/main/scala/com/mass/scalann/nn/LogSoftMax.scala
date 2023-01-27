@@ -61,7 +61,7 @@ class LogSoftMax[T: ClassTag](implicit ev: TensorNumeric[T]) extends TensorModul
     gradOut.add(ev.negative(outSum), buffer)
   }
 
-  override def clearState() : this.type = {
+  override def clearState(): this.type = {
     super.clearState()
     ones.set()
     buffer.set()
@@ -70,8 +70,9 @@ class LogSoftMax[T: ClassTag](implicit ev: TensorNumeric[T]) extends TensorModul
 }
 
 object LogSoftMax {
-  def apply[@specialized(Float, Double) T: ClassTag]()(
-    implicit ev: TensorNumeric[T]): LogSoftMax[T] = {
+  def apply[@specialized(Float, Double) T: ClassTag]()(implicit
+      ev: TensorNumeric[T]
+  ): LogSoftMax[T] = {
     new LogSoftMax[T]()
   }
 }
