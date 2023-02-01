@@ -1,30 +1,38 @@
+import java.io.File
+
 import com.mass.jtm.optim.JTM
 import com.mass.jtm.tree.TreeUtil
 import com.mass.scalann.utils.Engine
 import com.mass.scalann.utils.Property.filePath
+import org.apache.commons.io.FileUtils
 import org.apache.log4j.{Level, Logger}
 import org.scalatest.flatspec.AnyFlatSpec
 
-class JTMTest extends AnyFlatSpec {
-  Logger.getLogger("com.mass").setLevel(Level.INFO)
+class JtmSpec extends AnyFlatSpec {
 
-  val numThread = 8
-  Engine.setCoreNumber(numThread)
-  val prefix = s"${filePath("jtm")}/data/"
+  Logger.getLogger("com.mass").setLevel(Level.INFO)
+  Engine.setCoreNumber(8)
+
+  val dataPath = s"${filePath("jtm")}/data/jtm/train_data.csv"
+  val treePath = s"${filePath("jtm")}/data/jtm/example_tree.bin"
+  val modelPath = s"${filePath("jtm")}/data/jtm/example_model.bin"
+  val testPath = s"${filePath("jtm")}/test_path"
+  FileUtils.forceMkdir(new File(testPath))
+
   val jtm = JTM(
-    dataPath = prefix + "train_data.csv",
-    treePath = prefix + "example_tree.bin",
-    modelPath = prefix + "example_model.bin",
+    dataPath = dataPath,
+    treePath = treePath,
+    modelPath = modelPath,
     gap = 2,
     seqLen = 10,
     hierarchical = false,
     minLevel = 0,
-    numThreads = numThread,
+    numThreads = 8,
     useMask = true
   )
   val projection = jtm.optimize()
   val treeMeta = TreeUtil.getTreeMeta(jtm)
-  TreeUtil.writeTree(jtm, projection, prefix + "jtm_tree.bin")
+  TreeUtil.writeTree(jtm, projection, s"$testPath/jtm_tree.bin")
 
   "Final projection" should "have correct leaf size" in {
     assert(projection.size == treeMeta.leafNum)
@@ -41,4 +49,6 @@ class JTMTest extends AnyFlatSpec {
     assert(projection.values.min >= minLeafCode)
     assert(projection.values.max <= maxLeafCode)
   }
+
+  FileUtils.deleteDirectory(FileUtils.getFile(testPath))
 }
