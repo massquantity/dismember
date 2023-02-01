@@ -12,7 +12,8 @@ class JTM(
     override val hierarchical: Boolean,
     override val minLevel: Int,
     override val numThreads: Int,
-    override val useMask: Boolean) extends TreeLearning {
+    override val useMask: Boolean
+) extends TreeLearning {
   val logger: Logger = Logger.getLogger(getClass)
 
   // When num of nodes in one level is smaller than numThreads,
@@ -21,7 +22,7 @@ class JTM(
   override def optimize(): Map[Int, Int] = {
     val initProjection = tree.leafCodes.map { itemCode =>
       val itemId = tree.codeNodeMap(itemCode).id
-      itemId -> 0  // first all assign to root node
+      itemId -> 0 // first all assign to root node
     }.toMap
 
     (0 until maxLevel by gap).foldLeft(initProjection) { case (oldProjection, oldLevel) =>
@@ -48,17 +49,20 @@ class JTM(
             (0 until numThreads).map { i => () =>
               val start = i * taskSize + math.min(i, extraSize)
               val end = start + taskSize + (if (i < extraSize) 1 else 0)
-              currentNodes.slice(start, end).flatMap { node =>
-                val itemsAssignedToNode = reverseProjection(node)
-                getChildrenProjection(
-                  oldLevel,
-                  level,
-                  node,
-                  itemsAssignedToNode,
-                  modelIdx = i,
-                  parallelItems = false
-                )
-              }.toMap
+              currentNodes
+                .slice(start, end)
+                .flatMap { node =>
+                  val itemsAssignedToNode = reverseProjection(node)
+                  getChildrenProjection(
+                    oldLevel,
+                    level,
+                    node,
+                    itemsAssignedToNode,
+                    modelIdx = i,
+                    parallelItems = false
+                  )
+                }
+                .toMap
             }
           )
         }
@@ -72,15 +76,15 @@ class JTM(
 object JTM {
 
   def apply(
-    dataPath: String,
-    treePath: String,
-    modelPath: String,
-    gap: Int,
-    seqLen: Int,
-    hierarchical: Boolean,
-    minLevel: Int,
-    numThreads: Int,
-    useMask: Boolean
+      dataPath: String,
+      treePath: String,
+      modelPath: String,
+      gap: Int,
+      seqLen: Int,
+      hierarchical: Boolean,
+      minLevel: Int,
+      numThreads: Int,
+      useMask: Boolean
   ): JTM = {
     new JTM(
       dataPath,

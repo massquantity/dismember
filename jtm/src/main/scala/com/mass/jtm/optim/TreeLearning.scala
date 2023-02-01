@@ -46,12 +46,12 @@ trait TreeLearning {
   }
 
   protected def getChildrenProjection(
-    oldLevel: Int,
-    level: Int,
-    node: Int,
-    itemsAssignedToNode: Array[Int],
-    modelIdx: Int = 0,
-    parallelItems: Boolean
+      oldLevel: Int,
+      level: Int,
+      node: Int,
+      itemsAssignedToNode: Array[Int],
+      modelIdx: Int = 0,
+      parallelItems: Boolean
   ): Map[Int, Int] = {
     val maxAssignNum = math.pow(2, maxLevel - level).toInt
     val childrenAtLevel = tree.getChildrenAtLevel(node, oldLevel, level)
@@ -63,10 +63,12 @@ trait TreeLearning {
       modelIdx,
       parallelItems
     )
-    val nodeItemMapWithWeights = itemsAssignedToNode.map { item =>
-      val (maxWeightChildNode, maxWeight) = candidateNodeWeights(item).head
-      maxWeightChildNode -> ItemInfo(item, maxWeight, 1)
-    }.groupMap(_._1)(_._2)
+    val nodeItemMapWithWeights = itemsAssignedToNode
+      .map { item =>
+        val (maxWeightChildNode, maxWeight) = candidateNodeWeights(item).head
+        maxWeightChildNode -> ItemInfo(item, maxWeight, 1)
+      }
+      .groupMap(_._1)(_._2)
 
     val oldItemNodeMap = itemsAssignedToNode.map { item =>
       item -> tree.getAncestorAtLevel(item, level)
@@ -80,10 +82,12 @@ trait TreeLearning {
       candidateNodeWeights
     )
     balancedNodesMap.foreach { case (_, items) =>
-      assert(items.length <= maxAssignNum,
+      assert(
+        items.length <= maxAssignNum,
         s"items in one node should not exceed maxAssignNum, " +
           s"items length: ${items.length}, " +
-          s"maxAssignNum: $maxAssignNum")
+          s"maxAssignNum: $maxAssignNum"
+      )
     }
 
     for {
@@ -93,30 +97,32 @@ trait TreeLearning {
   }
 
   private def computeWeightsForItemsAtLevel(
-    itemsAssignedToNode: Array[Int],
-    currentNode: Int,
-    childrenNodes: Array[Int],
-    level: Int,
-    modelIdx: Int,
-    parallelItems: Boolean
+      itemsAssignedToNode: Array[Int],
+      currentNode: Int,
+      childrenNodes: Array[Int],
+      level: Int,
+      modelIdx: Int,
+      parallelItems: Boolean
   ): Map[Int, Array[(Int, Float)]] = {
     if (parallelItems) {
       val taskSize = itemsAssignedToNode.length / numThreads
       val extraSize = itemsAssignedToNode.length % numThreads
       val realParallelism = if (taskSize == 0) extraSize else numThreads
-      Engine.default.invokeAndWait(
-        (0 until realParallelism).map { i => () =>
-          val start = i * taskSize + math.min(i, extraSize)
-          val end = start + taskSize + (if (i < extraSize) 1 else 0)
-          sortNodeWeights(
-            itemsAssignedToNode.slice(start, end),
-            currentNode,
-            childrenNodes,
-            level,
-            i
-          )
-        }
-      ).reduce(_ ++ _)
+      Engine.default
+        .invokeAndWait(
+          (0 until realParallelism).map { i => () =>
+            val start = i * taskSize + math.min(i, extraSize)
+            val end = start + taskSize + (if (i < extraSize) 1 else 0)
+            sortNodeWeights(
+              itemsAssignedToNode.slice(start, end),
+              currentNode,
+              childrenNodes,
+              level,
+              i
+            )
+          }
+        )
+        .reduce(_ ++ _)
     } else {
       sortNodeWeights(
         itemsAssignedToNode,
@@ -129,11 +135,11 @@ trait TreeLearning {
   }
 
   private def sortNodeWeights(
-    itemsAssignedToNode: Array[Int],
-    currentNode: Int,
-    childrenNodes: Array[Int],
-    level: Int,
-    modelIdx: Int,
+      itemsAssignedToNode: Array[Int],
+      currentNode: Int,
+      childrenNodes: Array[Int],
+      level: Int,
+      modelIdx: Int
   ): Map[Int, Array[(Int, Float)]] = {
     itemsAssignedToNode.map { item =>
       val childrenWeights = childrenNodes.map { childNode =>
@@ -144,11 +150,11 @@ trait TreeLearning {
   }
 
   private def aggregateWeights(
-    item: Int,
-    currentNode: Int,
-    childNode: Int,
-    level: Int,
-    modelIdx: Int
+      item: Int,
+      currentNode: Int,
+      childNode: Int,
+      level: Int,
+      modelIdx: Int
   ): Float = {
     // items that never appeared as target are assigned low weights
     if (!itemSequenceMap.contains(item)) return -1e6f
@@ -193,27 +199,30 @@ object TreeLearning {
   case class ItemInfo(id: Int, weight: Float, nextWeightIdx: Int)
 
   private def getMaxNode(
-    nodeItemMap: mutable.Map[Int, ArrayBuffer[ItemInfo]],
-    nodes: Array[Int],
-    processedNodes: mutable.HashSet[Int]
+      nodeItemMap: mutable.Map[Int, ArrayBuffer[ItemInfo]],
+      nodes: Array[Int],
+      processedNodes: mutable.HashSet[Int]
   ): (Int, Int) = {
-    nodes.map { node =>
-      if (!processedNodes.contains(node) && nodeItemMap.contains(node)) {
-        (nodeItemMap(node).length, node)
-      } else {
-        (-1, 0)
+    nodes
+      .map { node =>
+        if (!processedNodes.contains(node) && nodeItemMap.contains(node)) {
+          (nodeItemMap(node).length, node)
+        } else {
+          (-1, 0)
+        }
       }
-    }.maxBy(_._1)
+      .maxBy(_._1)
   }
 
   def reBalance(
-    nodeItemMapWithWeights: Map[Int, Array[ItemInfo]],
-    oldItemNodeMap: Map[Int, Int],
-    childrenAtLevel: Array[Int],
-    maxAssignNum: Int,
-    candidateNodeWeightsOfItems: Map[Int, Array[(Int, Float)]]
+      nodeItemMapWithWeights: Map[Int, Array[ItemInfo]],
+      oldItemNodeMap: Map[Int, Int],
+      childrenAtLevel: Array[Int],
+      maxAssignNum: Int,
+      candidateNodeWeightsOfItems: Map[Int, Array[(Int, Float)]]
   ): Map[Int, ArrayBuffer[ItemInfo]] = {
-    implicit val ord: Ordering[(Boolean, Float)] = Ordering.Tuple2(Ordering.Boolean, Ordering[Float].reverse)
+    implicit val ord: Ordering[(Boolean, Float)] =
+      Ordering.Tuple2(Ordering.Boolean, Ordering[Float].reverse)
     val resMap = nodeItemMapWithWeights.view.mapValues(_.to(ArrayBuffer)).to(mutable.Map)
     val processedNodes = new mutable.HashSet[Int]()
     var finished = false

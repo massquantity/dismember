@@ -13,9 +13,17 @@ object TreeUtil {
   case class TreeMeta(leafNum: Int, maxLevel: Int, itemIds: Seq[Int])
 
   val getTreeMeta: TreeLearning => TreeMeta = jtmModel =>
-    TreeMeta(jtmModel.tree.leafCodes.size, jtmModel.tree.maxLevel, jtmModel.tree.idCodeMap.keys.toSeq)
+    TreeMeta(
+      jtmModel.tree.leafCodes.size,
+      jtmModel.tree.maxLevel,
+      jtmModel.tree.idCodeMap.keys.toSeq
+    )
 
-  def writeTree(jtmModel: TreeLearning, projectionPi: Map[Int, Int], outputTreePath: String): Unit = {
+  def writeTree(
+      jtmModel: TreeLearning,
+      projectionPi: Map[Int, Int],
+      outputTreePath: String
+  ): Unit = {
     jtmModel.tree.writeTree(projectionPi, outputTreePath)
   }
 
@@ -31,10 +39,10 @@ object TreeUtil {
   }
 
   def flattenLeaves(
-    projectionPi: mutable.Map[Int, Int],
-    leafCodes: mutable.BitSet,
-    idCodeMap: Map[Int, Int],
-    maxLevel: Int
+      projectionPi: mutable.Map[Int, Int],
+      leafCodes: mutable.BitSet,
+      idCodeMap: Map[Int, Int],
+      maxLevel: Int
   ): Unit = {
     val minLeafCode = math.pow(2, maxLevel).toInt - 1
     val projection = projectionPi.toArray
@@ -47,9 +55,11 @@ object TreeUtil {
         projectionLeafCodes.contains(oldCode)
       })
 
-    println(s"unassigned nodes: ${unAssignedLeafCodes.size}, " +
-      s"no place items: ${noPlaceItems.length}, " +
-      s"original place items: ${originalPlaceItems.length}")
+    println(
+      s"unassigned nodes: ${unAssignedLeafCodes.size}, " +
+        s"no place items: ${noPlaceItems.length}, " +
+        s"original place items: ${originalPlaceItems.length}"
+    )
 
     // projectionPi doesn't contain these leaf codes, so original places are kept
     originalPlaceItems.foreach { case (itemId, _) =>
