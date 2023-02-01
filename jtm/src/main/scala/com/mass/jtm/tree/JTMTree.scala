@@ -57,10 +57,10 @@ class JTMTree extends DistTree with Serializable {
   }
 
   def idToCode(
-    itemIds: Array[Int],
-    level: Int,
-    hierarchical: Boolean,
-    minLevel: Int
+      itemIds: Array[Int],
+      level: Int,
+      hierarchical: Boolean,
+      minLevel: Int
   ): Array[Int] = {
     val res = new Array[Int](itemIds.length)
     var i = 0
@@ -69,12 +69,11 @@ class JTMTree extends DistTree with Serializable {
       if (id == paddingId) {
         res(i) = paddingIdx
       } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
-        res(i) =
-          if (hierarchical && level >= minLevel) {
-            getAncestorAtLevel(id, level)
-          } else {
-            idCodeMap(id)
-          }
+        res(i) = if (hierarchical && level >= minLevel) {
+          getAncestorAtLevel(id, level)
+        } else {
+          idCodeMap(id)
+        }
       } else {
         res(i) = id - nonLeafOffset
         if (res(i) > maxCode) res(i) = paddingIdx
@@ -85,10 +84,10 @@ class JTMTree extends DistTree with Serializable {
   }
 
   def idToCodeWithMask(
-    itemIds: Array[Int],
-    level: Int,
-    hierarchical: Boolean,
-    minLevel: Int
+      itemIds: Array[Int],
+      level: Int,
+      hierarchical: Boolean,
+      minLevel: Int
   ): (Array[Int], ArrayBuffer[Int]) = {
     val mask = new ArrayBuffer[Int]()
     val res = new Array[Int](itemIds.length)
@@ -99,12 +98,11 @@ class JTMTree extends DistTree with Serializable {
         res(i) = paddingIdx
         mask += i
       } else if (id < nonLeafOffset && idCodeMap.contains(id)) {
-        res(i) =
-          if (hierarchical && level >= minLevel) {
-            getAncestorAtLevel(id, level)
-          } else {
-            idCodeMap(id)
-          }
+        res(i) = if (hierarchical && level >= minLevel) {
+          getAncestorAtLevel(id, level)
+        } else {
+          idCodeMap(id)
+        }
       } else {
         res(i) = id - nonLeafOffset
         if (res(i) > maxCode) res(i) = paddingIdx
@@ -175,10 +173,12 @@ class JTMTree extends DistTree with Serializable {
       writeKV(metaKV, writer)
     }
 
-    logger.info(s"item num: ${projectionPi.size}, " +
-      s"tree level: $maxLevel, " +
-      s"leaf code start: ${projectionPi.values.min}, " +
-      s"leaf code end: ${projectionPi.values.max}")
+    logger.info(
+      s"item num: ${projectionPi.size}, " +
+        s"tree level: $maxLevel, " +
+        s"leaf code start: ${projectionPi.values.min}, " +
+        s"leaf code end: ${projectionPi.values.max}"
+    )
   }
 }
 

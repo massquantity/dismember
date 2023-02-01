@@ -14,7 +14,8 @@ class JTMAsync(
     override val hierarchical: Boolean,
     override val minLevel: Int,
     override val numThreads: Int,
-    override val useMask: Boolean) extends TreeLearning {
+    override val useMask: Boolean
+) extends TreeLearning {
   import JTMAsync._
   require(gap > 0, s"gap must be positive, but got $gap")
   require(isPowerOf2(numThreads), s"numThreads should be power of 2, but got $numThreads")
@@ -45,7 +46,12 @@ class JTMAsync(
       currentNodes.foreach { node =>
         val itemAssignedToNode = _projection.filter(_._2 == node).map(_._1)
         projectionPi ++= getChildrenProjection(
-          oldLevel, level, node, itemAssignedToNode, parallelItems = true)
+          oldLevel,
+          level,
+          node,
+          itemAssignedToNode,
+          parallelItems = true
+        )
       }
 
       val levelEnd = System.nanoTime()
@@ -58,11 +64,13 @@ class JTMAsync(
       logger.info("asynchronous learning begin...")
       val asyncStartNodes = tree.getAllNodesAtLevel(asyncStartLevel)
       asyncStartNodes.sliding(numThreads, numThreads).foreach { nodes =>
-        Engine.default.invokeAndWait(
-          nodes.zipWithIndex.map { i => () =>
-            singlePathAssign(i._1, level, _gap, i._2, projectionPi)
-          }
-        ).foreach(projectionPi ++= _)
+        Engine.default
+          .invokeAndWait(
+            nodes.zipWithIndex.map { i => () =>
+              singlePathAssign(i._1, level, _gap, i._2, projectionPi)
+            }
+          )
+          .foreach(projectionPi ++= _)
       }
     }
 
@@ -72,11 +80,11 @@ class JTMAsync(
   }
 
   def singlePathAssign(
-    initNode: Int,
-    level: Int,
-    gap: Int,
-    modelIdx: Int,
-    initProjection: mutable.Map[Int, Int]
+      initNode: Int,
+      level: Int,
+      gap: Int,
+      modelIdx: Int,
+      initProjection: mutable.Map[Int, Int]
   ): mutable.Map[Int, Int] = {
     val start = System.nanoTime()
     val subProjection = mutable.Map[Int, Int]()
@@ -94,7 +102,13 @@ class JTMAsync(
       currentNodes.foreach { node =>
         val itemAssignedToNode = _projection.filter(_._2 == node).map(_._1)
         subProjection ++= getChildrenProjection(
-          oldLevel, _level, node, itemAssignedToNode, modelIdx, parallelItems = false)
+          oldLevel,
+          _level,
+          node,
+          itemAssignedToNode,
+          modelIdx,
+          parallelItems = false
+        )
       }
       _gap = math.min(_gap, maxLevel - _level)
       _level += _gap
@@ -105,19 +119,18 @@ class JTMAsync(
   }
 }
 
-
 object JTMAsync {
 
   def apply(
-    dataPath: String,
-    treePath: String,
-    modelPath: String,
-    gap: Int,
-    seqLen: Int,
-    hierarchical: Boolean,
-    minLevel: Int,
-    numThreads: Int,
-    useMask: Boolean
+      dataPath: String,
+      treePath: String,
+      modelPath: String,
+      gap: Int,
+      seqLen: Int,
+      hierarchical: Boolean,
+      minLevel: Int,
+      numThreads: Int,
+      useMask: Boolean
   ): JTMAsync = {
     new JTMAsync(
       dataPath,
