@@ -26,9 +26,9 @@ object ModelUtil {
   }
 
   def copyParameter[T](
-    parameter: Tensor[T],
-    storage: Storage[T],
-    offset: Int
+      parameter: Tensor[T],
+      storage: Storage[T],
+      offset: Int
   ): Unit = {
     System.arraycopy(
       parameter.storage().array(),
@@ -46,8 +46,8 @@ object ModelUtil {
   }
 
   // assume the parameters are compact.
-  def getParameters[@specialized(Float, Double) T: ClassTag](model: DeepModel[T])(
-    implicit ev: TensorNumeric[T]
+  def getParameters[@specialized(Float, Double) T: ClassTag](model: DeepModel[T])(implicit
+      ev: TensorNumeric[T]
   ): (Tensor[T], Tensor[T]) = {
     val (weightParams, gradParams) = model.parameters()
     val weightTensor = Tensor(
@@ -64,10 +64,10 @@ object ModelUtil {
   }
 
   // assume the parameters are compact.
-  def extractWeights[T: ClassTag](model: DeepModel[T])(
-    implicit ev: TensorNumeric[T]
+  def extractWeights[T: ClassTag](model: DeepModel[T])(implicit
+      ev: TensorNumeric[T]
   ): Seq[Tensor[T]] = {
-    val (weightParams,  _) = model.parameters()
+    val (weightParams, _) = model.parameters()
     val storage = Storage[T](weightParams.head.storage().array())
     weightParams.toSeq.map { w =>
       Tensor[T](storage, w.storageOffset(), w.size(), w.stride())
@@ -81,7 +81,7 @@ object ModelUtil {
   }
 
   def putWeights[T](model: DeepModel[T], newWeights: Seq[Tensor[T]]): Unit = {
-    val (weightParams,  _) = model.parameters()
+    val (weightParams, _) = model.parameters()
     require(weightParams.length == newWeights.length)
     weightParams.zip(newWeights).foreach { case (a, b) => a.set(b) }
   }

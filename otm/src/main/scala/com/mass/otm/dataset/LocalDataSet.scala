@@ -22,7 +22,8 @@ class LocalDataSet(
     mappingPath: String,
     labelNum: Int,
     seed: Long,
-    dataMode: String) {
+    dataMode: String
+) {
   import LocalDataSet._
   require(seqLen > 0 && minSeqLen > 0 && seqLen >= minSeqLen)
   val logger: Logger = Logger.getLogger(getClass)
@@ -61,7 +62,8 @@ class LocalDataSet(
       }
     val splitPoint = (samples.length * splitRatio).toInt
     val (trainSamples, evalSamples) = rand.shuffle(samples).splitAt(splitPoint)
-    DataInfo(userConsumed, trainSamples, evalSamples)  // evalSamples.map(i => i.copy(labels = i.labels.take(10)))
+    // evalSamples.map(i => i.copy(labels = i.labels.take(10)))
+    DataInfo(userConsumed, trainSamples, evalSamples)
   }
 
   private def generateSamples(initData: Array[InitSample]): DataInfo = {
@@ -118,22 +120,22 @@ object LocalDataSet {
   case class InitSample(user: Int, item: Int, timestamp: Long, category: String)
 
   case class DataInfo(
-    userConsumed: Map[Int, Array[Int]],
-    trainData: List[OTMSample],
-    evalData: List[OTMSample]
+      userConsumed: Map[Int, Array[Int]],
+      trainData: List[OTMSample],
+      evalData: List[OTMSample]
   )
 
   def apply(
-    dataPath: String,
-    seqLen: Int,
-    minSeqLen: Int,
-    splitRatio: Double,
-    leafInitMode: String,
-    initMapping: Boolean,
-    mappingPath: String,
-    labelNum: Int,
-    seed: Long,
-    dataMode: String = "default"
+      dataPath: String,
+      seqLen: Int,
+      minSeqLen: Int,
+      splitRatio: Double,
+      leafInitMode: String,
+      initMapping: Boolean,
+      mappingPath: String,
+      labelNum: Int,
+      seed: Long,
+      dataMode: String = "default"
   ): LocalDataSet = {
     new LocalDataSet(
       dataPath,
@@ -152,11 +154,11 @@ object LocalDataSet {
   def readFile(dataPath: String): Array[InitSample] = {
     val fileReader = DistFileReader(dataPath)
     val inputStream = fileReader.open()
-    val lines = Using.resource(new BufferedReader(new InputStreamReader(inputStream, encoding.name))) {
-      reader => Iterator.continually(reader.readLine()).takeWhile(_ != null).toArray
-    }
-    lines
-      .view
+    val lines =
+      Using.resource(new BufferedReader(new InputStreamReader(inputStream, encoding.name))) {
+        reader => Iterator.continually(reader.readLine()).takeWhile(_ != null).toArray
+      }
+    lines.view
       .map(_.trim.split(","))
       .filter(i => i.length == 5 && NumberUtils.isCreatable(i(0)))
       .map(i => InitSample(i(0).toInt, i(1).toInt, i(3).toLong, i(4)))
@@ -164,9 +166,9 @@ object LocalDataSet {
   }
 
   def initializeMapping(
-    samples: Array[InitSample],
-    leafInitMode: String,
-    rand: Random
+      samples: Array[InitSample],
+      leafInitMode: String,
+      rand: Random
   ): (Map[Int, Int], Map[Int, Int]) = {
     val uniqueSamples = samples.distinctBy(_.item)
     val orderedItems = leafInitMode match {
@@ -174,9 +176,11 @@ object LocalDataSet {
         val items = uniqueSamples.map(_.item)
         rand.shuffle(items).toArray
       case "category" =>
-        uniqueSamples.sortWith { (a, b) =>
-          a.category < b.category || (a.category == b.category && a.item < b.item)
-        }.map(_.item)
+        uniqueSamples
+          .sortWith { (a, b) =>
+            a.category < b.category || (a.category == b.category && a.item < b.item)
+          }
+          .map(_.item)
     }
     val sampledIds = sampleRandomLeaves(uniqueSamples.length, rand)
     (orderedItems.zip(sampledIds).toMap, sampledIds.zip(orderedItems).toMap)

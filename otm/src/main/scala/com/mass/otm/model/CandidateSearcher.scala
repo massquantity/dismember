@@ -1,7 +1,7 @@
 package com.mass.otm.model
 
-import com.mass.otm.dataset.{MiniBatch, OTMSample}
 import com.mass.otm.{lowerLog2, paddingIdx, DeepModel}
+import com.mass.otm.dataset.{MiniBatch, OTMSample}
 import com.mass.otm.tree.OTMTree
 import com.mass.otm.tree.OTMTree.Node
 import com.mass.scalann.tensor.Tensor
@@ -13,12 +13,12 @@ trait CandidateSearcher {
 
   // batchSize * beamSize * 2
   private[otm] def batchBeamSearch(
-    batchData: Seq[OTMSample],
-    deepModel: DeepModel[Double],
-    tree: OTMTree,
-    beamSize: Int,
-    seqLen: Int,
-    useMask: Boolean
+      batchData: Seq[OTMSample],
+      deepModel: DeepModel[Double],
+      tree: OTMTree,
+      beamSize: Int,
+      seqLen: Int,
+      useMask: Boolean
   ): List[List[Node]] = {
     val (initNodes, initSize) = tree.initializeBeam(batchData.length)
     val miniBatch = MiniBatch(batchData, beamSize, tree.startLevel)(seqLen, useMask)
@@ -56,11 +56,11 @@ trait CandidateSearcher {
   }
 
   private[otm] def beamSearch(
-    sequence: Seq[Int],
-    deepModel: DeepModel[Double],
-    leafLevel: Int,
-    beamSize: Int,
-    useMask: Boolean
+      sequence: Seq[Int],
+      deepModel: DeepModel[Double],
+      leafLevel: Int,
+      beamSize: Int,
+      useMask: Boolean
   ): Seq[Node] = {
     val startLevel = lowerLog2(beamSize)
     val startNode = (1 to startLevel).foldLeft(0)((i, _) => i * 2 + 1)
@@ -83,11 +83,11 @@ trait CandidateSearcher {
 object CandidateSearcher {
 
   def buildInputs(
-    sequence: Seq[Int],
-    nodes: Seq[Node],
-    beamSize: Int,
-    beamStart: Boolean,
-    useMask: Boolean
+      sequence: Seq[Int],
+      nodes: Seq[Node],
+      beamSize: Int,
+      beamStart: Boolean,
+      useMask: Boolean
   ): (Table, Seq[Int]) = {
     val candidateNodes = buildBeamNodes(nodes, beamSize, beamStart)
     val nodesTensor = Tensor(candidateNodes.toArray, Array(candidateNodes.length, 1))
@@ -107,9 +107,9 @@ object CandidateSearcher {
   }
 
   def buildBeamNodes(
-    nodes: Seq[Node],
-    beamSize: Int,
-    beamStart: Boolean
+      nodes: Seq[Node],
+      beamSize: Int,
+      beamStart: Boolean
   ): Seq[Int] = {
     if (beamStart) {
       nodes.flatMap(n => Seq(n.id * 2 + 1, n.id * 2 + 2))
@@ -117,7 +117,7 @@ object CandidateSearcher {
       nodes
         .sortBy(_.score)(Ordering[Double].reverse)
         .take(beamSize)
-        .flatMap(n => Seq(n.id * 2 +1, n.id * 2 + 2))
+        .flatMap(n => Seq(n.id * 2 + 1, n.id * 2 + 2))
     }
   }
 

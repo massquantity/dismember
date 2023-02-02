@@ -12,7 +12,8 @@ object DeepFM {
   def buildModel[@specialized(Float, Double) T: ClassTag](
       featSeqLen: Int,
       embedSize: Int,
-      numIndex: Int)(implicit ev: TensorNumeric[T]): DeepModel[T] = {
+      numIndex: Int
+  )(implicit ev: TensorNumeric[T]): DeepModel[T] = {
     val totalLen = featSeqLen + 1
     val inputItem = Input[T]()
     val inputSeq = Input[T]()
