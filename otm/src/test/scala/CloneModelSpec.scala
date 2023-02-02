@@ -1,7 +1,7 @@
 import com.mass.otm.model.{DIN, ModelUtil}
 import org.scalatest.flatspec.AnyFlatSpec
 
-class CloneModelTest extends AnyFlatSpec {
+class CloneModelSpec extends AnyFlatSpec {
 
   val model = DIN.buildModel[Double](4, 100)
   ModelUtil.compactParameters(model)
