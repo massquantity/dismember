@@ -24,22 +24,25 @@ class OTMTree(val startLevel: Int, val leafLevel: Int) {
 
   // levelSize * numThread * (batchSize / numThread) * labelNum
   // line 5 in Algorithm 1 from the paper, bottom up computing pseudo targets
-  def optimalPseudoTargets(threadData: IndexedSeq[List[OTMSample]])(
-    implicit models: IndexedSeq[DeepModel[Double]],
-    seqLen: Int,
-    useMask: Boolean
+  def optimalPseudoTargets(threadData: IndexedSeq[List[OTMSample]])(implicit
+      models: IndexedSeq[DeepModel[Double]],
+      seqLen: Int,
+      useMask: Boolean
   ): Seq[IndexedSeq[BatchNodes]] = {
-    Engine.default.invokeAndWait(threadData.indices.map { i => () =>
-      implicit val model = models(i)
-      val batchData = threadData(i)
-      (leafLevel until startLevel by -1).foldLeft[List[BatchNodes]](Nil) { (allNodes, _) =>
-        val levelNodes = allNodes match {
-          case Nil => batchData.map(_.targetItems.map(Node(_, 1.0)))
-          case childNodes :: _ => computeTargets(childNodes, batchData)
+    Engine.default
+      .invokeAndWait(threadData.indices.map { i => () =>
+        implicit val model = models(i)
+        val batchData = threadData(i)
+        (leafLevel until startLevel by -1).foldLeft[List[BatchNodes]](Nil) { (allNodes, _) =>
+          val levelNodes = allNodes match {
+            case Nil => batchData.map(_.targetItems.map(Node(_, 1.0)))
+            case childNodes :: _ => computeTargets(childNodes, batchData)
+          }
+          levelNodes :: allNodes
         }
-        levelNodes :: allNodes
-      }
-    }).toIndexedSeq.transpose
+      })
+      .toIndexedSeq
+      .transpose
   }
 
   // levelSize * numThread * (batchSize / numThread) * labelNum
@@ -50,7 +53,8 @@ class OTMTree(val startLevel: Int, val leafLevel: Int) {
         batchData <- threadData
       } yield {
         batchData.map { d =>
-          List.range(1, leafLevel - startLevel)
+          List
+            .range(1, leafLevel - startLevel)
             .scanRight(d.targetItems)((_, items) => items.map(i => (i - 1) >> 1))
             .map(i => i.map(Node(_, 1.0)))
         }.transpose
@@ -60,25 +64,30 @@ class OTMTree(val startLevel: Int, val leafLevel: Int) {
 
   // levelSize * numThread * (batchSize / numThread) * (beamSize * 2)
   // line 4 in Algorithm 1 from the paper, draw beam search nodes with fixed model parameter
-  def beamSearchNodes(threadData: IndexedSeq[List[OTMSample]], beamSize: Int)(
-    implicit models: IndexedSeq[DeepModel[Double]],
-    seqLen: Int,
-    useMask: Boolean
+  def beamSearchNodes(threadData: IndexedSeq[List[OTMSample]], beamSize: Int)(implicit
+      models: IndexedSeq[DeepModel[Double]],
+      seqLen: Int,
+      useMask: Boolean
   ): Seq[IndexedSeq[BatchNodes]] = {
-    Engine.default.invokeAndWait(threadData.indices.map { i => () =>
-      implicit val model = models(i)
-      val batchData = threadData(i)
-      val (initCandidates, initSize) = initializeBeam(batchData.length)
-      (startLevel until leafLevel).foldLeft[List[BatchNodes]](Nil) { case (allNodes, _) =>
-        val levelNodes = allNodes match {
-          case Nil =>
-            computeBeamNodes(initCandidates, batchData, initSize, beamStart = true)
-          case candidateNodes :: _ =>
-            computeBeamNodes(candidateNodes, batchData, beamSize, beamStart = false)
-        }
-        levelNodes :: allNodes
-      }.reverse
-    }).toIndexedSeq.transpose
+    Engine.default
+      .invokeAndWait(threadData.indices.map { i => () =>
+        implicit val model = models(i)
+        val batchData = threadData(i)
+        val (initCandidates, initSize) = initializeBeam(batchData.length)
+        (startLevel until leafLevel)
+          .foldLeft[List[BatchNodes]](Nil) { case (allNodes, _) =>
+            val levelNodes = allNodes match {
+              case Nil =>
+                computeBeamNodes(initCandidates, batchData, initSize, beamStart = true)
+              case candidateNodes :: _ =>
+                computeBeamNodes(candidateNodes, batchData, beamSize, beamStart = false)
+            }
+            levelNodes :: allNodes
+          }
+          .reverse
+      })
+      .toIndexedSeq
+      .transpose
   }
 }
 
@@ -93,37 +102,39 @@ object OTMTree {
   }
 
   def computeTargets(
-    childrenNodes: BatchNodes,  // batchSize * labelNum
-    data: Seq[OTMSample]
-  )(
-    implicit model: DeepModel[Double],
-    seqLen: Int,
-    useMask: Boolean
+      childrenNodes: BatchNodes, // batchSize * labelNum
+      data: Seq[OTMSample]
+  )(implicit
+      model: DeepModel[Double],
+      seqLen: Int,
+      useMask: Boolean
   ): BatchNodes = {
     val labelNums = childrenNodes.map(_.length)
     val (itemSeqs, masks) = sequenceBatchLabels(data, labelNums)
     val (posPreds, negPreds, negLabels) = computeChildrenScores(childrenNodes, itemSeqs, masks)
-    childrenNodes.foldRight[(List[List[Node]], Int)]((Nil, 0)) { case (nodes, (targets, offset)) =>
-      val nodesWithLabels = nodes.zipWithIndex.map { case (n, i) =>
-        val index = offset + i
-        val label = if (posPreds(index) >= negPreds(index)) n.score else negLabels(index)
-        (n.id, label)
+    childrenNodes
+      .foldRight[(List[List[Node]], Int)]((Nil, 0)) { case (nodes, (targets, offset)) =>
+        val nodesWithLabels = nodes.zipWithIndex.map { case (n, i) =>
+          val index = offset + i
+          val label = if (posPreds(index) >= negPreds(index)) n.score else negLabels(index)
+          (n.id, label)
+        }
+        val parentNodes = nodesWithLabels
+          .groupMapReduce(i => (i._1 - 1) >> 1)(_._2)(_ + _)
+          .toList
+          .map(i => Node(i._1, clipValue(i._2, 0.0, 1.0)))
+        (parentNodes :: targets, offset + nodes.length)
       }
-      val parentNodes = nodesWithLabels
-        .groupMapReduce(i => (i._1 - 1) >> 1)(_._2)(_ + _)
-        .toList
-        .map(i => Node(i._1, clipValue(i._2, 0.0, 1.0)))
-      (parentNodes :: targets, offset + nodes.length)
-    }._1
+      ._1
   }
 
   def computeChildrenScores(
-    batchNodes: List[List[Node]],
-    itemSeqs: Tensor[Int],
-    masks: Tensor[Int]
-  )(
-    implicit model: DeepModel[Double],
-    useMask: Boolean
+      batchNodes: List[List[Node]],
+      itemSeqs: Tensor[Int],
+      masks: Tensor[Int]
+  )(implicit
+      model: DeepModel[Double],
+      useMask: Boolean
   ): (Array[Double], Array[Double], Array[Double]) = {
     val length = batchNodes.map(_.length).sum
     val batchPosNodes = ArrayBuffer[Int]()
@@ -161,14 +172,14 @@ object OTMTree {
   }
 
   def computeBeamNodes(
-    candidateNodes: BatchNodes,
-    data: List[OTMSample],
-    nodeSize: Int,
-    beamStart: Boolean
-  )(
-    implicit model: DeepModel[Double],
-    seqLen: Int,
-    useMask: Boolean
+      candidateNodes: BatchNodes,
+      data: List[OTMSample],
+      nodeSize: Int,
+      beamStart: Boolean
+  )(implicit
+      model: DeepModel[Double],
+      seqLen: Int,
+      useMask: Boolean
   ): BatchNodes = {
     val beamNodes =
       if (beamStart) {
@@ -201,8 +212,8 @@ object OTMTree {
   }
 
   def sequenceBatchLabels(
-    data: Seq[OTMSample],
-    labelNums: Seq[Int]
+      data: Seq[OTMSample],
+      labelNums: Seq[Int]
   )(implicit seqLen: Int): (Tensor[Int], Tensor[Int]) = {
     val sequence =
       for {
@@ -216,12 +227,12 @@ object OTMTree {
   }
 
   def transformBeamData(
-    nodes: Seq[Seq[Int]],
-    data: Seq[OTMSample],
-    nodeSize: Int
-  )(
-    implicit seqLen: Int,
-    useMask: Boolean
+      nodes: Seq[Seq[Int]],
+      data: Seq[OTMSample],
+      nodeSize: Int
+  )(implicit
+      seqLen: Int,
+      useMask: Boolean
   ): Table = {
     val itemShape = Array(nodes.map(_.length).sum, 1)
     val itemTensor = Tensor(nodes.flatten.toArray, itemShape)

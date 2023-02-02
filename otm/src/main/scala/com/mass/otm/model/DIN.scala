@@ -9,8 +9,8 @@ import com.mass.scalann.tensor.TensorNumeric
 
 object DIN {
 
-  def buildModel[@specialized(Float, Double) T: ClassTag](embedSize: Int, numIndex: Int)(
-      implicit ev: TensorNumeric[T]
+  def buildModel[@specialized(Float, Double) T: ClassTag](embedSize: Int, numIndex: Int)(implicit
+      ev: TensorNumeric[T]
   ): DeepModel[T] = {
     val inputItem = Input[T]()
     val inputSeq = Input[T]()

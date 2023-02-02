@@ -27,7 +27,8 @@ class LocalOptimizer(
     topk: Int,
     seqLen: Int,
     useMask: Boolean,
-    progressInterval: Int) {
+    progressInterval: Int
+) {
   import LocalOptimizer._
   val logger: Logger = Logger.getLogger(getClass)
 
@@ -45,10 +46,10 @@ class LocalOptimizer(
 
   logger.info(
     s"Overall train data size: ${dataset.trainSize}, " +
-    s"true train batch size: $trainBatchSize, " +
-    s"batch num in epoch: $numBatchInEpoch, " +
-    s"tree start level: $startLevel, " +
-    s"tree leaf level: $leafLevel"
+      s"true train batch size: $trainBatchSize, " +
+      s"batch num in epoch: $numBatchInEpoch, " +
+      s"tree start level: $startLevel, " +
+      s"tree leaf level: $leafLevel"
   )
 
   def optimize(): Map[String, List[List[Double]]] = {
@@ -108,10 +109,10 @@ class LocalOptimizer(
   }
 
   def trainBatch(
-    targetNodes: IndexedSeq[BatchNodes],
-    beamNodes: IndexedSeq[BatchNodes],
-    miniBatches: IndexedSeq[MiniBatch],
-    beamStart: Boolean
+      targetNodes: IndexedSeq[BatchNodes],
+      beamNodes: IndexedSeq[BatchNodes],
+      miniBatches: IndexedSeq[MiniBatch],
+      beamStart: Boolean
   ): Double = {
     val totalLoss = Engine.default.invokeAndWait(miniBatches.indices.map { i => () =>
       val transformedData = miniBatches(i).batchTransform(beamNodes(i), targetNodes(i), beamStart)
@@ -131,18 +132,18 @@ class LocalOptimizer(
   def syncGradients(syncNum: Int): (Tensor[Double], Tensor[Double]) = {
     val (totalWeights, totalGradients) = getParameters(deepModel)
     (0 until syncNum).foreach {
-      case i@0 => totalGradients.copy(clonedGradients(i))
-      case i@_ => totalGradients.add(clonedGradients(i))
+      case i @ 0 => totalGradients.copy(clonedGradients(i))
+      case i @ _ => totalGradients.add(clonedGradients(i))
     }
     totalGradients.div(syncNum)
     (totalWeights, totalGradients)
   }
 
   def searchCandidates(
-    batchData: Seq[OTMSample],
-    candidateNodes: Seq[Seq[Int]],
-    candidateNum: Int,
-    batchOutputs: Seq[Tensor[Double]]
+      batchData: Seq[OTMSample],
+      candidateNodes: Seq[Seq[Int]],
+      candidateNum: Int,
+      batchOutputs: Seq[Tensor[Double]]
   ): IndexedSeq[Seq[Node]] = {
     val threadDataSize = math.ceil(batchData.length.toDouble / numThread).toInt
     candidateNodes
@@ -164,8 +165,10 @@ class LocalOptimizer(
               .map(Node)
               .sortBy(_.score)(Ordering[Double].reverse)
               .take(beamSize)
-          }.toVector
-      }.reduce(_ ++ _)
+          }
+          .toVector
+      }
+      .reduce(_ ++ _)
   }
 }
 
@@ -174,18 +177,18 @@ object LocalOptimizer {
   case class LevelInfo(loss: List[Double], level: Int)
 
   def apply(
-    deepModel: DeepModel[Double],
-    dataset: LocalDataSet,
-    targetMode: String,
-    numEpoch: Int,
-    totalTrainBatchSize: Int,
-    totalEvalBatchSize: Int,
-    learningRate: Double,
-    beamSize: Int,
-    topk: Int,
-    seqLen: Int,
-    useMask: Boolean,
-    progressInterval: Int
+      deepModel: DeepModel[Double],
+      dataset: LocalDataSet,
+      targetMode: String,
+      numEpoch: Int,
+      totalTrainBatchSize: Int,
+      totalEvalBatchSize: Int,
+      learningRate: Double,
+      beamSize: Int,
+      topk: Int,
+      seqLen: Int,
+      useMask: Boolean,
+      progressInterval: Int
   ): LocalOptimizer = {
     new LocalOptimizer(
       deepModel,
@@ -204,16 +207,16 @@ object LocalOptimizer {
   }
 
   private def splitToThreadData(
-    data: List[OTMSample],
-    numThread: Int
+      data: List[OTMSample],
+      numThread: Int
   ): IndexedSeq[List[OTMSample]] = {
     val threadDataSize = math.ceil(data.length.toDouble / numThread).toInt
     data.sliding(threadDataSize, threadDataSize).toIndexedSeq
   }
 
   private def duplicateModels(
-    model: DeepModel[Double],
-    numThread: Int
+      model: DeepModel[Double],
+      numThread: Int
   ): (DeepModel[Double], IndexedSeq[DeepModel[Double]]) = {
     compactParameters(model)
     val modelWeights = extractWeights(model)
@@ -230,20 +233,20 @@ object LocalOptimizer {
   }
 
   private def reportProgress(
-    models: IndexedSeq[DeepModel[Double]],
-    dataset: LocalDataSet,
-    tree: OTMTree,
-    topk: Int,
-    totalEvalBatchSize: Int,
-    beamSize: Int,
-    seqLen: Int,
-    useMask: Boolean,
-    epoch: Int,
-    iteration: Int,
-    dataCount: Long,
-    epochTime: Long,
-    iterationTime: Long,
-    trainLoss: Double
+      models: IndexedSeq[DeepModel[Double]],
+      dataset: LocalDataSet,
+      tree: OTMTree,
+      topk: Int,
+      totalEvalBatchSize: Int,
+      beamSize: Int,
+      seqLen: Int,
+      useMask: Boolean,
+      epoch: Int,
+      iteration: Int,
+      dataCount: Long,
+      epochTime: Long,
+      iterationTime: Long,
+      trainLoss: Double
   ): String = {
     val progressInfo = new mutable.StringBuilder
     progressInfo ++= f"Epoch $epoch Train time: ${epochTime / 1e9d}%.4fs, "

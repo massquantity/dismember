@@ -5,17 +5,18 @@ import com.mass.otm.tree.OTMTree.BatchNodes
 import com.mass.scalann.tensor.Tensor
 import com.mass.scalann.utils.Table
 
-class MiniBatch(batchData: Seq[OTMSample], beamSize: Int, startLevel: Int)(
-  implicit seqLen: Int, useMask: Boolean
+class MiniBatch(batchData: Seq[OTMSample], beamSize: Int, startLevel: Int)(implicit
+    seqLen: Int,
+    useMask: Boolean
 ) {
   import MiniBatch._
   val (initItemSeqs, initMasks) = duplicateSequence(batchData, getInitSize(startLevel), seqLen)
   val (itemSeqs, masks) = duplicateSequence(batchData, beamSize, seqLen)
 
   def batchTransform(
-    batchNodes: BatchNodes,    // batchSize * beamSize
-    batchTargets: BatchNodes,  // batchSize * labelNum
-    beamStart: Boolean
+      batchNodes: BatchNodes, // batchSize * beamSize
+      batchTargets: BatchNodes, // batchSize * labelNum
+      beamStart: Boolean
   ): (Table, Tensor[Double]) = {
     val batchItemSeqs = if (beamStart) initItemSeqs else itemSeqs
     val batchMasks = if (beamStart) initMasks else masks
@@ -52,17 +53,18 @@ class MiniBatch(batchData: Seq[OTMSample], beamSize: Int, startLevel: Int)(
 
 object MiniBatch {
 
-  def apply(batchData: Seq[OTMSample], initSize: Int, beamSize: Int)(
-    implicit seqLen: Int, useMask: Boolean
+  def apply(batchData: Seq[OTMSample], initSize: Int, beamSize: Int)(implicit
+      seqLen: Int,
+      useMask: Boolean
   ): MiniBatch = {
     new MiniBatch(batchData, initSize, beamSize)
   }
 
   // batchSize * beamSize * 2 * seqLen
   def duplicateSequence(
-    data: Seq[OTMSample],
-    nodeSize: Int,
-    seqLen: Int
+      data: Seq[OTMSample],
+      nodeSize: Int,
+      seqLen: Int
   ): (Tensor[Int], Tensor[Int]) = {
     val shape = Array(data.length * nodeSize * 2, seqLen)
     val itemSeqs =

@@ -7,8 +7,8 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Using
 
-import com.mass.otm.model.ModelUtil._
 import com.mass.otm.{paddingIdx, upperLog2, DeepModel}
+import com.mass.otm.model.ModelUtil._
 import com.mass.scalann.tensor.Tensor
 import com.mass.scalann.tensor.TensorNumeric.NumericDouble
 import com.mass.scalann.utils.{Engine, Table}
@@ -25,7 +25,8 @@ class TreeConstruction(
     seqLen: Int,
     splitRatio: Double,
     numThreads: Int,
-    useMask: Boolean) {
+    useMask: Boolean
+) {
   import TreeConstruction._
   val logger: Logger = Logger.getLogger(getClass)
 
@@ -68,17 +69,20 @@ class TreeConstruction(
             (0 until numThreads).map { i => () =>
               val start = i * taskSize + math.min(i, extraSize)
               val end = start + taskSize + (if (i < extraSize) 1 else 0)
-              currentNodes.slice(start, end).flatMap { node =>
-                val itemsAssignedToNode = reverseProjection(node)
-                getChildrenProjection(
-                  oldLevel,
-                  level,
-                  node,
-                  itemsAssignedToNode,
-                  modelIdx = i,
-                  parallelItems = false
-                )
-              }.toMap
+              currentNodes
+                .slice(start, end)
+                .flatMap { node =>
+                  val itemsAssignedToNode = reverseProjection(node)
+                  getChildrenProjection(
+                    oldLevel,
+                    level,
+                    node,
+                    itemsAssignedToNode,
+                    modelIdx = i,
+                    parallelItems = false
+                  )
+                }
+                .toMap
             }
           )
         }
@@ -89,12 +93,12 @@ class TreeConstruction(
   }
 
   private def getChildrenProjection(
-    oldLevel: Int,
-    level: Int,
-    node: Int,
-    itemsAssignedToNode: Array[Int],
-    modelIdx: Int = 0,
-    parallelItems: Boolean
+      oldLevel: Int,
+      level: Int,
+      node: Int,
+      itemsAssignedToNode: Array[Int],
+      modelIdx: Int = 0,
+      parallelItems: Boolean
   ): Map[Int, Int] = {
     val maxAssignNum = math.pow(2, leafLevel - level).toInt
     val childrenAtLevel = getChildrenAtLevel(node, oldLevel, level)
@@ -105,10 +109,12 @@ class TreeConstruction(
       modelIdx,
       parallelItems
     )
-    val nodeItemMapWithWeights = itemsAssignedToNode.map { item =>
-      val (maxWeightChildNode, maxWeight) = candidateNodeWeights(item).head
-      maxWeightChildNode -> ItemInfo(item, maxWeight, 1)
-    }.groupMap(_._1)(_._2)
+    val nodeItemMapWithWeights = itemsAssignedToNode
+      .map { item =>
+        val (maxWeightChildNode, maxWeight) = candidateNodeWeights(item).head
+        maxWeightChildNode -> ItemInfo(item, maxWeight, 1)
+      }
+      .groupMap(_._1)(_._2)
 
     val oldItemNodeMap = itemsAssignedToNode.map { item =>
       item -> getAncestorAtLevel(item, level, itemIdMapping)
@@ -122,10 +128,12 @@ class TreeConstruction(
       candidateNodeWeights
     )
     balancedNodesMap.foreach { case (_, items) =>
-      assert(items.length <= maxAssignNum,
+      assert(
+        items.length <= maxAssignNum,
         s"items in one node should not exceed maxAssignNum, " +
           s"items length: ${items.length}, " +
-          s"maxAssignNum: $maxAssignNum")
+          s"maxAssignNum: $maxAssignNum"
+      )
     }
 
     for {
@@ -135,28 +143,30 @@ class TreeConstruction(
   }
 
   private def computeWeightsForItemsAtLevel(
-    itemsAssignedToNode: Array[Int],
-    currentNode: Int,
-    childrenNodes: Array[Int],
-    modelIdx: Int,
-    parallelItems: Boolean
+      itemsAssignedToNode: Array[Int],
+      currentNode: Int,
+      childrenNodes: Array[Int],
+      modelIdx: Int,
+      parallelItems: Boolean
   ): Map[Int, Array[(Int, Double)]] = {
     if (parallelItems) {
       val taskSize = itemsAssignedToNode.length / numThreads
       val extraSize = itemsAssignedToNode.length % numThreads
       val realParallelism = if (taskSize == 0) extraSize else numThreads
-      Engine.default.invokeAndWait(
-        (0 until realParallelism).map { i => () =>
-          val start = i * taskSize + math.min(i, extraSize)
-          val end = start + taskSize + (if (i < extraSize) 1 else 0)
-          sortNodeWeights(
-            itemsAssignedToNode.slice(start, end),
-            currentNode,
-            childrenNodes,
-            i
-          )
-        }
-      ).reduce(_ ++ _)
+      Engine.default
+        .invokeAndWait(
+          (0 until realParallelism).map { i => () =>
+            val start = i * taskSize + math.min(i, extraSize)
+            val end = start + taskSize + (if (i < extraSize) 1 else 0)
+            sortNodeWeights(
+              itemsAssignedToNode.slice(start, end),
+              currentNode,
+              childrenNodes,
+              i
+            )
+          }
+        )
+        .reduce(_ ++ _)
     } else {
       sortNodeWeights(
         itemsAssignedToNode,
@@ -168,10 +178,10 @@ class TreeConstruction(
   }
 
   private def sortNodeWeights(
-    itemsAssignedToNode: Array[Int],
-    currentNode: Int,
-    childrenNodes: Array[Int],
-    modelIdx: Int,
+      itemsAssignedToNode: Array[Int],
+      currentNode: Int,
+      childrenNodes: Array[Int],
+      modelIdx: Int
   ): Map[Int, Array[(Int, Double)]] = {
     itemsAssignedToNode.map { item =>
       val childrenWeights = childrenNodes.map { childNode =>
@@ -182,10 +192,10 @@ class TreeConstruction(
   }
 
   private def aggregateWeights(
-    item: Int,
-    currentNode: Int,
-    childNode: Int,
-    modelIdx: Int
+      item: Int,
+      currentNode: Int,
+      childNode: Int,
+      modelIdx: Int
   ): Double = {
     // items that never appeared as target are assigned low weights
     if (!itemSequenceMap.contains(item)) return -1e6
@@ -225,16 +235,16 @@ object TreeConstruction {
   case class ItemInfo(id: Int, weight: Double, nextWeightIdx: Int)
 
   def apply(
-    dataPath: String,
-    modelPath: String,
-    mappingPath: String,
-    gap: Int,
-    labelNum: Int,
-    minSeqLen: Int,
-    seqLen: Int,
-    splitRatio: Double,
-    numThreads: Int,
-    useMask: Boolean
+      dataPath: String,
+      modelPath: String,
+      mappingPath: String,
+      gap: Int,
+      labelNum: Int,
+      minSeqLen: Int,
+      seqLen: Int,
+      splitRatio: Double,
+      numThreads: Int,
+      useMask: Boolean
   ): TreeConstruction = {
     new TreeConstruction(
       dataPath,
@@ -276,27 +286,30 @@ object TreeConstruction {
   }
 
   def getMaxNode(
-    nodeItemMap: mutable.Map[Int, ArrayBuffer[ItemInfo]],
-    nodes: Array[Int],
-    processedNodes: mutable.HashSet[Int]
+      nodeItemMap: mutable.Map[Int, ArrayBuffer[ItemInfo]],
+      nodes: Array[Int],
+      processedNodes: mutable.HashSet[Int]
   ): (Int, Int) = {
-    nodes.map { node =>
-      if (!processedNodes.contains(node) && nodeItemMap.contains(node)) {
-        (nodeItemMap(node).length, node)
-      } else {
-        (-1, 0)
+    nodes
+      .map { node =>
+        if (!processedNodes.contains(node) && nodeItemMap.contains(node)) {
+          (nodeItemMap(node).length, node)
+        } else {
+          (-1, 0)
+        }
       }
-    }.maxBy(_._1)
+      .maxBy(_._1)
   }
 
   def reBalance(
-    nodeItemMapWithWeights: Map[Int, Array[ItemInfo]],
-    oldItemNodeMap: Map[Int, Int],
-    childrenAtLevel: Array[Int],
-    maxAssignNum: Int,
-    candidateNodeWeightsOfItems: Map[Int, Array[(Int, Double)]]
+      nodeItemMapWithWeights: Map[Int, Array[ItemInfo]],
+      oldItemNodeMap: Map[Int, Int],
+      childrenAtLevel: Array[Int],
+      maxAssignNum: Int,
+      candidateNodeWeightsOfItems: Map[Int, Array[(Int, Double)]]
   ): Map[Int, ArrayBuffer[ItemInfo]] = {
-    implicit val ord: Ordering[(Boolean, Double)] = Ordering.Tuple2(Ordering.Boolean, Ordering[Double].reverse)
+    implicit val ord: Ordering[(Boolean, Double)] =
+      Ordering.Tuple2(Ordering.Boolean, Ordering[Double].reverse)
     val resMap = nodeItemMapWithWeights.view.mapValues(_.to(ArrayBuffer)).to(mutable.Map)
     val processedNodes = new mutable.HashSet[Int]()
     var finished = false
@@ -351,23 +364,31 @@ object TreeConstruction {
   }
 
   def readDataFile(
-    dataPath: String,
-    labelNum: Int,
-    minSeqLen: Int,
-    seqLen: Int,
-    splitRatio: Double,
-    itemIdMapping: Map[Int, Int]
+      dataPath: String,
+      labelNum: Int,
+      minSeqLen: Int,
+      seqLen: Int,
+      splitRatio: Double,
+      itemIdMapping: Map[Int, Int]
   ): Map[Int, Array[Int]] = {
     case class InitSample(user: Int, item: Int, timestamp: Long)
     val data = Using.resource(new BufferedReader(new FileReader(dataPath))) { input =>
-      Iterator.continually(input.readLine()).drop(1).takeWhile(_ != null).map { line =>
-        val s = line.trim.split(",")
-        InitSample(s(0).toInt, s(1).toInt, s(2).toLong)
-      }.toVector
+      Iterator
+        .continually(input.readLine())
+        .drop(1)
+        .takeWhile(_ != null)
+        .map { line =>
+          val s = line.trim.split(",")
+          InitSample(s(0).toInt, s(1).toInt, s(2).toLong)
+        }
+        .toVector
     }
-    val allItemSeqs = data.groupBy(_.user).map { case (_, samples) =>
-      samples.sortBy(_.timestamp).map(_.item).distinct.map(itemIdMapping(_))
-    }.filter(_.length >= minSeqLen + labelNum)
+    val allItemSeqs = data
+      .groupBy(_.user)
+      .map { case (_, samples) =>
+        samples.sortBy(_.timestamp).map(_.item).distinct.map(itemIdMapping(_))
+      }
+      .filter(_.length >= minSeqLen + labelNum)
 
     val idItemMapping = itemIdMapping.map(_.swap)
     val paddingSeq = Seq.fill(seqLen - minSeqLen)(paddingIdx)
@@ -395,8 +416,8 @@ object TreeConstruction {
   }
 
   def duplicateModels(
-    modelPath: String,
-    numThread: Int
+      modelPath: String,
+      numThread: Int
   ): IndexedSeq[DeepModel[Double]] = {
     val model = Serialization.loadModel[Double](modelPath)
     compactParameters(model)
