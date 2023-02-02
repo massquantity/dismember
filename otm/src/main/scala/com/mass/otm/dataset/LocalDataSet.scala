@@ -59,7 +59,7 @@ class LocalDataSet(
             (userConsumed, samples)
           }
       }
-    val splitPoint = (groupedSamples.length * splitRatio).toInt
+    val splitPoint = (samples.length * splitRatio).toInt
     val (trainSamples, evalSamples) = rand.shuffle(samples).splitAt(splitPoint)
     DataInfo(userConsumed, trainSamples, evalSamples)  // evalSamples.map(i => i.copy(labels = i.labels.take(10)))
   }
@@ -73,7 +73,7 @@ class LocalDataSet(
       case ((user, items), DataInfo(userConsumed, trainSamples, evalSamples)) =>
         if (items.length <= minSeqLen) {
           DataInfo(userConsumed, trainSamples, evalSamples)
-        } else if (items.length == minSeqLen + labelNum) {
+        } else if (items.length <= minSeqLen + labelNum) {
           val fullSeq = paddingSeq ++: items.take(minSeqLen)
           val newTrainSample = OTMSample(fullSeq, items.drop(minSeqLen).toList, user)
           DataInfo(
