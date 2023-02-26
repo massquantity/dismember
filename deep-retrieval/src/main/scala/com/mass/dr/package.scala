@@ -22,7 +22,7 @@ package object dr {
 
   val softmax = (logits: Seq[Double]) => {
     val maxVal = logits.max
-    val exps = logits.map(i => java.lang.Math.exp(i - maxVal))  // avoid overflow in exp
+    val exps = logits.map(i => java.lang.Math.exp(i - maxVal)) // avoid overflow in exp
     val sumExps = exps.sum
     exps.map(_ / sumExps)
   }

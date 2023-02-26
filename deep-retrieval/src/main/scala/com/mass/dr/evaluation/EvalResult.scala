@@ -2,6 +2,8 @@ package com.mass.dr.evaluation
 
 import java.text.DecimalFormat
 
+import scala.collection.mutable
+
 case class EvalResult(
     layerLoss: Seq[Double],
     reRankLoss: Double,
@@ -36,10 +38,10 @@ case class EvalResult(
   }
 
   override def toString: String = {
-    val stringRepr = new StringBuilder
+    val stringRepr = new mutable.StringBuilder
     val formatter = new DecimalFormat("##.####")
     val layerLossStr = layerLoss.map(i => formatter.format(i / count))
-    stringRepr ++= s"eval layer loss: ${layerLossStr.mkString("[",", ","]")}, "
+    stringRepr ++= s"eval layer loss: ${layerLossStr.mkString("[", ", ", "]")}, "
     stringRepr ++= f"rerank loss: ${reRankLoss / count}%.4f\n"
     stringRepr ++= f"\t\tprecision: ${precision / size}%.6f, "
     stringRepr ++= f"recall: ${recall / size}%.6f, "

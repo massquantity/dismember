@@ -7,12 +7,8 @@ import com.mass.scalann.tensor.Tensor
 import com.mass.scalann.tensor.TensorNumeric.NumericDouble
 import com.mass.scalann.utils.{Table, Util}
 
-class LayerModel(
-    val numItem: Int,
-    val numNode: Int,
-    val numLayer: Int,
-    seqLen: Int,
-    embedSize: Int) extends Serializable {
+class LayerModel(val numItem: Int, val numNode: Int, val numLayer: Int, seqLen: Int, embedSize: Int)
+    extends Serializable {
   require(numLayer >= 2, "number of layers must be at least 2")
 
   private[dr] val model = buildModel()
@@ -92,12 +88,7 @@ class LayerModel(
 
 object LayerModel {
 
-  def apply(
-      numItem: Int,
-      numNode: Int,
-      numLayer: Int,
-      seqLen: Int,
-      embedSize: Int): LayerModel = {
+  def apply(numItem: Int, numNode: Int, numLayer: Int, seqLen: Int, embedSize: Int): LayerModel = {
     new LayerModel(
       numItem,
       numNode,

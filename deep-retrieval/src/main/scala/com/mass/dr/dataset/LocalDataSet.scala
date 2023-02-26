@@ -6,8 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import com.mass.dr.{encoding, paddingIdx}
 import com.mass.dr.dataset.DRSample.{DREvalSample, DRTrainSample}
 import com.mass.dr.model.MappingOp.{initItemPathMapping, loadMapping}
-import com.mass.scalann.utils.DataUtil
-import com.mass.scalann.utils.{FileReader => DistFileReader}
+import com.mass.scalann.utils.{DataUtil, FileReader => DistFileReader}
 import org.apache.commons.lang3.math.NumberUtils
 import org.apache.log4j.Logger
 
@@ -17,13 +16,14 @@ class LocalDataSet(
     numPathPerItem: Int,
     trainBatchSize: Int,
     evalBatchSize: Int,
-    seqLen : Int,
+    seqLen: Int,
     minSeqLen: Int,
     dataPath: String,
     mappingPath: String,
     initMapping: Boolean,
     splitRatio: Double,
-    delimiter: String) {
+    delimiter: String
+) {
   import LocalDataSet._
   require(seqLen > 0 && minSeqLen > 0 && seqLen >= minSeqLen)
   val logger: Logger = Logger.getLogger(getClass)
@@ -96,7 +96,7 @@ class LocalDataSet(
         val consumed = items.slice(0, splitPoint + minSeqLen)
         val consumedSet = consumed.toSet
         val (_evalSeq, _labels) = fullSeq.splitAt(splitPoint + seqLen)
-        val labels = _labels.filterNot(consumedSet)  // remove items appeared in train data
+        val labels = _labels.filterNot(consumedSet) // remove items appeared in train data
         val _evalSamples =
           if (labels.nonEmpty) {
             val evalSeq = _evalSeq.takeRight(seqLen)
@@ -108,9 +108,11 @@ class LocalDataSet(
       }
     }.unzip3
 
-    (userConsumed.toMap,
-     trainSamples.filter(_.nonEmpty).flatten,
-     evalSamples.filter(_.nonEmpty).flatten)
+    (
+      userConsumed.toMap,
+      trainSamples.filter(_.nonEmpty).flatten,
+      evalSamples.filter(_.nonEmpty).flatten
+    )
   }
 
   def shuffle(): Unit = DataUtil.shuffle(trainData)
@@ -132,18 +134,18 @@ object LocalDataSet {
   case class InitSample(user: Int, item: Int, timestamp: Long)
 
   def apply(
-    numLayer: Int,
-    numNode: Int,
-    numPathPerItem: Int,
-    trainBatchSize: Int,
-    evalBatchSize: Int,
-    seqLen : Int,
-    minSeqLen: Int,
-    dataPath: String,
-    mappingPath: String,
-    initMapping: Boolean,
-    splitRatio: Double,
-    delimiter: String
+      numLayer: Int,
+      numNode: Int,
+      numPathPerItem: Int,
+      trainBatchSize: Int,
+      evalBatchSize: Int,
+      seqLen: Int,
+      minSeqLen: Int,
+      dataPath: String,
+      mappingPath: String,
+      initMapping: Boolean,
+      splitRatio: Double,
+      delimiter: String
   ): LocalDataSet = {
     new LocalDataSet(
       numLayer,
@@ -163,18 +165,23 @@ object LocalDataSet {
 
   def buildTrainData(
       dataPath: String,
-      seqLen : Int,
+      seqLen: Int,
       minSeqLen: Int,
       delimiter: String,
-      paddingIdx: Int): Array[DRSample] = {
+      paddingIdx: Int
+  ): Array[DRSample] = {
     val groupedSamples = readFile(dataPath, delimiter).groupBy(_.user)
     groupedSamples
       .map(s => s._2.sortBy(_.timestamp).map(_.item).distinct)
       .withFilter(_.length > minSeqLen)
       .flatMap(ss => {
-        val items = if (seqLen > minSeqLen) Array.fill[Int](seqLen - minSeqLen)(paddingIdx) ++ ss else ss
-        items.sliding(seqLen + 1).map(sss => DRTrainSample(sequence = sss.init.toSeq, target = sss.last))
-      }).toArray
+        val items =
+          if (seqLen > minSeqLen) Array.fill[Int](seqLen - minSeqLen)(paddingIdx) ++ ss else ss
+        items
+          .sliding(seqLen + 1)
+          .map(sss => DRTrainSample(sequence = sss.init.toSeq, target = sss.last))
+      })
+      .toArray
   }
 
   private def readFile(dataPath: String, delimiter: String): Array[InitSample] = {
