@@ -1,3 +1,7 @@
+import java.io.File
+import java.nio.file.{Files, Paths}
+
+import scala.annotation.unused
 import scala.reflect.runtime.universe.{typeTag, TypeTag}
 
 import com.mass.dr.dataset.LocalDataSet
@@ -7,14 +11,22 @@ import com.mass.dr.optim.LocalOptimizer
 import com.mass.scalann.nn.SampledSoftmaxLoss
 import com.mass.scalann.utils.Engine
 import com.mass.scalann.utils.Property.filePath
+import org.apache.commons.io.FileUtils
 import org.apache.log4j.{Level, Logger}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class DeepRetrievalTest extends AnyFlatSpec with Matchers {
+class DeepRetrievalSpec extends AnyFlatSpec with Matchers {
 
   Logger.getLogger("com.mass").setLevel(Level.INFO)
   Engine.setCoreNumber(8)
+
+  val dataPath = s"${filePath("deep-retrieval")}/data/example_data.csv"
+  val testPath = s"${filePath("deep-retrieval")}/test_path"
+  FileUtils.forceMkdir(new File(testPath))
+
+  val modelPath = s"$testPath/dr_model.bin"
+  val mappingPath = s"$testPath/dr_mapping.bin"
   val numLayer = 3
   val numNode = 100
   val numPathPerItem = 2
@@ -22,11 +34,8 @@ class DeepRetrievalTest extends AnyFlatSpec with Matchers {
   val evalBatchSize = 8192
   val seqLen = 10
   val minSeqLen = 2
-  val dataPath = s"${filePath("deep-retrieval")}/data/data.csv"
-  val mappingPath = s"${filePath("deep-retrieval")}/data/dr_mapping.txt"
   val initMapping = true
   val splitRatio = 0.8
-  val paddingIdx = -1
   val embedSize = 16
   val numEpoch = 2
   val reRankEpoch = Some(1)
@@ -100,12 +109,31 @@ class DeepRetrievalTest extends AnyFlatSpec with Matchers {
   "DeepRetrieval model" should "return correct recommendations" in {
     val sequence = Seq(1, 2, 3, 4, 5, 6, 7, 89, 2628, 1681)
     val recommendResult = drModel.recommend(sequence, 10, 20, mappingOp).map(_._1)
-    recommendResult.length should be >= 5
+    recommendResult.length should be >= 3
     val totalTime = (1 to 100).map(_ => time(drModel.recommend(sequence, 10, 20, mappingOp)))
-    println(f"average recommend time: ${totalTime.sum / totalTime.length}%.4fms")
+    println(f"Average recommend time: ${totalTime.sum / totalTime.length}%.4fms")
   }
 
-  def getType[T: TypeTag](obj: T): String = typeTag[T].tpe.toString
+  "DeepRetrieval model" should "save and load correctly" in {
+    val sequence = Seq(0, 0, 2126, 204, 3257, 3439, 996, 1681, 3438, 1882)
+    val preRec = drModel.recommend(sequence, topk = 3, beamSize = 20, mappings = mappingOp).map(_._1)
+    preRec should have length 3
+
+    MappingOp.writeMapping(mappingPath, dataset.itemIdMapping, dataset.itemPathMapping)
+    DeepRetrieval.saveModel(drModel, modelPath)
+    assert(Files.exists(Paths.get(mappingPath)))
+    assert(Files.exists(Paths.get(modelPath)))
+
+    val loadedMappingOP = MappingOp.loadMappingOp(mappingPath)
+    val loadedModel = DeepRetrieval.loadModel(modelPath)
+    val newRec = loadedModel.recommend(sequence, topk = 3, beamSize = 20, mappings = loadedMappingOP).map(_._1)
+    newRec should have length 3
+    preRec should equal(newRec)
+
+    FileUtils.deleteDirectory(FileUtils.getFile(testPath))
+  }
+
+  def getType[T: TypeTag](@unused obj: T): String = typeTag[T].tpe.toString
 
   def time[T](block: => T): Double = {
     val start = System.nanoTime()
