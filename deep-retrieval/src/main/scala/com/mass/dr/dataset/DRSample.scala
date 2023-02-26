@@ -13,9 +13,8 @@ sealed trait DRSample extends Product with Serializable {
 
 object DRSample {
 
-  case class DRTrainSample(
-    override val sequence: Seq[Int],
-    override val target: Int) extends DRSample {
+  case class DRTrainSample(override val sequence: Seq[Int], override val target: Int)
+      extends DRSample {
 
     override val labels: Seq[Int] = null
 
@@ -28,9 +27,10 @@ object DRSample {
   }
 
   case class DREvalSample(
-    override val sequence: Seq[Int],
-    override val labels: Seq[Int],
-    override val user: Int) extends DRSample {
+      override val sequence: Seq[Int],
+      override val labels: Seq[Int],
+      override val user: Int
+  ) extends DRSample {
 
     override val target: Int = labels.head
 

@@ -3,12 +3,7 @@ package com.mass.dr.dataset
 import com.mass.dr.Path
 import com.mass.scalann.tensor.Tensor
 
-class MiniBatch(
-    numItem: Int,
-    numNode: Int,
-    numLayer: Int,
-    numPathPerItem: Int,
-    seqLen: Int) {
+class MiniBatch(numItem: Int, numNode: Int, numLayer: Int, numPathPerItem: Int, seqLen: Int) {
   import MiniBatch._
 
   private var offset: Int = -1
@@ -21,10 +16,10 @@ class MiniBatch(
   }
 
   def transformLayerData(
-    data: Array[DRSample],
-    offset: Int,
-    length: Int,
-    itemPathMapping: Map[Int, Seq[Path]]
+      data: Array[DRSample],
+      offset: Int,
+      length: Int,
+      itemPathMapping: Map[Int, Seq[Path]]
   ): LayerTransformedBatch = {
     val totalLen = length * numPathPerItem
     val samples = Array.range(offset, offset + length).map(data(_))
@@ -55,9 +50,9 @@ class MiniBatch(
   }
 
   def transformRerankData(
-    data: Array[DRSample],
-    offset: Int,
-    length: Int
+      data: Array[DRSample],
+      offset: Int,
+      length: Int
   ): RerankTransformedBatch = {
     val samples = data.slice(offset, offset + length)
     val itemSeqs = Tensor(samples.flatMap(_.sequence), Array(length, seqLen))
@@ -73,11 +68,11 @@ class MiniBatch(
 object MiniBatch {
 
   def apply(
-    numItem: Int,
-    numNode: Int,
-    numLayer: Int,
-    numPathPerItem: Int,
-    seqLen: Int
+      numItem: Int,
+      numNode: Int,
+      numLayer: Int,
+      numPathPerItem: Int,
+      seqLen: Int
   ): MiniBatch = {
     new MiniBatch(
       numItem,
@@ -91,11 +86,11 @@ object MiniBatch {
   sealed trait TransformedBatch extends Product with Serializable
 
   case class LayerTransformedBatch(
-    concatInputs: IndexedSeq[Tensor[Int]],  // itemSeqs + paths
-    targets: IndexedSeq[Tensor[Double]]) extends TransformedBatch
+      concatInputs: IndexedSeq[Tensor[Int]], // itemSeqs + paths
+      targets: IndexedSeq[Tensor[Double]]
+  ) extends TransformedBatch
 
-  case class RerankTransformedBatch(
-    itemSeqs: Tensor[Int],
-    target: Tensor[Int]) extends TransformedBatch
+  case class RerankTransformedBatch(itemSeqs: Tensor[Int], target: Tensor[Int])
+      extends TransformedBatch
 
 }

@@ -1,5 +1,5 @@
 import com.mass.dr.dataset.LocalDataSet
-import com.mass.dr.model.{LayerModel, MappingOp}
+import com.mass.dr.model.LayerModel
 import com.mass.dr.optim.CoordinateDescent
 import com.mass.scalann.utils.Engine
 import com.mass.scalann.utils.Property.filePath

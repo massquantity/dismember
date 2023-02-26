@@ -2,10 +2,12 @@ package com.mass.dr.optim
 
 import java.text.DecimalFormat
 
+import scala.collection.mutable
+
 import com.mass.dr.dataset.{LocalDataSet, MiniBatch}
-import com.mass.dr.model.{LayerModel, RerankModel}
 import com.mass.dr.evaluation.{EvalResult, Evaluator}
 import com.mass.dr.loss.CrossEntropyLayer
+import com.mass.dr.model.{LayerModel, RerankModel}
 import com.mass.dr.Path
 import com.mass.scalann.nn.SampledSoftmaxLoss
 import com.mass.scalann.optim.{Adam, OptimMethod}
@@ -26,7 +28,8 @@ class LocalOptimizer(
     topk: Int,
     beamSize: Int,
     progressInterval: Int,
-    reRankEpoch: Option[Int]) {
+    reRankEpoch: Option[Int]
+) {
   val logger: Logger = Logger.getLogger(getClass)
 
   val reRankStoppingEpoch = reRankEpoch match {
@@ -54,7 +57,7 @@ class LocalOptimizer(
 
   def optimize(): Vector[EvalResult] = {
     (1 to numEpoch).foldLeft(Vector.empty[EvalResult]) { (epochResults, epoch) =>
-      dataset.shuffle()  // inner permutation
+      dataset.shuffle() // inner permutation
       var epochTime, dataCount, iter = 0L
       val miniBatchIter = dataset.iteratorMiniBatch(train = true)
       while (miniBatchIter.hasNext) {
@@ -130,8 +133,8 @@ class LocalOptimizer(
   }
 
   private def trainLayerBatch(
-    batch: MiniBatch,
-    itemPathMapping: Map[Int, Seq[Path]]
+      batch: MiniBatch,
+      itemPathMapping: Map[Int, Seq[Path]]
   ): (Seq[Double], Int) = {
     val allData = dataset.getTrainData
     val miniBatchOffset = batch.getOffset
@@ -139,24 +142,26 @@ class LocalOptimizer(
     val taskSize = miniBatchSize / numThread
     val extraSize = miniBatchSize % numThread
     val parallelism = if (taskSize == 0) extraSize else numThread
-    val lossSum = Engine.default.invokeAndWait(
-      (0 until parallelism).map { i => () =>
-        val offset = miniBatchOffset + i * taskSize + math.min(i, extraSize)
-        val length = taskSize + (if (i < extraSize) 1 else 0)
-        val layerBatch = batch.transformLayerData(allData, offset, length, itemPathMapping)
-        val localModel = layerCopiedModels(i)
-        localModel.zeroGradParameters()
-        localModel.training()
-        val localCriterion = layerCopiedCriterions(i)
-        val inputs = Table.seq(layerBatch.concatInputs)
-        val labels = layerBatch.targets
-        val outputs = localModel.forward(inputs).toTable
-        val localLoss = localCriterion.forward(outputs, labels)
-        val gradients = localCriterion.backward(outputs, labels)
-        localModel.backward(inputs, gradients)
-        localLoss
-      }
-    ).reduce((a, b) => a.lazyZip(b).map(_ + _))
+    val lossSum = Engine.default
+      .invokeAndWait(
+        (0 until parallelism).map { i => () =>
+          val offset = miniBatchOffset + i * taskSize + math.min(i, extraSize)
+          val length = taskSize + (if (i < extraSize) 1 else 0)
+          val layerBatch = batch.transformLayerData(allData, offset, length, itemPathMapping)
+          val localModel = layerCopiedModels(i)
+          localModel.zeroGradParameters()
+          localModel.training()
+          val localCriterion = layerCopiedCriterions(i)
+          val inputs = Table.seq(layerBatch.concatInputs)
+          val labels = layerBatch.targets
+          val outputs = localModel.forward(inputs).toTable
+          val localLoss = localCriterion.forward(outputs, labels)
+          val gradients = localCriterion.backward(outputs, labels)
+          localModel.backward(inputs, gradients)
+          localLoss
+        }
+      )
+      .reduce((a, b) => a.lazyZip(b).map(_ + _))
     (lossSum.map(_ / parallelism), parallelism)
   }
 
@@ -167,43 +172,47 @@ class LocalOptimizer(
     val syncGradExtraSize = gradLength % numThread
     val syncGradParallelNum = if (syncGradTaskSize == 0) syncGradExtraSize else numThread
     Engine.default.invokeAndWait(
-      (0 until syncGradParallelNum).map(tid => () => {
-        val offset = tid * syncGradTaskSize + math.min(tid, syncGradExtraSize)
-        val length = syncGradTaskSize + (if (tid < syncGradExtraSize) 1 else 0)
-        List.range(0, syncNum).foreach {
-          case i@0 =>
-            totalLayerGradients.narrow(0, offset, length)
-              .copy(layerCopiedGradients(i).narrow(0, offset, length))
-          case i@_ =>
-            totalLayerGradients.narrow(0, offset, length)
-              .add(layerCopiedGradients(i).narrow(0, offset, length))
+      (0 until syncGradParallelNum).map(tid =>
+        () => {
+          val offset = tid * syncGradTaskSize + math.min(tid, syncGradExtraSize)
+          val length = syncGradTaskSize + (if (tid < syncGradExtraSize) 1 else 0)
+          List.range(0, syncNum).foreach {
+            case i @ 0 =>
+              totalLayerGradients
+                .narrow(0, offset, length)
+                .copy(layerCopiedGradients(i).narrow(0, offset, length))
+            case i @ _ =>
+              totalLayerGradients
+                .narrow(0, offset, length)
+                .add(layerCopiedGradients(i).narrow(0, offset, length))
+          }
         }
-      })
+      )
     )
     totalLayerGradients.div(syncNum)
     (totalLayerWeights, totalLayerGradients)
   }
 
   private def reportProgress(
-    epoch: Int,
-    iteration: Long,
-    dataCount: Long,
-    layerTrainTime: Long,
-    reRankTrainTime: Long,
-    epochTime: Long,
-    layerLoss: Seq[Double],
-    reRankLoss: Double,
-    itemPathMapping: Map[Int, Seq[Path]]
+      epoch: Int,
+      iteration: Long,
+      dataCount: Long,
+      layerTrainTime: Long,
+      reRankTrainTime: Long,
+      epochTime: Long,
+      layerLoss: Seq[Double],
+      reRankLoss: Double,
+      itemPathMapping: Map[Int, Seq[Path]]
   ): String = {
     val formatter = new DecimalFormat("##.####")
-    val progressInfo = new StringBuilder
+    val progressInfo = new mutable.StringBuilder
     val iterationTime = layerTrainTime + reRankTrainTime
     progressInfo ++= f"Epoch $epoch train time: ${epochTime / 1e9d}%.4fs, "
     progressInfo ++= f"count/total: $dataCount/${dataset.trainSize}, "
     progressInfo ++= f"Iteration $iteration time: ${iterationTime / 1e9d}%.4fs\n"
     progressInfo ++= f"\t\tlayer iteration train time: ${layerTrainTime / 1e9d}%.4f, "
     progressInfo ++= f"rerank iteration train time: ${reRankTrainTime / 1e9d}%.4f\n"
-    progressInfo ++= f"\t\ttrain layer loss: ${layerLoss.map(formatter.format).mkString("[",", ","]")}, "
+    progressInfo ++= f"\t\ttrain layer loss: ${layerLoss.map(formatter.format).mkString("[", ", ", "]")}, "
     progressInfo ++= f"train rerank loss: $reRankLoss%.4f\n"
     progressInfo ++= s"\t${evaluateStr(itemPathMapping)}"
     progressInfo.toString
@@ -229,18 +238,18 @@ class LocalOptimizer(
 object LocalOptimizer {
 
   def apply(
-    dataset: LocalDataSet,
-    layerModel: LayerModel,
-    reRankModel: RerankModel,
-    numEpoch: Int,
-    numLayer: Int,
-    learningRate: Double,
-    numSampled: Int,
-    embedSize: Int,
-    topk: Int,
-    beamSize: Int,
-    progressInterval: Int,
-    reRankEpoch: Option[Int] = None,
+      dataset: LocalDataSet,
+      layerModel: LayerModel,
+      reRankModel: RerankModel,
+      numEpoch: Int,
+      numLayer: Int,
+      learningRate: Double,
+      numSampled: Int,
+      embedSize: Int,
+      topk: Int,
+      beamSize: Int,
+      progressInterval: Int,
+      reRankEpoch: Option[Int] = None
   ): LocalOptimizer = {
     new LocalOptimizer(
       dataset,

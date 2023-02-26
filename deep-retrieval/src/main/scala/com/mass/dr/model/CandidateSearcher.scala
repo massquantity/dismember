@@ -3,13 +3,13 @@ package com.mass.dr.model
 import com.mass.dr.{softmax, Path}
 
 trait CandidateSearcher {
-  import CandidateSearcher.{PathScore, PathInfo}
+  import CandidateSearcher.{PathInfo, PathScore}
 
   def searchCandidate(
-    inputSeq: Seq[Int],
-    models: LayerModel,
-    beamSize: Int,
-    pathItemsMapping: Map[Path, Seq[Int]]
+      inputSeq: Seq[Int],
+      models: LayerModel,
+      beamSize: Int,
+      pathItemsMapping: Map[Path, Seq[Int]]
   ): Seq[Int] = {
     val topPaths = beamSearch(inputSeq, models, beamSize).map(_.path)
     for {
@@ -20,23 +20,23 @@ trait CandidateSearcher {
   }
 
   def beamSearch(
-    sequence: Seq[Int],
-    model: LayerModel,
-    beamSize: Int
+      sequence: Seq[Int],
+      model: LayerModel,
+      beamSize: Int
   ): Seq[PathScore] = {
     val initValue = Seq(
       PathInfo(
         intermediateInput = sequence,
         intermediatePath = Nil,
         candidateNode = -1,
-        probability = 1.0)
+        probability = 1.0
+      )
     )
     val paths = Seq.range(0, model.numLayer).foldLeft(initValue) { (pathInfos, i) =>
       val offset = model.numItem + i * model.numNode
       val candidatePaths = pathInfos.flatMap { pi =>
         val probs = softmax(model.inference(pi.intermediateInput, i))
-        probs
-          .zipWithIndex
+        probs.zipWithIndex
           .map { case (prob, node) =>
             PathInfo(
               pi.intermediateInput,
@@ -65,9 +65,9 @@ object CandidateSearcher {
   case class PathScore(path: Path, prob: Double)
 
   case class PathInfo(
-    intermediateInput: Seq[Int],
-    intermediatePath: List[Int],
-    candidateNode: Int,
-    probability: Double
+      intermediateInput: Seq[Int],
+      intermediatePath: List[Int],
+      candidateNode: Int,
+      probability: Double
   )
 }

@@ -3,11 +3,11 @@ package com.mass.dr.optim
 import scala.collection.mutable
 import scala.util.Random
 
-import com.mass.scalann.utils.Engine
+import com.mass.dr.{Path => DRPath}
 import com.mass.dr.dataset.LocalDataSet
 import com.mass.dr.model.{CandidateSearcher, LayerModel}
 import com.mass.dr.model.CandidateSearcher.PathScore
-import com.mass.dr.{Path => DRPath}
+import com.mass.scalann.utils.Engine
 
 class CoordinateDescent(
     dataset: LocalDataSet,
@@ -19,7 +19,8 @@ class CoordinateDescent(
     numNode: Int,
     decayFactor: Double = 0.999,
     penaltyFactor: Double = 3e-6,
-    penaltyPolyOrder: Int = 4) {
+    penaltyPolyOrder: Int = 4
+) {
   import CoordinateDescent._
 
   val numThread = Engine.coreNumber()
@@ -27,21 +28,23 @@ class CoordinateDescent(
 
   def optimize(model: LayerModel, trainMode: String): Map[Int, Seq[DRPath]] = {
     val itemPathScore = trainMode match {
-      case "batch" => batchPathScore(
-        dataset,
-        model,
-        numCandidatePath,
-        batchSize,
-        numThread
-      )
-      case "streaming" => streamingPathScore(
-        dataset,
-        model,
-        numCandidatePath,
-        decayFactor,
-        batchSize,
-        numThread
-      )
+      case "batch" =>
+        batchPathScore(
+          dataset,
+          model,
+          numCandidatePath,
+          batchSize,
+          numThread
+        )
+      case "streaming" =>
+        streamingPathScore(
+          dataset,
+          model,
+          numCandidatePath,
+          decayFactor,
+          batchSize,
+          numThread
+        )
     }
     val itemPathMapping = mutable.Map.empty[Int, Seq[DRPath]]
     val pathSize = mutable.Map.empty[DRPath, Int]
@@ -50,8 +53,9 @@ class CoordinateDescent(
       v <- dataset.idItemMapping.keys
     } {
       itemPathMapping(v) = if (itemOccurrence.contains(v)) {
-        List.range(0, numPathPerItem).foldRight[(List[DRPath], Double)]((Nil, 0.0)) {
-          case (j, (selectedPath, partialSum)) =>
+        List
+          .range(0, numPathPerItem)
+          .foldRight[(List[DRPath], Double)]((Nil, 0.0)) { case (j, (selectedPath, partialSum)) =>
             if (t > 1) {
               val lastItemPath = itemPathMapping(v)(j)
               pathSize(lastItemPath) -= 1
@@ -69,7 +73,8 @@ class CoordinateDescent(
             val (maxPath, score) = incrementalGain.maxBy(_._2)
             pathSize(maxPath) = pathSize.getOrElse(maxPath, 0) + 1
             (maxPath :: selectedPath, partialSum + score)
-        }._1
+          }
+          ._1
       } else {
         generateRandomPath(numPathPerItem, numLayer, numNode)
       }
@@ -81,16 +86,16 @@ class CoordinateDescent(
 object CoordinateDescent extends CandidateSearcher {
 
   def apply(
-    dataset: LocalDataSet,
-    batchSize: Int,
-    numIteration: Int,
-    numCandidatePath: Int,
-    numPathPerItem: Int,
-    numLayer: Int,
-    numNode: Int,
-    decayFactor: Double,
-    penaltyFactor: Double,
-    penaltyPolyOrder: Int
+      dataset: LocalDataSet,
+      batchSize: Int,
+      numIteration: Int,
+      numCandidatePath: Int,
+      numPathPerItem: Int,
+      numLayer: Int,
+      numNode: Int,
+      decayFactor: Double,
+      penaltyFactor: Double,
+      penaltyPolyOrder: Int
   ): CoordinateDescent = {
     new CoordinateDescent(
       dataset,
@@ -126,36 +131,41 @@ object CoordinateDescent extends CandidateSearcher {
   }
 
   def batchPathScore(
-    dataset: LocalDataSet,
-    model: LayerModel,
-    numCandidatePath: Int,
-    batchSize: Int,
-    numThread: Int
+      dataset: LocalDataSet,
+      model: LayerModel,
+      numCandidatePath: Int,
+      batchSize: Int,
+      numThread: Int
   ): Map[Int, Seq[PathScore]] = {
-    dataset.getTrainData.sliding(batchSize, batchSize).toSeq.flatMap { batchData =>
-      val threadDataSize = math.ceil(batchData.length.toDouble / numThread).toInt
-      Engine.default.invokeAndWait(
-        batchData.sliding(threadDataSize, threadDataSize).toSeq.map { threadData =>
-          () =>
-            threadData.map { d =>
-              val candidatePath = beamSearch(d.sequence, model, numCandidatePath)
-              (d.target, candidatePath)
+    dataset.getTrainData
+      .sliding(batchSize, batchSize)
+      .toSeq
+      .flatMap { batchData =>
+        val threadDataSize = math.ceil(batchData.length.toDouble / numThread).toInt
+        Engine.default
+          .invokeAndWait(
+            batchData.sliding(threadDataSize, threadDataSize).toSeq.map { threadData => () =>
+              threadData.map { d =>
+                val candidatePath = beamSearch(d.sequence, model, numCandidatePath)
+                (d.target, candidatePath)
+              }
             }
-        }
-      ).flatten
-    }.groupMap(_._1)(_._2)
+          )
+          .flatten
+      }
+      .groupMap(_._1)(_._2)
       .view
       .mapValues(aggregatePathScore(numCandidatePath))
       .toMap
   }
 
   def streamingPathScore(
-    dataset: LocalDataSet,
-    model: LayerModel,
-    numCandidatePath: Int,
-    decayFactor: Double,
-    batchSize: Int,
-    numThread: Int
+      dataset: LocalDataSet,
+      model: LayerModel,
+      numCandidatePath: Int,
+      decayFactor: Double,
+      batchSize: Int,
+      numThread: Int
   ): Map[Int, Seq[PathScore]] = {
     val itemPathScores = mutable.Map.empty[Int, Seq[PathScore]]
     val data = dataset.getTrainData
@@ -164,13 +174,14 @@ object CoordinateDescent extends CandidateSearcher {
       threadDataSize = math.ceil(batchData.length.toDouble / numThread).toInt
       threadData = batchData.sliding(threadDataSize, threadDataSize).toSeq
     } {
-      Engine.default.invokeAndWait(threadData.map { td =>
-        () =>
+      Engine.default
+        .invokeAndWait(threadData.map { td => () =>
           td.map { d =>
             val candidatePath = beamSearch(d.sequence, model, numCandidatePath)
             (d.target, candidatePath)
           }
-      }).flatten
+        })
+        .flatten
         .foreach { case (item, candidatePath) =>
           if (!itemPathScores.contains(item)) {
             itemPathScores(item) = candidatePath

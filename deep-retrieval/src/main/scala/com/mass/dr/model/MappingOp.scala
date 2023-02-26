@@ -28,10 +28,10 @@ object MappingOp {
   }
 
   def initItemPathMapping(
-    numItem: Int,
-    numLayer: Int,
-    numNode: Int,
-    numPathPerItem: Int
+      numItem: Int,
+      numLayer: Int,
+      numNode: Int,
+      numPathPerItem: Int
   ): Map[Int, Seq[DRPath]] = {
     (0 until numItem).map(_ -> {
       val m = for {
@@ -43,9 +43,9 @@ object MappingOp {
   }
 
   def writeMapping(
-    outputPath: String,
-    itemIdMapping: Map[Int, Int],
-    itemPathMapping: Map[Int, Seq[DRPath]]
+      outputPath: String,
+      itemIdMapping: Map[Int, Int],
+      itemPathMapping: Map[Int, Seq[DRPath]]
   ): Unit = {
     val allItems = ItemSet(
       itemIdMapping.map { case (item, id) =>

@@ -1,6 +1,12 @@
 package com.mass.dr.model
 
-import java.io.{BufferedInputStream, ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
+import java.io.{
+  BufferedInputStream,
+  ByteArrayInputStream,
+  ByteArrayOutputStream,
+  ObjectInputStream,
+  ObjectOutputStream
+}
 
 import com.mass.dr.{paddingIdx, sigmoid}
 import com.mass.scalann.utils.{FileReader => DistFileReader, FileWriter => DistFileWriter}
@@ -13,13 +19,15 @@ class DeepRetrieval(
     numNode: Int,
     numLayer: Int,
     seqLen: Int,
-    embedSize: Int) extends Serializable with CandidateSearcher {
+    embedSize: Int
+) extends Serializable
+    with CandidateSearcher {
 
   def recommend(
-    sequence: Seq[Int],
-    topk: Int,
-    beamSize: Int,
-    mappings: MappingOp
+      sequence: Seq[Int],
+      topk: Int,
+      beamSize: Int,
+      mappings: MappingOp
   ): Seq[(Int, Double)] = {
     val sequenceIds = sequence.map(mappings.itemIdMapping.getOrElse(_, paddingIdx))
     val candidateItems = searchCandidate(
@@ -41,13 +49,13 @@ class DeepRetrieval(
 object DeepRetrieval {
 
   def apply(
-    layerModel: LayerModel,
-    reRankModel: RerankModel,
-    numItem: Int,
-    numNode: Int,
-    numLayer: Int,
-    seqLen: Int,
-    embedSize: Int
+      layerModel: LayerModel,
+      reRankModel: RerankModel,
+      numItem: Int,
+      numNode: Int,
+      numLayer: Int,
+      seqLen: Int,
+      embedSize: Int
   ): DeepRetrieval = {
     new DeepRetrieval(
       layerModel,

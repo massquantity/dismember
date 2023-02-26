@@ -77,7 +77,8 @@ object RerankModel {
   private def extractCandidates(
       candidateItems: Seq[Int],
       embedWeights: Tensor[Double],
-      stepSize: Int = 1): Tensor[Double] = {
+      stepSize: Int = 1
+  ): Tensor[Double] = {
     val weightData = embedWeights.storage().array()
     val dimension = embedWeights.dim()
     dimension match {
