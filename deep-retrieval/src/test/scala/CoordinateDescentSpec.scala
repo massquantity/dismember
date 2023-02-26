@@ -1,16 +1,27 @@
+import java.io.File
+import java.nio.file.{Files, Paths}
+
 import com.mass.dr.dataset.LocalDataSet
-import com.mass.dr.model.LayerModel
+import com.mass.dr.model.{DeepRetrieval, MappingOp}
 import com.mass.dr.optim.CoordinateDescent
 import com.mass.scalann.utils.Engine
 import com.mass.scalann.utils.Property.filePath
+import org.apache.commons.io.FileUtils
 import org.apache.log4j.{Level, Logger}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class CoordinateDescentTest extends AnyFlatSpec with Matchers {
+class CoordinateDescentSpec extends AnyFlatSpec with Matchers {
 
   Logger.getLogger("com.mass").setLevel(Level.INFO)
   Engine.setCoreNumber(8)
+
+  val dataPath = s"${filePath("deep-retrieval")}/data/example_data.csv"
+  val modelPath = s"${filePath("deep-retrieval")}/data/dr/example_model.bin"
+  val testPath = s"${filePath("deep-retrieval")}/test_path"
+  FileUtils.forceMkdir(new File(testPath))
+
+  val mappingPath = s"$testPath/dr_mapping.bin"
   val numLayer = 3
   val numNode = 100
   val numPathPerItem = 2
@@ -18,8 +29,6 @@ class CoordinateDescentTest extends AnyFlatSpec with Matchers {
   val evalBatchSize = 8192
   val seqLen = 10
   val minSeqLen = 2
-  val dataPath = s"${filePath("deep-retrieval")}/data/data.csv"
-  val mappingPath = s"${filePath("deep-retrieval")}/data/dr_mapping.txt"
   val initialize = true
   val splitRatio = 0.8
   val embedSize = 16
@@ -44,7 +53,7 @@ class CoordinateDescentTest extends AnyFlatSpec with Matchers {
     delimiter = ","
   )
 
-  val layerModel = LayerModel(dataset.numItem, numNode, numLayer, seqLen, embedSize)
+  val drModel = DeepRetrieval.loadModel(modelPath)
   val coo = CoordinateDescent(
     dataset = dataset,
     batchSize = batchSize,
@@ -59,14 +68,23 @@ class CoordinateDescentTest extends AnyFlatSpec with Matchers {
   )
 
   "CoordinateDescent batch mode" should "update mapping correctly" in {
-    val itemPathMapping = coo.optimize(layerModel, trainMode = "batch")
+    val itemPathMapping = coo.optimize(drModel.layerModel, trainMode = "batch")
     itemPathMapping.keySet should be (dataset.idItemMapping.keySet)
     all (itemPathMapping.values) should have length numPathPerItem
   }
 
   "CoordinateDescent streaming mode" should "update mapping correctly" in {
-    val itemPathMapping = coo.optimize(layerModel, trainMode = "streaming")
+    val itemPathMapping = coo.optimize(drModel.layerModel, trainMode = "streaming")
     assert(itemPathMapping.keySet == dataset.idItemMapping.keySet)
     all (itemPathMapping.values) should have length numPathPerItem
+
+    MappingOp.writeMapping(mappingPath, dataset.itemIdMapping, itemPathMapping)
+    assert(Files.exists(Paths.get(mappingPath)))
+
+    val sequence = Seq(0, 0, 2126, 204, 3257, 3439, 996, 1681, 3438, 1882)
+    val loadedMappingOP = MappingOp.loadMappingOp(mappingPath)
+    val newRec = drModel.recommend(sequence, topk = 3, beamSize = 20, mappings = loadedMappingOP).map(_._1)
+    newRec should have length 3
+    FileUtils.deleteDirectory(FileUtils.getFile(testPath))
   }
 }
