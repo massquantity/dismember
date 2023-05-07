@@ -1,8 +1,7 @@
 package com.mass.retrieval.tdm
 
 import cats.implicits._
-import com.mass.scalann.utils.{Engine, Property}
-import com.mass.scalann.utils.Property.getOrStop
+import com.mass.scalann.utils.Property
 import com.mass.tdm.cluster.RecursiveCluster
 import com.monovore.decline._
 
