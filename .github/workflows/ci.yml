@@ -18,9 +18,6 @@ jobs:
         os: [ubuntu-latest]
         scala: [2.13.8]
     runs-on: ${{ matrix.os }}
-    env:
-      JAVA_OPTS: -Xms2048M -Xmx2048M -Xss6M -Dfile.encoding=UTF-8
-      JVM_OPTS: -Xms2048M -Xmx2048M -Xss6M -Dfile.encoding=UTF-8
     steps:
       - name: Checkout current branch (full)
         uses: actions/checkout@v4
