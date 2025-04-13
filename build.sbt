@@ -51,8 +51,8 @@ lazy val examples = (project in file("examples"))
 lazy val commonSettings = Seq(
   javacOptions ++= Seq(
     "-encoding", "utf8",
-    "-source", "11",
-    "-target", "11"
+    "-source", "17",
+    "-target", "17"
   ),
   scalacOptions ++= Seq(
     "-encoding", "utf8",
